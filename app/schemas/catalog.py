@@ -26,7 +26,7 @@ class ProfileOut(ProfileBase):
 class GlassTypeBase(BaseModel):
     cam_isim: str = Field(..., min_length=1)
     thickness_mm: float
-    birim_agirlik: float
+    # birim_agirlik alanı kaldırıldı
 
 class GlassTypeCreate(GlassTypeBase):
     pass

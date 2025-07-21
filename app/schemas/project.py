@@ -59,8 +59,7 @@ class ProjectSystemsUpdate(BaseModel):
 # ----------------------------------------
 class ProjectMeta(BaseModel):
     customer_id: UUID
-    order_no: Optional[str]
-    order_date: Optional[date]
+    project_name: str
     created_by: UUID
 
 class ProjectCreate(ProjectMeta):
@@ -70,13 +69,12 @@ class ProjectCreate(ProjectMeta):
 class ProjectUpdate(BaseModel):
     """Projeyi güncellemek için opsiyonel alanlar."""
     customer_id: Optional[UUID]
-    order_no: Optional[str]
-    order_date: Optional[date]
+    project_name: Optional[str]
     created_by: Optional[UUID]
 
     class Config:
         orm_mode = True
-        
+
 class ProjectOut(ProjectMeta):
     id: UUID
     project_kodu: str = Field(

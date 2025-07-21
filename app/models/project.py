@@ -1,7 +1,7 @@
 # app/models/project.py
 
 import uuid
-from sqlalchemy import Column, String, Numeric, Integer, ForeignKey, Date
+from sqlalchemy import Column, String, Numeric, Integer, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID as PGUUID, TIMESTAMP
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -13,14 +13,13 @@ from app.db.base import Base
 class Project(Base):
     __tablename__ = "project"
 
-    id           = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    project_kodu = Column(String(50), unique=True, nullable=False)
-    customer_id  = Column(PGUUID(as_uuid=True), ForeignKey("customer.id"), nullable=False)
-    order_no     = Column(String(50), nullable=True)
-    order_date   = Column(Date, nullable=True)
-    created_by   = Column(PGUUID(as_uuid=True), ForeignKey("app_user.id"), nullable=False)
-    created_at   = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    updated_at   = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    id             = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_kodu   = Column(String(50), unique=True, nullable=False)
+    customer_id    = Column(PGUUID(as_uuid=True), ForeignKey("customer.id"), nullable=False)
+    project_name   = Column(String(100), nullable=False)                # 🟢 Yeni eklenen sütun
+    created_by     = Column(PGUUID(as_uuid=True), ForeignKey("app_user.id"), nullable=False)
+    created_at     = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    updated_at     = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
 
     creator         = relationship("AppUser", back_populates="projects")
     systems         = relationship("ProjectSystem", back_populates="project", cascade="all, delete-orphan")

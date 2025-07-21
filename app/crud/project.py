@@ -45,8 +45,7 @@ def create_project(db: Session, payload: ProjectCreate) -> Project:
     code = _generate_project_code(db)
     project = Project(
         customer_id=payload.customer_id,
-        order_no=payload.order_no,
-        order_date=payload.order_date,
+        project_name=payload.project_name,   # 🟢 Yeni eklenen alan
         created_by=payload.created_by,
         project_kodu=code,
         created_at=datetime.utcnow()
@@ -170,6 +169,7 @@ def update_systems_for_project(
     db.commit()
 
     return add_systems_to_project(db, project_id, payload)
+
 
 def get_project_requirements(
     db: Session,

@@ -33,17 +33,16 @@ class SystemVariant(Base):
     __tablename__ = "system_variant"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    system_id   = Column(
+    system_id     = Column(
         UUID(as_uuid=True),
         ForeignKey("system.id", ondelete="CASCADE"),
         nullable=False
     )
-    name        = Column(String(100), nullable=False)
-    max_width_m = Column(Numeric, nullable=True)
-    max_height_m   = Column(Numeric, nullable=True)
-    color_options  = Column(ARRAY(String), nullable=True)
-    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    updated_at = Column(
+    name          = Column(String(100), nullable=False)
+    # max_width_m ve max_height_m sütunları kaldırıldı
+    color_options = Column(ARRAY(String), nullable=True)
+    created_at    = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    updated_at    = Column(
         TIMESTAMP(timezone=True),
         server_default=func.now(),
         onupdate=func.now()
@@ -53,12 +52,12 @@ class SystemVariant(Base):
     system = relationship("System", back_populates="variants")
 
     # Template tablolarıyla ilişkiler
-    profile_templates = relationship(
+    profile_templates  = relationship(
         "SystemProfileTemplate",
         back_populates="variant",
         cascade="all, delete-orphan"
     )
-    glass_templates = relationship(
+    glass_templates    = relationship(
         "SystemGlassTemplate",
         back_populates="variant",
         cascade="all, delete-orphan"
