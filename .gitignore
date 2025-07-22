@@ -1,3 +1,9 @@
 # Python cache
 __pycache__/
-*.pyc
+*.py[cod]
+
+# VS Code ayarları
+.vscode/
+
+# Sanal ortam
+venv/
