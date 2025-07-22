@@ -10,7 +10,8 @@ from app.crud.system_variant import (
     get_system_variants,
     get_system_variant,
     update_system_variant,
-    delete_system_variant
+    delete_system_variant,
+    get_variants_for_system
 )
 from app.schemas.system import (
     SystemVariantCreate,
@@ -76,3 +77,19 @@ def delete_variant(
     if not deleted:
         raise HTTPException(status_code=404, detail="SystemVariant not found")
     return
+
+# ----- New: Variants by System -----
+@router.get(
+    "/system/{system_id}",
+    response_model=list[SystemVariantOut],
+    summary="List all SystemVariants for a given System ID"
+)
+def list_variants_by_system(
+    system_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """
+    List all variants for the specified system.
+    """
+    variants = get_variants_for_system(db, system_id)
+    return variants

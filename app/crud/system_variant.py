@@ -47,3 +47,12 @@ def delete_system_variant(db: Session, variant_id: UUID) -> bool:
     deleted = db.query(SystemVariant).filter_by(id=variant_id).delete()
     db.commit()
     return bool(deleted)
+
+
+# ————— New: fetch variants by system —————
+
+def get_variants_for_system(db: Session, system_id: UUID) -> list[SystemVariant]:
+    """
+    Verilen system_id'ye ait tüm SystemVariant kayıtlarını döner.
+    """
+    return db.query(SystemVariant).filter(SystemVariant.system_id == system_id).all()

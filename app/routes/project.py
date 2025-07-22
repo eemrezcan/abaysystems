@@ -33,10 +33,15 @@ router = APIRouter(prefix="/api/projects", tags=["Projects"])
 
 @router.post("/", response_model=ProjectOut, status_code=201)
 def create_project_endpoint(payload: ProjectCreate, db: Session = Depends(get_db)):
+    """
+    Yeni proje oluşturur.
+    Artık payload içinde `project_name` zorunludur.
+    """
     return create_project(db, payload)
 
 @router.get("/", response_model=List[ProjectOut])
 def list_projects(db: Session = Depends(get_db)):
+    """Tüm projeleri listeler."""
     return get_projects(db)
 
 @router.get("/{project_id}", response_model=ProjectOut)
@@ -52,6 +57,10 @@ def update_project_endpoint(
     payload: ProjectUpdate,
     db: Session = Depends(get_db)
 ):
+    """
+    Var olan projeyi günceller.
+    Artık `project_name` alanını da güncelleyebilirsiniz.
+    """
     proj = update_project(db, project_id, payload)
     if not proj:
         raise HTTPException(404, "Project not found")
@@ -59,6 +68,7 @@ def update_project_endpoint(
 
 @router.delete("/{project_id}", status_code=204)
 def delete_project_endpoint(project_id: UUID, db: Session = Depends(get_db)):
+    """Projeyi siler."""
     if not delete_project(db, project_id):
         raise HTTPException(404, "Project not found")
     return
@@ -69,6 +79,7 @@ def add_requirements_endpoint(
     payload: ProjectSystemsUpdate,
     db: Session = Depends(get_db)
 ):
+    """Projeye sistem ve ekstra malzemeleri ekler."""
     return add_systems_to_project(db, project_id, payload)
 
 @router.put("/{project_id}/requirements", response_model=ProjectOut)
@@ -77,6 +88,7 @@ def update_requirements_endpoint(
     payload: ProjectSystemsUpdate,
     db: Session = Depends(get_db)
 ):
+    """Projeye ait sistem ve ekstra malzeme kayıtlarını günceller."""
     proj = update_systems_for_project(db, project_id, payload)
     if not proj:
         raise HTTPException(404, "Project not found")
@@ -87,39 +99,43 @@ def list_requirements_endpoint(
     project_id: UUID,
     db: Session = Depends(get_db)
 ):
-    # Belirtilen projeye ait sistem ve ekstra malzeme kayıtlarını al
+    """
+    Belirtilen projeye ait sistem ve ekstra malzeme kayıtlarını alır.
+    """
     systems, extras = get_project_requirements(db, project_id)
     project = get_project(db, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
 
-    # ORM objelerini Pydantic modellerine dönüştürme
     systems_out: List[SystemRequirement] = []
     for sys in systems:
-        profiles: List[ProfileInProject] = []
-        for p in sys.profiles:
-            profiles.append(ProfileInProject(
+        profiles: List[ProfileInProject] = [
+            ProfileInProject(
                 profile_id=p.profile_id,
                 cut_length_mm=float(p.cut_length_mm),
                 cut_count=p.cut_count,
                 total_weight_kg=float(p.total_weight_kg),
-            ))
-        glasses: List[GlassInProject] = []
-        for g in sys.glasses:
-            glasses.append(GlassInProject(
+            )
+            for p in sys.profiles
+        ]
+        glasses: List[GlassInProject] = [
+            GlassInProject(
                 glass_type_id=g.glass_type_id,
                 width_mm=float(g.width_mm),
                 height_mm=float(g.height_mm),
                 count=g.count,
                 area_m2=float(g.area_m2),
-            ))
-        materials: List[MaterialInProject] = []
-        for m in sys.materials:
-            materials.append(MaterialInProject(
+            )
+            for g in sys.glasses
+        ]
+        materials: List[MaterialInProject] = [
+            MaterialInProject(
                 material_id=m.material_id,
                 count=m.count,
                 cut_length_mm=float(m.cut_length_mm) if m.cut_length_mm is not None else None,
-            ))
+            )
+            for m in sys.materials
+        ]
         systems_out.append(SystemRequirement(
             system_variant_id=sys.system_variant_id,
             color=sys.color,
@@ -131,12 +147,13 @@ def list_requirements_endpoint(
             materials=materials,
         ))
 
-    extras_out: List[ExtraRequirement] = []
-    for e in extras:
-        extras_out.append(ExtraRequirement(
+    extras_out: List[ExtraRequirement] = [
+        ExtraRequirement(
             material_id=e.material_id,
             count=e.count,
             cut_length_mm=float(e.cut_length_mm) if e.cut_length_mm is not None else None,
-        ))
+        )
+        for e in extras
+    ]
 
     return ProjectSystemsUpdate(systems=systems_out, extra_requirements=extras_out)
