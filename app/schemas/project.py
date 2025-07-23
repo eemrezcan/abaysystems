@@ -1,5 +1,3 @@
-# app/schemas/project.py
-
 from pydantic import BaseModel, Field
 from uuid import UUID
 from typing import List, Optional
@@ -46,6 +44,7 @@ class ExtraRequirement(BaseModel):
 
 # ----------------------------------------
 # Main ProjectSystemsUpdate schema
+# (önceki tek endpoint yapısı)
 # ----------------------------------------
 class ProjectSystemsUpdate(BaseModel):
     systems: List[SystemRequirement]
@@ -53,6 +52,16 @@ class ProjectSystemsUpdate(BaseModel):
 
     class Config:
         orm_mode = True
+
+# ----------------------------------------
+# Bölünmüş payload şemaları
+# (yeni endpoint yapıları için)
+# ----------------------------------------
+class ProjectSystemRequirementIn(BaseModel):
+    systems: List[SystemRequirement]
+
+class ProjectExtraRequirementIn(BaseModel):
+    extra_requirements: List[ExtraRequirement]
 
 # ----------------------------------------
 # Project Creation and Output

@@ -15,6 +15,8 @@ from app.crud.project import (
     add_systems_to_project,
     update_systems_for_project,
     get_project_requirements,
+    add_only_systems_to_project,
+    add_only_extras_to_project,
 )
 from app.schemas.project import (
     ProjectCreate,
@@ -26,6 +28,8 @@ from app.schemas.project import (
     MaterialInProject,
     SystemRequirement,
     ExtraRequirement,
+    ProjectSystemRequirementIn,
+    ProjectExtraRequirementIn,
 )
 from app.models.project import ProjectSystem, ProjectExtraMaterial
 
@@ -157,3 +161,26 @@ def list_requirements_endpoint(
     ]
 
     return ProjectSystemsUpdate(systems=systems_out, extra_requirements=extras_out)
+
+@router.post("/{project_id}/add-requirements", response_model=ProjectOut)
+def add_only_systems_endpoint(
+    project_id: UUID,
+    payload: ProjectSystemRequirementIn,
+    db: Session = Depends(get_db)
+):
+    """
+    Sadece sistemleri projeye ekler.
+    """
+    return add_only_systems_to_project(db, project_id, payload.systems)
+
+
+@router.post("/{project_id}/add-extra-requirements", response_model=ProjectOut)
+def add_only_extras_endpoint(
+    project_id: UUID,
+    payload: ProjectExtraRequirementIn,
+    db: Session = Depends(get_db)
+):
+    """
+    Sadece ekstra malzemeleri projeye ekler.
+    """
+    return add_only_extras_to_project(db, project_id, payload.extra_requirements)

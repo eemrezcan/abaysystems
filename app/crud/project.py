@@ -17,7 +17,9 @@ from app.models.project import (
 from app.schemas.project import (
     ProjectCreate,
     ProjectUpdate,
-    ProjectSystemsUpdate
+    ProjectSystemsUpdate,
+    SystemRequirement,
+    ExtraRequirement,
 )
 
 
@@ -192,3 +194,81 @@ def get_project_requirements(
           .all()
     )
     return systems, extras
+
+def add_only_systems_to_project(
+    db: Session,
+    project_id: UUID,
+    systems: List[SystemRequirement]
+) -> Project:
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise ValueError("Project not found")
+
+    for sys_req in systems:
+        ps = ProjectSystem(
+            id=uuid4(),
+            project_id=project.id,
+            system_variant_id=sys_req.system_variant_id,
+            color=sys_req.color,
+            width_mm=sys_req.width_mm,
+            height_mm=sys_req.height_mm,
+            quantity=sys_req.quantity
+        )
+        db.add(ps)
+        db.flush()
+
+        for p in sys_req.profiles:
+            db.add(ProjectSystemProfile(
+                id=uuid4(),
+                project_system_id=ps.id,
+                profile_id=p.profile_id,
+                cut_length_mm=p.cut_length_mm,
+                cut_count=p.cut_count,
+                total_weight_kg=p.total_weight_kg
+            ))
+
+        for g in sys_req.glasses:
+            db.add(ProjectSystemGlass(
+                id=uuid4(),
+                project_system_id=ps.id,
+                glass_type_id=g.glass_type_id,
+                width_mm=g.width_mm,
+                height_mm=g.height_mm,
+                count=g.count,
+                area_m2=g.area_m2
+            ))
+
+        for m in sys_req.materials:
+            db.add(ProjectSystemMaterial(
+                id=uuid4(),
+                project_system_id=ps.id,
+                material_id=m.material_id,
+                cut_length_mm=m.cut_length_mm,
+                count=m.count
+            ))
+
+    db.commit()
+    db.refresh(project)
+    return project
+def add_only_extras_to_project(
+    db: Session,
+    project_id: UUID,
+    extras: List[ExtraRequirement]
+) -> Project:
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise ValueError("Project not found")
+
+    for extra in extras:
+        db.add(ProjectExtraMaterial(
+            id=uuid4(),
+            project_id=project.id,
+            material_id=extra.material_id,
+            count=extra.count,
+            cut_length_mm=extra.cut_length_mm
+        ))
+
+    db.commit()
+    db.refresh(project)
+    return project
+
