@@ -22,6 +22,7 @@ from app.crud.system import (
     update_material_template,
     delete_material_template,
     create_system_full,
+    get_system_variant_detail,
 )
 from app.schemas.system import (
     SystemCreate,
@@ -38,6 +39,7 @@ from app.schemas.system import (
     MaterialTemplateOut,
     SystemMaterialTemplateCreate,
     SystemMaterialTemplateUpdate,
+    SystemVariantDetailOut,
 )
 
 router = APIRouter(prefix="/api", tags=["Systems"])
@@ -132,6 +134,20 @@ def fetch_system_templates(
             ) for tpl in materials
         ]
     )
+
+@router.get(
+    "/system-variants/{variant_id}",
+    response_model=SystemVariantDetailOut,
+    summary="Get a system variant and its template details"
+)
+def get_system_variant_detail_endpoint(
+    variant_id: UUID,
+    db: Session = Depends(get_db)
+):
+    variant = get_system_variant_detail(db, variant_id)
+    if not variant:
+        raise HTTPException(status_code=404, detail="System variant not found")
+    return variant
 
 # ----- PROFILE TEMPLATE CRUD -----
 @router.post("/system-templates/profiles", response_model=ProfileTemplateOut, status_code=201)

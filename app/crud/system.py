@@ -2,7 +2,8 @@
 
 from uuid import uuid4, UUID
 from sqlalchemy.orm import Session
-
+from sqlalchemy.orm import joinedload, selectinload
+from typing import Optional
 from app.models.system import System, SystemVariant
 from app.models.system_profile_template import SystemProfileTemplate
 from app.models.system_glass_template import SystemGlassTemplate
@@ -231,3 +232,15 @@ def create_system_full(db: Session, payload: SystemFullCreate):
         "variant": variant,
         "glass_templates": payload.glass_configs  # isterseniz bunları da dönebilirsiniz
     }
+
+def get_system_variant_detail(db: Session, variant_id: UUID) -> Optional[SystemVariant]:
+    return (
+        db.query(SystemVariant)
+        .filter(SystemVariant.id == variant_id)
+        .options(
+            joinedload(SystemVariant.profile_templates).joinedload(SystemProfileTemplate.profile),
+            joinedload(SystemVariant.glass_templates).joinedload(SystemGlassTemplate.glass_type),
+            joinedload(SystemVariant.material_templates).joinedload(SystemMaterialTemplate.material),
+        )
+        .first()
+    )

@@ -79,6 +79,43 @@ class SystemFullCreate(BaseModel):
     glass_configs: Optional[List[GlassConfig]] = []
 
 # ——————————————————————
+# Katalog Nesneleri: Profil, Cam, Malzeme
+class ProfileOut(BaseModel):
+    id: UUID
+    profil_kodu: str
+    profil_isim: str
+    profil_kesit_fotograf: Optional[str]
+    birim_agirlik: float
+    boy_uzunluk: float
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+class GlassTypeOut(BaseModel):
+    id: UUID
+    cam_isim: str
+    thickness_mm: float
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+class OtherMaterialOut(BaseModel):
+    id: UUID
+    diger_malzeme_isim: str
+    birim: str
+    birim_agirlik: float
+    hesaplama_turu: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+# ——————————————————————
 # Template CRUD Schemas — SystemProfileTemplate —
 class SystemProfileTemplateBase(BaseModel):
     system_variant_id: UUID
@@ -148,6 +185,7 @@ class ProfileTemplateOut(BaseModel):
     profile_id: UUID
     formula_cut_length: str
     formula_cut_count: str
+    profile: ProfileOut  # EKLENDİ
 
     class Config:
         orm_mode = True
@@ -157,6 +195,7 @@ class GlassTemplateOut(BaseModel):
     formula_width: str
     formula_height: str
     formula_count: str
+    glass_type: GlassTypeOut  # EKLENDİ
 
     class Config:
         orm_mode = True
@@ -164,6 +203,7 @@ class GlassTemplateOut(BaseModel):
 class MaterialTemplateOut(BaseModel):
     material_id: UUID
     formula_quantity: str
+    material: OtherMaterialOut  # EKLENDİ
 
     class Config:
         orm_mode = True
@@ -172,6 +212,19 @@ class SystemTemplatesOut(BaseModel):
     profileTemplates: List[ProfileTemplateOut]
     glassTemplates: List[GlassTemplateOut]
     materialTemplates: List[MaterialTemplateOut]
+
+    class Config:
+        orm_mode = True
+
+class SystemVariantDetailOut(BaseModel):
+    id: UUID
+    name: str
+    color_options: Optional[List[str]]
+    created_at: datetime
+    updated_at: datetime
+    profile_templates: List[ProfileTemplateOut]
+    glass_templates: List[GlassTemplateOut]
+    material_templates: List[MaterialTemplateOut]
 
     class Config:
         orm_mode = True

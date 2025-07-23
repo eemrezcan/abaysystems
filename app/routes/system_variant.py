@@ -38,18 +38,18 @@ def list_variants(db: Session = Depends(get_db)):
     """
     return get_system_variants(db)
 
-@router.get("/{variant_id}", response_model=SystemVariantOut)
-def get_variant_endpoint(
-    variant_id: UUID,
-    db: Session = Depends(get_db)
-):
-    """
-    Retrieve a specific SystemVariant by ID.
-    """
-    obj = get_system_variant(db, variant_id)
-    if not obj:
-        raise HTTPException(status_code=404, detail="SystemVariant not found")
-    return obj
+#@router.get("/{variant_id}", response_model=SystemVariantOut)
+#def get_variant_endpoint(
+#    variant_id: UUID,
+#    db: Session = Depends(get_db)
+#):
+#    """
+#    Retrieve a specific SystemVariant by ID.
+#    """
+#    obj = get_system_variant(db, variant_id)
+#    if not obj:
+#        raise HTTPException(status_code=404, detail="SystemVariant not found")
+#    return obj
 
 @router.put("/{variant_id}", response_model=SystemVariantOut)
 def update_variant(
