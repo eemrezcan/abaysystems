@@ -238,6 +238,7 @@ def get_system_variant_detail(db: Session, variant_id: UUID) -> Optional[SystemV
         db.query(SystemVariant)
         .filter(SystemVariant.id == variant_id)
         .options(
+            joinedload(SystemVariant.system),
             joinedload(SystemVariant.profile_templates).joinedload(SystemProfileTemplate.profile),
             joinedload(SystemVariant.glass_templates).joinedload(SystemGlassTemplate.glass_type),
             joinedload(SystemVariant.material_templates).joinedload(SystemMaterialTemplate.material),

@@ -115,6 +115,17 @@ class OtherMaterialOut(BaseModel):
     class Config:
         orm_mode = True
 
+class SystemBasicOut(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+
 # ——————————————————————
 # Template CRUD Schemas — SystemProfileTemplate —
 class SystemProfileTemplateBase(BaseModel):
@@ -222,6 +233,7 @@ class SystemVariantDetailOut(BaseModel):
     color_options: Optional[List[str]]
     created_at: datetime
     updated_at: datetime
+    system: SystemBasicOut
     profile_templates: List[ProfileTemplateOut]
     glass_templates: List[GlassTemplateOut]
     material_templates: List[MaterialTemplateOut]
