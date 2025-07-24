@@ -5,7 +5,11 @@ from datetime import datetime
 from uuid import UUID
 from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
-
+from app.models.system import SystemVariant, System
+from app.models.profile import Profile
+from app.models.glass_type import GlassType
+from app.models.other_material import OtherMaterial
+from app.schemas.project import ProjectRequirementsDetailedOut, SystemInProjectOut, ProfileInProjectOut, GlassInProjectOut, MaterialInProjectOut
 from app.models.project import (
     Project,
     ProjectSystem,
@@ -272,3 +276,109 @@ def add_only_extras_to_project(
     db.refresh(project)
     return project
 
+def get_project_requirements_detailed(
+    db: Session,
+    project_id: UUID
+) -> ProjectRequirementsDetailedOut:
+    """
+    Verilen project_id’ye ait tüm sistem içeriklerini ve ekstra malzemeleri katalog bilgileriyle birlikte döndürür.
+    """
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise ValueError("Project not found")
+
+    project_systems = (
+        db.query(ProjectSystem)
+        .filter(ProjectSystem.project_id == project_id)
+        .all()
+    )
+
+    result_systems = []
+    for ps in project_systems:
+        # Sistem varyant ve üst sistem bilgisi
+        variant = db.query(SystemVariant).filter(SystemVariant.id == ps.system_variant_id).first()
+        system = db.query(System).filter(System.id == variant.system_id).first()
+
+        # Profiller
+        profiles_raw = (
+            db.query(ProjectSystemProfile)
+            .filter(ProjectSystemProfile.project_system_id == ps.id)
+            .all()
+        )
+        profiles = [
+            ProfileInProjectOut(
+                profile_id=p.profile_id,
+                cut_length_mm=p.cut_length_mm,
+                cut_count=p.cut_count,
+                total_weight_kg=p.total_weight_kg,
+                profile=db.query(Profile).filter(Profile.id == p.profile_id).first()
+            )
+            for p in profiles_raw
+        ]
+
+        # Camlar
+        glasses_raw = (
+            db.query(ProjectSystemGlass)
+            .filter(ProjectSystemGlass.project_system_id == ps.id)
+            .all()
+        )
+        glasses = [
+            GlassInProjectOut(
+                glass_type_id=g.glass_type_id,
+                width_mm=g.width_mm,
+                height_mm=g.height_mm,
+                count=g.count,
+                area_m2=g.area_m2,
+                glass_type=db.query(GlassType).filter(GlassType.id == g.glass_type_id).first()
+            )
+            for g in glasses_raw
+        ]
+
+        # Malzemeler
+        materials_raw = (
+            db.query(ProjectSystemMaterial)
+            .filter(ProjectSystemMaterial.project_system_id == ps.id)
+            .all()
+        )
+        materials = [
+            MaterialInProjectOut(
+                material_id=m.material_id,
+                cut_length_mm=m.cut_length_mm,
+                count=m.count,
+                material=db.query(OtherMaterial).filter(OtherMaterial.id == m.material_id).first()
+            )
+            for m in materials_raw
+        ]
+
+        result_systems.append(
+            SystemInProjectOut(
+                system_variant_id=ps.system_variant_id,
+                name=variant.name,
+                color=ps.color,
+                system=system,
+                width_mm=ps.width_mm,
+                height_mm=ps.height_mm,
+                quantity=ps.quantity,
+                profiles=profiles,
+                glasses=glasses,
+                materials=materials
+            )
+        )
+
+    # Proje seviyesi ekstra malzemeler
+    extras_raw = db.query(ProjectExtraMaterial).filter(ProjectExtraMaterial.project_id == project_id).all()
+    extra_requirements = [
+        MaterialInProjectOut(
+            material_id=e.material_id,
+            cut_length_mm=e.cut_length_mm,
+            count=e.count,
+            material=db.query(OtherMaterial).filter(OtherMaterial.id == e.material_id).first()
+        )
+        for e in extras_raw
+    ]
+
+    return ProjectRequirementsDetailedOut(
+        id=project.id,
+        systems=result_systems,
+        extra_requirements=extra_requirements
+    )

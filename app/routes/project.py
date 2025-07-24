@@ -17,6 +17,7 @@ from app.crud.project import (
     get_project_requirements,
     add_only_systems_to_project,
     add_only_extras_to_project,
+    get_project_requirements_detailed
 )
 from app.schemas.project import (
     ProjectCreate,
@@ -30,6 +31,7 @@ from app.schemas.project import (
     ExtraRequirement,
     ProjectSystemRequirementIn,
     ProjectExtraRequirementIn,
+    ProjectRequirementsDetailedOut
 )
 from app.models.project import ProjectSystem, ProjectExtraMaterial
 
@@ -39,7 +41,7 @@ router = APIRouter(prefix="/api/projects", tags=["Projects"])
 def create_project_endpoint(payload: ProjectCreate, db: Session = Depends(get_db)):
     """
     Yeni proje oluşturur.
-    Artık payload içinde `project_name` zorunludur.
+    Artık payload içinde project_name zorunludur.
     """
     return create_project(db, payload)
 
@@ -63,7 +65,7 @@ def update_project_endpoint(
 ):
     """
     Var olan projeyi günceller.
-    Artık `project_name` alanını da güncelleyebilirsiniz.
+    Artık project_name alanını da güncelleyebilirsiniz.
     """
     proj = update_project(db, project_id, payload)
     if not proj:
@@ -184,3 +186,17 @@ def add_only_extras_endpoint(
     Sadece ekstra malzemeleri projeye ekler.
     """
     return add_only_extras_to_project(db, project_id, payload.extra_requirements)
+
+@router.get("/{project_id}/requirements-detailed", response_model=ProjectRequirementsDetailedOut)
+def get_detailed_requirements_endpoint(
+    project_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """
+    Belirtilen projeye ait sistem + profil + cam + malzeme ve ekstra malzeme detaylarını 
+    katalog bilgileri ile birlikte döndürür.
+    """
+    try:
+        return get_project_requirements_detailed(db, project_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Project not found")
