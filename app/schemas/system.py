@@ -170,12 +170,15 @@ class SystemMaterialTemplateBase(BaseModel):
     system_variant_id: UUID
     material_id: UUID
     formula_quantity: str = Field(..., min_length=1)
+    formula_cut_length: Optional[str] = None
+
 
 class SystemMaterialTemplateCreate(SystemMaterialTemplateBase):
     pass
 
 class SystemMaterialTemplateUpdate(BaseModel):
     formula_quantity: str = Field(..., min_length=1)
+    formula_cut_length: Optional[str] = None
 
 class SystemMaterialTemplateOut(SystemMaterialTemplateBase):
     id: UUID
@@ -208,6 +211,7 @@ class GlassTemplateOut(BaseModel):
 class MaterialTemplateOut(BaseModel):
     material_id: UUID
     formula_quantity: str
+    formula_cut_length: str
     material: OtherMaterialOut  # EKLENDİ
 
     class Config:

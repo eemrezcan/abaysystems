@@ -18,7 +18,8 @@ from app.crud.project import (
     add_only_systems_to_project,
     add_only_extras_to_project,
     get_project_requirements_detailed,
-    update_project_colors
+    update_project_colors,
+    update_project_code
 )
 from app.schemas.project import (
     ProjectCreate,
@@ -33,7 +34,10 @@ from app.schemas.project import (
     ProjectSystemRequirementIn,
     ProjectExtraRequirementIn,
     ProjectRequirementsDetailedOut,
-    ProjectColorUpdate
+    ProjectColorUpdate,
+    ProjectCodeUpdate,
+    ExtraProfileIn,
+    ExtraGlassIn
 )
 from app.models.project import ProjectSystem, ProjectExtraMaterial
 
@@ -97,6 +101,24 @@ def update_project_colors_endpoint(
         raise HTTPException(404, "Project not found")
     return updated
 
+@router.put("/{project_id}/code", response_model=ProjectOut)
+def update_project_code_endpoint(
+    project_id: UUID,
+    payload: ProjectCodeUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    Proje kodunu günceller. Aynı kod başka projede varsa hata verir.
+    """
+    try:
+        updated = update_project_code(db, project_id, payload.project_kodu)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    if not updated:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    return updated
 
 @router.post("/{project_id}/requirements", response_model=ProjectOut)
 def add_requirements_endpoint(
@@ -201,9 +223,15 @@ def add_only_extras_endpoint(
     db: Session = Depends(get_db)
 ):
     """
-    Sadece ekstra malzemeleri projeye ekler.
+    Sadece ekstra malzeme, profil ve camları projeye ekler.
     """
-    return add_only_extras_to_project(db, project_id, payload.extra_requirements)
+    return add_only_extras_to_project(
+        db,
+        project_id,
+        extras=payload.extra_requirements,
+        extra_profiles=payload.extra_profiles,
+        extra_glasses=payload.extra_glasses
+    )
 
 @router.get("/{project_id}/requirements-detailed", response_model=ProjectRequirementsDetailedOut)
 def get_detailed_requirements_endpoint(

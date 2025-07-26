@@ -130,7 +130,8 @@ def fetch_system_templates(
         materialTemplates=[
             MaterialTemplateOut(
                 material_id=tpl.material_id,
-                formula_quantity=tpl.formula_quantity
+                formula_quantity=tpl.formula_quantity,
+                formula_cut_length=tpl.formula_cut_length
             ) for tpl in materials
         ]
     )

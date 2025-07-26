@@ -104,3 +104,33 @@ class ProjectExtraMaterial(Base):
 
     project       = relationship("Project", back_populates="extra_materials")
     material      = relationship("OtherMaterial")
+
+class ProjectExtraProfile(Base):
+    __tablename__ = "project_extra_profile"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(PGUUID(as_uuid=True), ForeignKey("project.id", ondelete="CASCADE"), nullable=False)
+    profile_id = Column(PGUUID(as_uuid=True), ForeignKey("profile.id"), nullable=False)
+    cut_length_mm = Column(Numeric, nullable=False)
+    cut_count = Column(Integer, nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    project = relationship("Project", backref="extra_profiles")
+    profile = relationship("Profile")
+
+
+class ProjectExtraGlass(Base):
+    __tablename__ = "project_extra_glass"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(PGUUID(as_uuid=True), ForeignKey("project.id", ondelete="CASCADE"), nullable=False)
+    glass_type_id = Column(PGUUID(as_uuid=True), ForeignKey("glass_type.id"), nullable=False)
+    width_mm = Column(Numeric, nullable=False)
+    height_mm = Column(Numeric, nullable=False)
+    count = Column(Integer, nullable=False)
+    area_m2 = Column(Numeric, nullable=True)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    project = relationship("Project", backref="extra_glasses")
+    glass_type = relationship("GlassType")
+

@@ -15,6 +15,7 @@ class SystemMaterialTemplate(Base):
     system_variant_id = Column(UUID(as_uuid=True), ForeignKey("system_variant.id", ondelete="CASCADE"), nullable=False)
     material_id       = Column(UUID(as_uuid=True), ForeignKey("other_material.id"), nullable=False)
     formula_quantity  = Column(String, nullable=False)
+    formula_cut_length = Column(String, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
     variant  = relationship("SystemVariant", back_populates="material_templates")

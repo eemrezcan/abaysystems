@@ -41,6 +41,19 @@ class ExtraRequirement(BaseModel):
     count: int
     cut_length_mm: Optional[float] = None
 
+class ExtraProfileIn(BaseModel):
+    profile_id: UUID
+    cut_length_mm: float
+    cut_count: int
+
+
+class ExtraGlassIn(BaseModel):
+    glass_type_id: UUID
+    width_mm: float
+    height_mm: float
+    count: int
+
+
 # ----------------------------------------
 # Main ProjectSystemsUpdate schema
 # (önceki tek endpoint yapısı)
@@ -60,7 +73,10 @@ class ProjectSystemRequirementIn(BaseModel):
     systems: List[SystemRequirement]
 
 class ProjectExtraRequirementIn(BaseModel):
-    extra_requirements: List[ExtraRequirement]
+    extra_requirements: List[ExtraRequirement] = Field(default_factory=list)
+    extra_profiles: List[ExtraProfileIn] = Field(default_factory=list)
+    extra_glasses: List[ExtraGlassIn] = Field(default_factory=list)
+
 
 # ----------------------------------------
 # Project Creation and Output
@@ -194,6 +210,15 @@ class ProjectRequirementsDetailedOut(BaseModel):
     glass_color: Optional[ColorOut] = None
     systems: List[SystemInProjectOut]
     extra_requirements: List[MaterialInProjectOut] = Field(default_factory=list)
-
+    extra_profiles: List[ExtraProfileIn] = Field(default_factory=list)     
+    extra_glasses: List[ExtraGlassIn] = Field(default_factory=list)        
     class Config:
         orm_mode = True
+
+class ProjectCodeUpdate(BaseModel):
+    project_kodu: str = Field(
+        ..., 
+        min_length=6, 
+        max_length=50,
+        description="Yeni proje kodu, örn: TALU-12345"
+    )

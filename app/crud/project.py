@@ -10,6 +10,9 @@ from app.models.profile import Profile
 from app.models.glass_type import GlassType
 from app.models.other_material import OtherMaterial
 from app.schemas.project import ProjectRequirementsDetailedOut, SystemInProjectOut, ProfileInProjectOut, GlassInProjectOut, MaterialInProjectOut
+from app.schemas.project import ExtraRequirement, ExtraProfileIn, ExtraGlassIn
+from app.models.project import ProjectExtraMaterial, ProjectExtraProfile, ProjectExtraGlass
+
 from app.models.project import (
     Project,
     ProjectSystem,
@@ -17,6 +20,8 @@ from app.models.project import (
     ProjectSystemGlass,
     ProjectSystemMaterial,
     ProjectExtraMaterial,
+    ProjectExtraProfile,
+    ProjectExtraGlass
 )
 from app.schemas.project import (
     ProjectCreate,
@@ -24,6 +29,8 @@ from app.schemas.project import (
     ProjectSystemsUpdate,
     SystemRequirement,
     ExtraRequirement,
+    ExtraProfileIn,
+    ExtraGlassIn
 )
 
 
@@ -131,6 +138,25 @@ def add_systems_to_project(
             cut_length_mm=extra.cut_length_mm
         ))
 
+    db.commit()
+    db.refresh(project)
+    return project
+
+def update_project_code(db: Session, project_id: UUID, new_code: str) -> Project | None:
+    # Aynı project_kodu başka bir projede var mı?
+    exists = (
+        db.query(Project)
+        .filter(Project.project_kodu == new_code, Project.id != project_id)
+        .first()
+    )
+    if exists:
+        raise ValueError("Bu proje kodu başka bir projede zaten kullanılıyor.")
+
+    project = get_project(db, project_id)
+    if not project:
+        return None
+
+    project.project_kodu = new_code
     db.commit()
     db.refresh(project)
     return project
@@ -255,12 +281,15 @@ def add_only_systems_to_project(
 def add_only_extras_to_project(
     db: Session,
     project_id: UUID,
-    extras: List[ExtraRequirement]
+    extras: List[ExtraRequirement],
+    extra_profiles: List[ExtraProfileIn],
+    extra_glasses: List[ExtraGlassIn]
 ) -> Project:
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise ValueError("Project not found")
 
+    # Malzemeler
     for extra in extras:
         db.add(ProjectExtraMaterial(
             id=uuid4(),
@@ -268,6 +297,29 @@ def add_only_extras_to_project(
             material_id=extra.material_id,
             count=extra.count,
             cut_length_mm=extra.cut_length_mm
+        ))
+
+    # Profiller
+    for profile in extra_profiles:
+        db.add(ProjectExtraProfile(
+            id=uuid4(),
+            project_id=project.id,
+            profile_id=profile.profile_id,
+            cut_length_mm=profile.cut_length_mm,
+            cut_count=profile.cut_count
+        ))
+
+    # Camlar
+    for glass in extra_glasses:
+        area_m2 = (glass.width_mm / 1000) * (glass.height_mm / 1000)  # isteğe bağlı hesap
+        db.add(ProjectExtraGlass(
+            id=uuid4(),
+            project_id=project.id,
+            glass_type_id=glass.glass_type_id,
+            width_mm=glass.width_mm,
+            height_mm=glass.height_mm,
+            count=glass.count,
+            area_m2=area_m2
         ))
 
     db.commit()
@@ -374,13 +426,39 @@ def get_project_requirements_detailed(
         for e in extras_raw
     ]
 
+    extra_profiles_raw = db.query(ProjectExtraProfile).filter(ProjectExtraProfile.project_id == project_id).all()
+    extra_profiles = [
+        ExtraProfileIn(
+            profile_id=p.profile_id,
+            cut_length_mm=p.cut_length_mm,
+            cut_count=p.cut_count
+        )
+        for p in extra_profiles_raw
+    ]
+
+    extra_glasses_raw = db.query(ProjectExtraGlass).filter(ProjectExtraGlass.project_id == project_id).all()
+    extra_glasses = [
+        ExtraGlassIn(
+            glass_type_id=g.glass_type_id,
+            width_mm=g.width_mm,
+            height_mm=g.height_mm,
+            count=g.count
+        )
+        for g in extra_glasses_raw
+]
+
+
+
 
     return ProjectRequirementsDetailedOut(
         id=project.id,
         profile_color=project.profile_color,  # 🆕 renk objesi
         glass_color=project.glass_color,      # 🆕 renk objesi
         systems=result_systems,
-        extra_requirements=extra_requirements
+        extra_requirements=extra_requirements,
+        extra_profiles=extra_profiles,
+        extra_glasses=extra_glasses,
+
     )
 
 def update_project_colors(
@@ -397,3 +475,4 @@ def update_project_colors(
     db.commit()
     db.refresh(project)
     return project
+
