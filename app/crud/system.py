@@ -207,7 +207,6 @@ def create_system_full(db: Session, payload: SystemFullCreate):
         name=variant_data["name"],
         max_width_m=variant_data.get("max_width_mm"),
         max_height_m=variant_data.get("max_height_mm"),
-        color_options=variant_data.get("color_options"),
     )
     db.add(variant)
     db.flush()  # variant.id için

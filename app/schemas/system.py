@@ -32,10 +32,6 @@ class SystemOut(SystemBase):
 class SystemVariantBase(BaseModel):
     system_id: UUID
     name: str = Field(..., min_length=1)
-    color_options: Optional[List[str]] = Field(
-        None,
-        description="Renk seçenekleri listesi"
-    )
 
     class Config:
         orm_mode = True
@@ -47,7 +43,6 @@ class SystemVariantCreate(SystemVariantBase):
 class SystemVariantUpdate(BaseModel):
     """Fields for updating a System Variant"""
     name: Optional[str]
-    color_options: Optional[List[str]]
 
     class Config:
         orm_mode = True
@@ -70,7 +65,6 @@ class GlassConfig(BaseModel):
 
 class VariantConfig(BaseModel):
     name: str = Field(..., min_length=1)
-    color_options: Optional[List[str]] = []
 
 class SystemFullCreate(BaseModel):
     name: str = Field(..., min_length=1)
@@ -230,7 +224,6 @@ class SystemTemplatesOut(BaseModel):
 class SystemVariantDetailOut(BaseModel):
     id: UUID
     name: str
-    color_options: Optional[List[str]]
     created_at: datetime
     updated_at: datetime
     system: SystemBasicOut

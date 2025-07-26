@@ -40,7 +40,6 @@ class SystemVariant(Base):
     )
     name          = Column(String(100), nullable=False)
     # max_width_m ve max_height_m sütunları kaldırıldı
-    color_options = Column(ARRAY(String), nullable=True)
     created_at    = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at    = Column(
         TIMESTAMP(timezone=True),

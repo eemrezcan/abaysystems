@@ -84,7 +84,6 @@ def add_systems_to_project(
             id=uuid4(),
             project_id=project.id,
             system_variant_id=sys_req.system_variant_id,
-            color=sys_req.color,
             width_mm=sys_req.width_mm,
             height_mm=sys_req.height_mm,
             quantity=sys_req.quantity
@@ -213,7 +212,6 @@ def add_only_systems_to_project(
             id=uuid4(),
             project_id=project.id,
             system_variant_id=sys_req.system_variant_id,
-            color=sys_req.color,
             width_mm=sys_req.width_mm,
             height_mm=sys_req.height_mm,
             quantity=sys_req.quantity
@@ -354,7 +352,6 @@ def get_project_requirements_detailed(
             SystemInProjectOut(
                 system_variant_id=ps.system_variant_id,
                 name=variant.name,
-                color=ps.color,
                 system=system,
                 width_mm=ps.width_mm,
                 height_mm=ps.height_mm,
@@ -377,8 +374,26 @@ def get_project_requirements_detailed(
         for e in extras_raw
     ]
 
+
     return ProjectRequirementsDetailedOut(
         id=project.id,
+        profile_color=project.profile_color,  # 🆕 renk objesi
+        glass_color=project.glass_color,      # 🆕 renk objesi
         systems=result_systems,
         extra_requirements=extra_requirements
     )
+
+def update_project_colors(
+    db: Session,
+    project_id: UUID,
+    profile_color_id: Optional[UUID],
+    glass_color_id: Optional[UUID]
+) -> Project | None:
+    project = get_project(db, project_id)
+    if not project:
+        return None
+    project.profile_color_id = profile_color_id
+    project.glass_color_id = glass_color_id
+    db.commit()
+    db.refresh(project)
+    return project

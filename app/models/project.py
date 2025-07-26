@@ -5,7 +5,7 @@ from sqlalchemy import Column, String, Numeric, Integer, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID as PGUUID, TIMESTAMP
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-
+from app.models.color import Color
 from app.models.app_user import AppUser
 from app.db.base import Base
 
@@ -18,6 +18,13 @@ class Project(Base):
     customer_id    = Column(PGUUID(as_uuid=True), ForeignKey("customer.id"), nullable=False)
     project_name   = Column(String(100), nullable=False)                # 🟢 Yeni eklenen sütun
     created_by     = Column(PGUUID(as_uuid=True), ForeignKey("app_user.id"), nullable=False)
+
+    profile_color_id = Column(PGUUID(as_uuid=True), ForeignKey("color.id"), nullable=True)
+    profile_color    = relationship("Color", foreign_keys=[profile_color_id])
+
+    glass_color_id = Column(PGUUID(as_uuid=True), ForeignKey("color.id"), nullable=True)
+    glass_color    = relationship("Color", foreign_keys=[glass_color_id])
+
     created_at     = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at     = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -32,7 +39,6 @@ class ProjectSystem(Base):
     id                = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id        = Column(PGUUID(as_uuid=True), ForeignKey("project.id", ondelete="CASCADE"), nullable=False)
     system_variant_id = Column(PGUUID(as_uuid=True), ForeignKey("system_variant.id"), nullable=False)
-    color             = Column(String(50))
     width_mm          = Column(Numeric, nullable=False)
     height_mm         = Column(Numeric, nullable=False)
     quantity          = Column(Integer, nullable=False)

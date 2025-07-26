@@ -16,6 +16,7 @@ from app.routes.catalog import router as catalog_router
 from app.routes.system_variant import router as variant_router
 from app.routes.auth import router as auth_router
 
+from app.routes import color
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -42,3 +43,4 @@ app.include_router(order_router)
 app.include_router(system_router)
 app.include_router(project_router)
 app.include_router(catalog_router)
+app.include_router(color.router)

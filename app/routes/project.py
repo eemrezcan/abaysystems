@@ -17,7 +17,8 @@ from app.crud.project import (
     get_project_requirements,
     add_only_systems_to_project,
     add_only_extras_to_project,
-    get_project_requirements_detailed
+    get_project_requirements_detailed,
+    update_project_colors
 )
 from app.schemas.project import (
     ProjectCreate,
@@ -31,7 +32,8 @@ from app.schemas.project import (
     ExtraRequirement,
     ProjectSystemRequirementIn,
     ProjectExtraRequirementIn,
-    ProjectRequirementsDetailedOut
+    ProjectRequirementsDetailedOut,
+    ProjectColorUpdate
 )
 from app.models.project import ProjectSystem, ProjectExtraMaterial
 
@@ -78,6 +80,23 @@ def delete_project_endpoint(project_id: UUID, db: Session = Depends(get_db)):
     if not delete_project(db, project_id):
         raise HTTPException(404, "Project not found")
     return
+
+@router.put("/{project_id}/colors", response_model=ProjectOut)
+def update_project_colors_endpoint(
+    project_id: UUID,
+    payload: ProjectColorUpdate,
+    db: Session = Depends(get_db)
+):
+    updated = update_project_colors(
+        db,
+        project_id,
+        profile_color_id=payload.profile_color_id,
+        glass_color_id=payload.glass_color_id
+    )
+    if not updated:
+        raise HTTPException(404, "Project not found")
+    return updated
+
 
 @router.post("/{project_id}/requirements", response_model=ProjectOut)
 def add_requirements_endpoint(
@@ -144,7 +163,6 @@ def list_requirements_endpoint(
         ]
         systems_out.append(SystemRequirement(
             system_variant_id=sys.system_variant_id,
-            color=sys.color,
             width_mm=float(sys.width_mm),
             height_mm=float(sys.height_mm),
             quantity=sys.quantity,

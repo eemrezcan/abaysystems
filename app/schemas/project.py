@@ -29,7 +29,6 @@ class MaterialInProject(BaseModel):
 # ----------------------------------------
 class SystemRequirement(BaseModel):
     system_variant_id: UUID
-    color: str
     width_mm: float
     height_mm: float
     quantity: int
@@ -164,7 +163,6 @@ class MaterialInProjectOut(MaterialInProject):
 class SystemInProjectOut(BaseModel):
     system_variant_id: UUID
     name: str
-    color: str
     system: SystemBasicOut
     width_mm: float
     height_mm: float
@@ -176,8 +174,24 @@ class SystemInProjectOut(BaseModel):
     class Config:
         orm_mode = True
 
+class ColorOut(BaseModel):
+    id: UUID
+    name: str
+    type: str
+    unit_cost: float
+
+    class Config:
+        orm_mode = True
+
+class ProjectColorUpdate(BaseModel):
+    profile_color_id: Optional[UUID] = None
+    glass_color_id: Optional[UUID] = None
+
+
 class ProjectRequirementsDetailedOut(BaseModel):
     id: UUID
+    profile_color: Optional[ColorOut] = None
+    glass_color: Optional[ColorOut] = None
     systems: List[SystemInProjectOut]
     extra_requirements: List[MaterialInProjectOut] = Field(default_factory=list)
 
