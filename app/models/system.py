@@ -14,6 +14,7 @@ class System(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(100), unique=True, nullable=False)
     description = Column(TEXT, nullable=True)
+    photo_url = Column(String(300), nullable=True) 
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(
         TIMESTAMP(timezone=True),
@@ -39,6 +40,7 @@ class SystemVariant(Base):
         nullable=False
     )
     name          = Column(String(100), nullable=False)
+    photo_url = Column(String(300), nullable=True) 
     # max_width_m ve max_height_m sütunları kaldırıldı
     created_at    = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at    = Column(

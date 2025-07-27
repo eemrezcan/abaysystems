@@ -1,8 +1,11 @@
 # app/routes/system.py
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException,UploadFile, File
+import os, shutil
 from sqlalchemy.orm import Session
 from uuid import UUID
+from fastapi.responses import FileResponse
+from pathlib import Path
 
 from app.db.session import get_db
 from app.crud.system import (
@@ -43,6 +46,9 @@ from app.schemas.system import (
 )
 
 router = APIRouter(prefix="/api", tags=["Systems"])
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+SYSTEM_PHOTO_DIR = os.path.join(BASE_DIR, "system_photos")
 
 # ----- SYSTEM CRUD -----
 @router.post("/systems", response_model=SystemOut, status_code=201)
@@ -242,3 +248,74 @@ def delete_material_template_endpoint(
     if not deleted:
         raise HTTPException(404, "Material template not found")
     return
+
+@router.post("/systems/{system_id}/photo", summary="System fotoğrafı yükle/güncelle")
+def upload_or_replace_system_photo(
+    system_id: UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    obj = get_system(db, system_id)
+    if not obj:
+        raise HTTPException(404, "System not found")
+
+    # Eski fotoğraf varsa sil
+    if obj.photo_url:
+        old_path = os.path.join(BASE_DIR, obj.photo_url)
+        if os.path.exists(old_path):
+            os.remove(old_path)
+
+    # Yeni fotoğrafı yükle
+    ext = os.path.splitext(file.filename)[-1]
+    filename = f"{system_id}{ext}"
+    full_path = os.path.join(SYSTEM_PHOTO_DIR, filename)
+
+    with open(full_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    photo_url = f"system_photos/{filename}"
+    update_system(db, system_id, SystemUpdate(photo_url=photo_url))
+
+    return {
+        "message": "Fotoğraf yüklendi/güncellendi",
+        "photo_url": photo_url
+    }
+
+@router.delete("/systems/{system_id}/photo", summary="System fotoğrafını sil")
+def delete_system_photo(
+    system_id: UUID,
+    db: Session = Depends(get_db)
+):
+    obj = get_system(db, system_id)
+    if not obj or not obj.photo_url:
+        raise HTTPException(404, "Fotoğraf bulunamadı")
+
+    photo_path = os.path.join(BASE_DIR, obj.photo_url)
+    if os.path.exists(photo_path):
+        os.remove(photo_path)
+
+    update_system(db, system_id, SystemUpdate(photo_url=None))
+
+    return {"message": "Fotoğraf silindi"}
+
+@router.get("/systems/{system_id}/photo", summary="Sisteme ait fotoğrafı döner")
+def get_system_photo_file(system_id: UUID, db: Session = Depends(get_db)):
+    # Veritabanından system nesnesini al
+    obj = get_system(db, system_id)
+    if not obj or not obj.photo_url:
+        raise HTTPException(404, "Fotoğraf bilgisi bulunamadı")
+
+    # system_photos klasörünü proje kök dizinine göre belirle
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent
+    SYSTEM_PHOTO_DIR = BASE_DIR / "system_photos"
+
+    # Dosya adı sadece UUID.png (veya uzantısı neyse)
+    filename = Path(obj.photo_url).name
+    photo_path = SYSTEM_PHOTO_DIR / filename
+
+    # Dosya gerçekten varsa göster
+    if not photo_path.exists():
+        raise HTTPException(404, f"Fotoğraf dosyası bulunamadı: {photo_path}")
+
+    return FileResponse(path=str(photo_path), media_type="image/jpeg")
+

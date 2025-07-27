@@ -8,7 +8,7 @@ class Color(Base):
     __tablename__ = "color"
 
     id         = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name       = Column(String(50), unique=True, nullable=False)         # Örn: "RAL 7039"
+    name       = Column(String(50), nullable=False)                      # Örn: "RAL 7039"
     type       = Column(String(20), nullable=False)                      # "profile" veya "glass"
     unit_cost  = Column(Numeric, nullable=False)                         # TL/kg (profil) veya TL/m² (cam)
 

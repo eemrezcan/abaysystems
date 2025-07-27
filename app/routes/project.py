@@ -19,7 +19,19 @@ from app.crud.project import (
     add_only_extras_to_project,
     get_project_requirements_detailed,
     update_project_colors,
-    update_project_code
+    update_project_code,
+    create_project_extra_profile,
+    update_project_extra_profile,
+    delete_project_extra_profile,
+    create_project_extra_glass,
+    update_project_extra_glass,
+    delete_project_extra_glass,
+    create_project_extra_material,
+    update_project_extra_material,
+    delete_project_extra_material,
+    list_project_extra_profiles,
+    list_project_extra_glasses,
+    list_project_extra_materials
 )
 from app.schemas.project import (
     ProjectCreate,
@@ -37,7 +49,20 @@ from app.schemas.project import (
     ProjectColorUpdate,
     ProjectCodeUpdate,
     ExtraProfileIn,
-    ExtraGlassIn
+    ExtraGlassIn,
+    ProjectExtraProfileCreate,
+    ProjectExtraProfileUpdate,
+    ProjectExtraProfileOut,
+    ProjectExtraGlassCreate,
+    ProjectExtraGlassUpdate,
+    ProjectExtraGlassOut,
+    ProjectExtraMaterialCreate,
+    ProjectExtraMaterialUpdate,
+    ProjectExtraMaterialOut,
+    ProjectExtraProfileOut,
+    ProjectExtraGlassOut,
+    ProjectExtraMaterialOut
+
 )
 from app.models.project import ProjectSystem, ProjectExtraMaterial
 
@@ -246,3 +271,202 @@ def get_detailed_requirements_endpoint(
         return get_project_requirements_detailed(db, project_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Project not found")
+
+
+# EKSTRA PROFİL EKLEME ------------------------
+
+@router.post("/extra-profiles", response_model=ProjectExtraProfileOut, status_code=201)
+def add_extra_profile_endpoint(
+    payload: ProjectExtraProfileCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    Ekstra profil ekler.
+    """
+    return create_project_extra_profile(
+        db,
+        project_id=payload.project_id,
+        profile_id=payload.profile_id,
+        cut_length_mm=payload.cut_length_mm,
+        cut_count=payload.cut_count
+    )
+
+
+@router.put("/extra-profiles/{extra_id}", response_model=ProjectExtraProfileOut)
+def update_extra_profile_endpoint(
+    extra_id: UUID,
+    payload: ProjectExtraProfileUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    Ekstra profil günceller.
+    """
+    updated = update_project_extra_profile(
+        db,
+        extra_id,
+        cut_length_mm=payload.cut_length_mm,
+        cut_count=payload.cut_count
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Extra profile not found")
+    return updated
+
+
+@router.delete("/extra-profiles/{extra_id}", status_code=204)
+def delete_extra_profile_endpoint(
+    extra_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """
+    Ekstra profil siler.
+    """
+    success = delete_project_extra_profile(db, extra_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Extra profile not found")
+    return
+
+# EKSTRA CAM EKLEME ---------------------------------
+
+@router.post("/extra-glasses", response_model=ProjectExtraGlassOut, status_code=201)
+def add_extra_glass_endpoint(
+    payload: ProjectExtraGlassCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    Ekstra cam ekler.
+    """
+    return create_project_extra_glass(
+        db,
+        project_id=payload.project_id,
+        glass_type_id=payload.glass_type_id,
+        width_mm=payload.width_mm,
+        height_mm=payload.height_mm,
+        count=payload.count
+    )
+
+
+@router.put("/extra-glasses/{extra_id}", response_model=ProjectExtraGlassOut)
+def update_extra_glass_endpoint(
+    extra_id: UUID,
+    payload: ProjectExtraGlassUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    Ekstra cam günceller.
+    """
+    updated = update_project_extra_glass(
+        db,
+        extra_id,
+        width_mm=payload.width_mm,
+        height_mm=payload.height_mm,
+        count=payload.count
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Extra glass not found")
+    return updated
+
+
+@router.delete("/extra-glasses/{extra_id}", status_code=204)
+def delete_extra_glass_endpoint(
+    extra_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """
+    Ekstra cam siler.
+    """
+    success = delete_project_extra_glass(db, extra_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Extra glass not found")
+    return
+
+# EKSTRA METARYAL EKLE ------------------------------
+@router.post("/extra-materials", response_model=ProjectExtraMaterialOut, status_code=201)
+def add_extra_material_endpoint(
+    payload: ProjectExtraMaterialCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    Ekstra malzeme ekler.
+    """
+    return create_project_extra_material(
+        db,
+        project_id=payload.project_id,
+        material_id=payload.material_id,
+        count=payload.count,
+        cut_length_mm=payload.cut_length_mm
+    )
+
+
+@router.put("/extra-materials/{extra_id}", response_model=ProjectExtraMaterialOut)
+def update_extra_material_endpoint(
+    extra_id: UUID,
+    payload: ProjectExtraMaterialUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    Ekstra malzeme günceller.
+    """
+    updated = update_project_extra_material(
+        db,
+        extra_id,
+        count=payload.count,
+        cut_length_mm=payload.cut_length_mm
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Extra material not found")
+    return updated
+
+
+@router.delete("/extra-materials/{extra_id}", status_code=204)
+def delete_extra_material_endpoint(
+    extra_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """
+    Ekstra malzeme siler.
+    """
+    success = delete_project_extra_material(db, extra_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Extra material not found")
+    return
+
+#-----------------list--------------------------------------
+
+@router.get("/{project_id}/extra-profiles", response_model=List[ProjectExtraProfileOut])
+def list_extra_profiles_endpoint(
+    project_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """
+    Bir projeye ait tüm ekstra profilleri listeler.
+    """
+    extras = list_project_extra_profiles(db, project_id)
+    if extras is None:
+        raise HTTPException(404, "Project not found")
+    return extras
+
+@router.get("/{project_id}/extra-glasses", response_model=List[ProjectExtraGlassOut])
+def list_extra_glasses_endpoint(
+    project_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """
+    Bir projeye ait tüm ekstra camları listeler.
+    """
+    extras = list_project_extra_glasses(db, project_id)
+    if extras is None:
+        raise HTTPException(404, "Project not found")
+    return extras
+
+@router.get("/{project_id}/extra-materials", response_model=List[ProjectExtraMaterialOut])
+def list_extra_materials_endpoint(
+    project_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """
+    Bir projeye ait tüm ekstra malzemeleri listeler.
+    """
+    extras = list_project_extra_materials(db, project_id)
+    if extras is None:
+        raise HTTPException(404, "Project not found")
+    return extras

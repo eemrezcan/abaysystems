@@ -9,6 +9,7 @@ from typing import Optional, List
 class SystemBase(BaseModel):
     name: str = Field(..., min_length=1)
     description: Optional[str] = None
+    photo_url: Optional[str] = None
 
 class SystemCreate(SystemBase):
     """Fields for creating a new System"""
@@ -18,9 +19,11 @@ class SystemUpdate(BaseModel):
     """Fields for updating an existing System"""
     name: Optional[str]
     description: Optional[str]
+    photo_url: Optional[str] = None
 
 class SystemOut(SystemBase):
     id: UUID
+    photo_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -32,6 +35,7 @@ class SystemOut(SystemBase):
 class SystemVariantBase(BaseModel):
     system_id: UUID
     name: str = Field(..., min_length=1)
+    photo_url: Optional[str] = None
 
     class Config:
         orm_mode = True
@@ -43,12 +47,14 @@ class SystemVariantCreate(SystemVariantBase):
 class SystemVariantUpdate(BaseModel):
     """Fields for updating a System Variant"""
     name: Optional[str]
+    photo_url: Optional[str] = None
 
     class Config:
         orm_mode = True
 
 class SystemVariantOut(SystemVariantBase):
     id: UUID
+    photo_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -65,10 +71,12 @@ class GlassConfig(BaseModel):
 
 class VariantConfig(BaseModel):
     name: str = Field(..., min_length=1)
+    photo_url: Optional[str] = None
 
 class SystemFullCreate(BaseModel):
     name: str = Field(..., min_length=1)
     description: Optional[str] = None
+    photo_url: Optional[str] = None
     variant: VariantConfig
     glass_configs: Optional[List[GlassConfig]] = []
 
@@ -113,6 +121,7 @@ class SystemBasicOut(BaseModel):
     id: UUID
     name: str
     description: Optional[str]
+    photo_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -228,6 +237,7 @@ class SystemTemplatesOut(BaseModel):
 class SystemVariantDetailOut(BaseModel):
     id: UUID
     name: str
+    photo_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     system: SystemBasicOut

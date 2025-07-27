@@ -147,7 +147,29 @@ class OtherMaterialOut(BaseModel):
 
     class Config:
         orm_mode = True
+# ----------------------------------------
+# Detailed “extra” modeller
+# ----------------------------------------
+class ExtraProfileDetailed(BaseModel):
+    profile_id: UUID
+    cut_length_mm: float
+    cut_count: int
+    profile: ProfileOut
 
+    class Config:
+        orm_mode = True
+
+
+class ExtraGlassDetailed(BaseModel):
+    glass_type_id: UUID
+    width_mm: float
+    height_mm: float
+    count: int
+    glass_type: GlassTypeOut
+
+    class Config:
+        orm_mode = True
+#-------------------------------------------
 class SystemBasicOut(BaseModel):
     id: UUID
     name: str
@@ -210,8 +232,8 @@ class ProjectRequirementsDetailedOut(BaseModel):
     glass_color: Optional[ColorOut] = None
     systems: List[SystemInProjectOut]
     extra_requirements: List[MaterialInProjectOut] = Field(default_factory=list)
-    extra_profiles: List[ExtraProfileIn] = Field(default_factory=list)     
-    extra_glasses: List[ExtraGlassIn] = Field(default_factory=list)        
+    extra_profiles: List[ExtraProfileDetailed] = Field(default_factory=list)
+    extra_glasses:  List[ExtraGlassDetailed] = Field(default_factory=list)      
     class Config:
         orm_mode = True
 
@@ -222,3 +244,74 @@ class ProjectCodeUpdate(BaseModel):
         max_length=50,
         description="Yeni proje kodu, örn: TALU-12345"
     )
+#  EKSTRA PROFİL EKLE ÇIKART DÜZENLE  ------------------------
+class ProjectExtraProfileCreate(BaseModel):
+    project_id: UUID
+    profile_id: UUID
+    cut_length_mm: float
+    cut_count: int
+
+class ProjectExtraProfileUpdate(BaseModel):
+    cut_length_mm: Optional[float] = None
+    cut_count: Optional[int] = None
+
+class ProjectExtraProfileOut(BaseModel):
+    id: UUID
+    project_id: UUID
+    profile_id: UUID
+    cut_length_mm: float
+    cut_count: int
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+#  CAM EKLE ÇIKART SİL ---------------------------------------
+
+class ProjectExtraGlassCreate(BaseModel):
+    project_id: UUID
+    glass_type_id: UUID
+    width_mm: float
+    height_mm: float
+    count: int
+
+class ProjectExtraGlassUpdate(BaseModel):
+    width_mm: Optional[float] = None
+    height_mm: Optional[float] = None
+    count: Optional[int] = None
+
+class ProjectExtraGlassOut(BaseModel):
+    id: UUID
+    project_id: UUID
+    glass_type_id: UUID
+    width_mm: float
+    height_mm: float
+    count: int
+    area_m2: Optional[float]
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+#  metaryal EKLE ÇIKART SİL ---------------------------------------
+
+class ProjectExtraMaterialCreate(BaseModel):
+    project_id: UUID
+    material_id: UUID
+    count: int
+    cut_length_mm: Optional[float] = None
+
+class ProjectExtraMaterialUpdate(BaseModel):
+    count: Optional[int] = None
+    cut_length_mm: Optional[float] = None
+
+class ProjectExtraMaterialOut(BaseModel):
+    id: UUID
+    project_id: UUID
+    material_id: UUID
+    count: int
+    cut_length_mm: Optional[float]
+    created_at: datetime
+
+    class Config:
+        orm_mode = True

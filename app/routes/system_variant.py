@@ -1,8 +1,11 @@
 # app/routes/system_variant.py
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from uuid import UUID
+import os, shutil
+from fastapi.responses import FileResponse
+from pathlib import Path
 
 from app.db.session import get_db
 from app.crud.system_variant import (
@@ -20,6 +23,9 @@ from app.schemas.system import (
 )
 
 router = APIRouter(prefix="/api/system-variants", tags=["SystemVariants"])
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+VARIANT_PHOTO_DIR = os.path.join(BASE_DIR, "variant_photos")
 
 @router.post("/", response_model=SystemVariantOut, status_code=201)
 def create_variant(
@@ -93,3 +99,70 @@ def list_variants_by_system(
     """
     variants = get_variants_for_system(db, system_id)
     return variants
+
+@router.post("/{variant_id}/photo", summary="Variant fotoğrafı yükle/güncelle")
+def upload_or_replace_variant_photo(
+    variant_id: UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    obj = get_system_variant(db, variant_id)
+    if not obj:
+        raise HTTPException(404, "Variant not found")
+
+    # Eski fotoğraf varsa sil
+    if obj.photo_url:
+        old_path = os.path.join(BASE_DIR, obj.photo_url)
+        if os.path.exists(old_path):
+            os.remove(old_path)
+
+    # Yeni fotoğrafı yükle
+    ext = os.path.splitext(file.filename)[-1]
+    filename = f"{variant_id}{ext}"
+    full_path = os.path.join(VARIANT_PHOTO_DIR, filename)
+
+    with open(full_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    photo_url = f"variant_photos/{filename}"
+    update_system_variant(db, variant_id, SystemVariantUpdate(photo_url=photo_url))
+
+    return {
+        "message": "Fotoğraf yüklendi/güncellendi",
+        "photo_url": photo_url
+    }
+
+@router.delete("/{variant_id}/photo", summary="Variant fotoğrafını sil")
+def delete_variant_photo(
+    variant_id: UUID,
+    db: Session = Depends(get_db)
+):
+    obj = get_system_variant(db, variant_id)
+    if not obj or not obj.photo_url:
+        raise HTTPException(404, "Fotoğraf bulunamadı")
+
+    photo_path = os.path.join(BASE_DIR, obj.photo_url)
+    if os.path.exists(photo_path):
+        os.remove(photo_path)
+
+    update_system_variant(db, variant_id, SystemVariantUpdate(photo_url=None))
+
+    return {"message": "Fotoğraf silindi"}
+
+@router.get("/{variant_id}/photo", summary="Variant'a ait fotoğrafı döner")
+def get_variant_photo_file(variant_id: UUID, db: Session = Depends(get_db)):
+    obj = get_system_variant(db, variant_id)
+    if not obj or not obj.photo_url:
+        raise HTTPException(404, "Variant için fotoğraf bilgisi bulunamadı")
+
+    # Klasör yolu: proje kökü / variant_photos /
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent
+    VARIANT_PHOTO_DIR = BASE_DIR / "variant_photos"
+
+    filename = Path(obj.photo_url).name
+    photo_path = VARIANT_PHOTO_DIR / filename
+
+    if not photo_path.exists():
+        raise HTTPException(404, f"Fotoğraf dosyası bulunamadı: {photo_path}")
+
+    return FileResponse(path=str(photo_path), media_type="image/jpeg")

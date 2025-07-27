@@ -190,28 +190,28 @@ def get_system_templates(db: Session, variant_id: UUID):
 
 def create_system_full(db: Session, payload: SystemFullCreate):
     """Tek seferde System + Variant + Glass‐Config yaratır."""
-    # 1) System’i yalnızca name/description ile oluştur
+    # 1) System oluştur
     system = System(
         id=uuid4(),
         name=payload.name,
-        description=payload.description
+        description=payload.description,
+        photo_url=payload.photo_url  # 👈 EKLENDİ
     )
     db.add(system)
-    db.flush()  # system.id’yi alabilmek için
+    db.flush()
 
-    # 2) Variant’ı oluştur (alias’lı alanları dict ile alıyoruz)
+    # 2) Variant oluştur
     variant_data = payload.variant.dict(by_alias=True)
     variant = SystemVariant(
         id=uuid4(),
         system_id=system.id,
         name=variant_data["name"],
-        max_width_m=variant_data.get("max_width_mm"),
-        max_height_m=variant_data.get("max_height_mm"),
+        photo_url=variant_data.get("photo_url"),  # 👈 EKLENDİ
     )
     db.add(variant)
-    db.flush()  # variant.id için
+    db.flush()
 
-    # 3) Glass‐config’leri ekle
+    # 3) Glass templates ekle
     for g in payload.glass_configs or []:
         tpl = SystemGlassTemplate(
             id=uuid4(),
@@ -223,14 +223,14 @@ def create_system_full(db: Session, payload: SystemFullCreate):
         )
         db.add(tpl)
 
-    # 4) Commit et ve geri döndür
     db.commit()
     db.refresh(system)
     return {
         "system": system,
         "variant": variant,
-        "glass_templates": payload.glass_configs  # isterseniz bunları da dönebilirsiniz
+        "glass_templates": payload.glass_configs
     }
+
 
 def get_system_variant_detail(db: Session, variant_id: UUID) -> Optional[SystemVariant]:
     return (

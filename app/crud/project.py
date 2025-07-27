@@ -30,7 +30,9 @@ from app.schemas.project import (
     SystemRequirement,
     ExtraRequirement,
     ExtraProfileIn,
-    ExtraGlassIn
+    ExtraGlassIn,
+    ExtraProfileDetailed,
+    ExtraGlassDetailed
 )
 
 
@@ -426,26 +428,33 @@ def get_project_requirements_detailed(
         for e in extras_raw
     ]
 
-    extra_profiles_raw = db.query(ProjectExtraProfile).filter(ProjectExtraProfile.project_id == project_id).all()
-    extra_profiles = [
-        ExtraProfileIn(
-            profile_id=p.profile_id,
-            cut_length_mm=p.cut_length_mm,
-            cut_count=p.cut_count
+        # --- ekstra profiller detaylı olarak yükle ---
+    extra_profiles = []
+    for p in db.query(ProjectExtraProfile).filter(ProjectExtraProfile.project_id == project_id).all():
+        prof = db.query(Profile).filter(Profile.id == p.profile_id).first()
+        extra_profiles.append(
+            ExtraProfileDetailed(
+                profile_id=p.profile_id,
+                cut_length_mm=float(p.cut_length_mm),
+                cut_count=p.cut_count,
+                profile=prof
+            )
         )
-        for p in extra_profiles_raw
-    ]
 
-    extra_glasses_raw = db.query(ProjectExtraGlass).filter(ProjectExtraGlass.project_id == project_id).all()
-    extra_glasses = [
-        ExtraGlassIn(
-            glass_type_id=g.glass_type_id,
-            width_mm=g.width_mm,
-            height_mm=g.height_mm,
-            count=g.count
+    # --- ekstra camlar detaylı olarak yükle ---
+    extra_glasses = []
+    for g in db.query(ProjectExtraGlass).filter(ProjectExtraGlass.project_id == project_id).all():
+        gt = db.query(GlassType).filter(GlassType.id == g.glass_type_id).first()
+        extra_glasses.append(
+            ExtraGlassDetailed(
+                glass_type_id=g.glass_type_id,
+                width_mm=float(g.width_mm),
+                height_mm=float(g.height_mm),
+                count=g.count,
+                glass_type=gt
+            )
         )
-        for g in extra_glasses_raw
-]
+
 
 
 
@@ -476,3 +485,187 @@ def update_project_colors(
     db.refresh(project)
     return project
 
+# ───────── Extra Profile CRUD ─────────
+
+def create_project_extra_profile(
+    db: Session,
+    project_id: UUID,
+    profile_id: UUID,
+    cut_length_mm: float,
+    cut_count: int
+) -> ProjectExtraProfile:
+    extra = ProjectExtraProfile(
+        id=uuid4(),
+        project_id=project_id,
+        profile_id=profile_id,
+        cut_length_mm=cut_length_mm,
+        cut_count=cut_count
+    )
+    db.add(extra)
+    db.commit()
+    db.refresh(extra)
+    return extra
+
+
+def update_project_extra_profile(
+    db: Session,
+    extra_id: UUID,
+    cut_length_mm: Optional[float] = None,
+    cut_count: Optional[int] = None
+) -> Optional[ProjectExtraProfile]:
+    extra = db.query(ProjectExtraProfile).filter(ProjectExtraProfile.id == extra_id).first()
+    if not extra:
+        return None
+
+    if cut_length_mm is not None:
+        extra.cut_length_mm = cut_length_mm
+    if cut_count is not None:
+        extra.cut_count = cut_count
+
+    db.commit()
+    db.refresh(extra)
+    return extra
+
+
+def delete_project_extra_profile(
+    db: Session,
+    extra_id: UUID
+) -> bool:
+    deleted = db.query(ProjectExtraProfile).filter(ProjectExtraProfile.id == extra_id).delete()
+    db.commit()
+    return bool(deleted)
+
+# ───────── Extra Glass CRUD ─────────
+
+def create_project_extra_glass(
+    db: Session,
+    project_id: UUID,
+    glass_type_id: UUID,
+    width_mm: float,
+    height_mm: float,
+    count: int
+) -> ProjectExtraGlass:
+    area_m2 = (width_mm / 1000) * (height_mm / 1000)
+    extra = ProjectExtraGlass(
+        id=uuid4(),
+        project_id=project_id,
+        glass_type_id=glass_type_id,
+        width_mm=width_mm,
+        height_mm=height_mm,
+        count=count,
+        area_m2=area_m2
+    )
+    db.add(extra)
+    db.commit()
+    db.refresh(extra)
+    return extra
+
+
+def update_project_extra_glass(
+    db: Session,
+    extra_id: UUID,
+    width_mm: Optional[float] = None,
+    height_mm: Optional[float] = None,
+    count: Optional[int] = None
+) -> Optional[ProjectExtraGlass]:
+    extra = db.query(ProjectExtraGlass).filter(ProjectExtraGlass.id == extra_id).first()
+    if not extra:
+        return None
+
+    if width_mm is not None:
+        extra.width_mm = width_mm
+    if height_mm is not None:
+        extra.height_mm = height_mm
+    if count is not None:
+        extra.count = count
+
+    # area_m2 yeniden hesapla
+    if width_mm or height_mm:
+        extra.area_m2 = (extra.width_mm / 1000) * (extra.height_mm / 1000)
+
+    db.commit()
+    db.refresh(extra)
+    return extra
+
+
+def delete_project_extra_glass(
+    db: Session,
+    extra_id: UUID
+) -> bool:
+    deleted = db.query(ProjectExtraGlass).filter(ProjectExtraGlass.id == extra_id).delete()
+    db.commit()
+    return bool(deleted)
+
+# ───────── Extra Material CRUD ─────────
+
+def create_project_extra_material(
+    db: Session,
+    project_id: UUID,
+    material_id: UUID,
+    count: int,
+    cut_length_mm: Optional[float] = None
+) -> ProjectExtraMaterial:
+    extra = ProjectExtraMaterial(
+        id=uuid4(),
+        project_id=project_id,
+        material_id=material_id,
+        count=count,
+        cut_length_mm=cut_length_mm
+    )
+    db.add(extra)
+    db.commit()
+    db.refresh(extra)
+    return extra
+
+
+def update_project_extra_material(
+    db: Session,
+    extra_id: UUID,
+    count: Optional[int] = None,
+    cut_length_mm: Optional[float] = None
+) -> Optional[ProjectExtraMaterial]:
+    extra = db.query(ProjectExtraMaterial).filter(ProjectExtraMaterial.id == extra_id).first()
+    if not extra:
+        return None
+
+    if count is not None:
+        extra.count = count
+    if cut_length_mm is not None:
+        extra.cut_length_mm = cut_length_mm
+
+    db.commit()
+    db.refresh(extra)
+    return extra
+
+
+def delete_project_extra_material(
+    db: Session,
+    extra_id: UUID
+) -> bool:
+    deleted = db.query(ProjectExtraMaterial).filter(ProjectExtraMaterial.id == extra_id).delete()
+    db.commit()
+    return bool(deleted)
+
+
+# ───────── List Extra CRUD ─────────
+
+def list_project_extra_profiles(db: Session, project_id: UUID) -> List[ProjectExtraProfile]:
+    return (
+        db.query(ProjectExtraProfile)
+          .filter(ProjectExtraProfile.project_id == project_id)
+          .all()
+    )
+
+def list_project_extra_glasses(db: Session, project_id: UUID) -> List[ProjectExtraGlass]:
+    return (
+        db.query(ProjectExtraGlass)
+          .filter(ProjectExtraGlass.project_id == project_id)
+          .all()
+    )
+
+def list_project_extra_materials(db: Session, project_id: UUID) -> List[ProjectExtraMaterial]:
+    return (
+        db.query(ProjectExtraMaterial)
+          .filter(ProjectExtraMaterial.project_id == project_id)
+          .all()
+    )
