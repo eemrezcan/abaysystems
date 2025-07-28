@@ -247,3 +247,32 @@ class SystemVariantDetailOut(BaseModel):
 
     class Config:
         orm_mode = True
+
+# ——————————————————————
+# New: Bulk-create a SystemVariant with its templates
+class ProfileTemplateIn(BaseModel):
+    profile_id: UUID
+    formula_cut_length: str = Field(..., min_length=1)
+    formula_cut_count: str = Field(..., min_length=1)
+
+class GlassTemplateIn(BaseModel):
+    glass_type_id: UUID
+    formula_width: str = Field(..., min_length=1)
+    formula_height: str = Field(..., min_length=1)
+    formula_count: str = Field(..., min_length=1)
+
+class MaterialTemplateIn(BaseModel):
+    material_id: UUID
+    formula_quantity: str = Field(..., min_length=1)
+    formula_cut_length: Optional[str] = None
+
+class SystemVariantCreateWithTemplates(BaseModel):
+    system_id: UUID = Field(..., alias="systemId")
+    name: str = Field(..., min_length=1)
+    profile_templates: List[ProfileTemplateIn] = Field(default_factory=list)
+    glass_templates: List[GlassTemplateIn] = Field(default_factory=list)
+    material_templates: List[MaterialTemplateIn] = Field(default_factory=list)
+
+    class Config:
+        allow_population_by_field_name = True
+        orm_mode = True

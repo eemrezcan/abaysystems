@@ -92,9 +92,20 @@ class ProjectCreate(ProjectMeta):
 
 class ProjectUpdate(BaseModel):
     """Projeyi güncellemek için opsiyonel alanlar."""
+    project_kodu: Optional[str] = Field(
+        None,
+        min_length=6,
+        max_length=50,
+        description="Yeni proje kodu, örn: TALU-12345"
+    )
     customer_id: Optional[UUID]
     project_name: Optional[str]
-    created_by: Optional[UUID]
+    profile_color_id: Optional[UUID] = Field(
+        None, description="Yeni profil rengi ID"
+    )
+    glass_color_id: Optional[UUID] = Field(
+        None, description="Yeni cam rengi ID"
+    )
 
     class Config:
         orm_mode = True

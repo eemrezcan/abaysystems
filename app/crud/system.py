@@ -3,7 +3,7 @@
 from uuid import uuid4, UUID
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import joinedload, selectinload
-from typing import Optional
+from typing import Optional, List
 from app.models.system import System, SystemVariant
 from app.models.system_profile_template import SystemProfileTemplate
 from app.models.system_glass_template import SystemGlassTemplate
@@ -19,7 +19,8 @@ from app.schemas.system import (
     SystemGlassTemplateUpdate,
     SystemMaterialTemplateCreate,
     SystemMaterialTemplateUpdate,
-    SystemFullCreate
+    SystemFullCreate,
+    SystemVariantCreateWithTemplates
 )
 
 # ————— System CRUD —————
@@ -244,3 +245,56 @@ def get_system_variant_detail(db: Session, variant_id: UUID) -> Optional[SystemV
         )
         .first()
     )
+
+
+def create_system_variant_with_templates(
+    db: Session,
+    payload: SystemVariantCreateWithTemplates
+) -> SystemVariant:
+    """
+    Bir SystemVariant kaydı ve ilişkili profil, cam, malzeme şablonlarını topluca oluşturur.
+    """
+    # 1) Variant oluştur
+    variant = SystemVariant(
+        id=uuid4(),
+        system_id=payload.system_id,
+        name=payload.name
+    )
+    db.add(variant)
+    db.flush()
+
+    # 2) Profile şablonları ekle
+    for pt in payload.profile_templates:
+        db.add(SystemProfileTemplate(
+            id=uuid4(),
+            system_variant_id=variant.id,
+            profile_id=pt.profile_id,
+            formula_cut_length=pt.formula_cut_length,
+            formula_cut_count=pt.formula_cut_count
+        ))
+
+    # 3) Glass şablonları ekle
+    for gt in payload.glass_templates:
+        db.add(SystemGlassTemplate(
+            id=uuid4(),
+            system_variant_id=variant.id,
+            glass_type_id=gt.glass_type_id,
+            formula_width=gt.formula_width,
+            formula_height=gt.formula_height,
+            formula_count=gt.formula_count
+        ))
+
+    # 4) Material şablonları ekle
+    for mt in payload.material_templates:
+        db.add(SystemMaterialTemplate(
+            id=uuid4(),
+            system_variant_id=variant.id,
+            material_id=mt.material_id,
+            formula_quantity=mt.formula_quantity,
+            formula_cut_length=mt.formula_cut_length
+        ))
+
+    # 5) Commit ve refresh
+    db.commit()
+    db.refresh(variant)
+    return variant

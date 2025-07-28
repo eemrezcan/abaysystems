@@ -14,12 +14,17 @@ from app.crud.system_variant import (
     get_system_variant,
     update_system_variant,
     delete_system_variant,
-    get_variants_for_system
+    get_variants_for_system,
 )
+
+from app.crud.system import create_system_variant_with_templates, get_system_variant_detail
+
 from app.schemas.system import (
     SystemVariantCreate,
     SystemVariantUpdate,
-    SystemVariantOut
+    SystemVariantOut,
+    SystemVariantCreateWithTemplates,
+    SystemVariantDetailOut
 )
 
 router = APIRouter(prefix="/api/system-variants", tags=["SystemVariants"])
@@ -166,3 +171,17 @@ def get_variant_photo_file(variant_id: UUID, db: Session = Depends(get_db)):
         raise HTTPException(404, f"Fotoğraf dosyası bulunamadı: {photo_path}")
 
     return FileResponse(path=str(photo_path), media_type="image/jpeg")
+
+@router.post("/", response_model=SystemVariantDetailOut, status_code=201)
+def create_variant_with_templates_endpoint(
+    payload: SystemVariantCreateWithTemplates,
+    db: Session = Depends(get_db)
+):
+    """
+    Yeni system variant oluşturur ve ilişkili profil, cam, malzeme şablonlarını ekler.
+    """
+    variant = create_system_variant_with_templates(db, payload)
+    detail = get_system_variant_detail(db, variant.id)
+    if not detail:
+        raise HTTPException(status_code=500, detail="Variant oluşturuldu ama detail alınamadı")
+    return detail

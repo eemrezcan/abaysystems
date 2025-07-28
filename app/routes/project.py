@@ -95,12 +95,19 @@ def update_project_endpoint(
     db: Session = Depends(get_db)
 ):
     """
-    Var olan projeyi günceller.
-    Artık project_name alanını da güncelleyebilirsiniz.
+    Proje no, proje adı, müşteri, profil rengi ve cam rengini günceller.
     """
+    # 1) Proje kodu güncellemesi (benzersizlik kontrolü)
+    if payload.project_kodu is not None:
+        try:
+            update_project_code(db, project_id, payload.project_kodu)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    # 2) Diğer alanları güncelle
     proj = update_project(db, project_id, payload)
     if not proj:
-        raise HTTPException(404, "Project not found")
+        raise HTTPException(status_code=404, detail="Project not found")
     return proj
 
 @router.delete("/{project_id}", status_code=204)
