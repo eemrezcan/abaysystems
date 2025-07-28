@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from uuid import UUID
 from typing import List, Optional
 from datetime import date, datetime
+from app.schemas.customer import CustomerOut
 
 # ----------------------------------------
 # Sub-models for project system contents
@@ -239,6 +240,7 @@ class ProjectColorUpdate(BaseModel):
 
 class ProjectRequirementsDetailedOut(BaseModel):
     id: UUID
+    customer: CustomerOut
     profile_color: Optional[ColorOut] = None
     glass_color: Optional[ColorOut] = None
     systems: List[SystemInProjectOut]

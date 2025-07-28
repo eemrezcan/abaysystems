@@ -12,6 +12,7 @@ from app.models.other_material import OtherMaterial
 from app.schemas.project import ProjectRequirementsDetailedOut, SystemInProjectOut, ProfileInProjectOut, GlassInProjectOut, MaterialInProjectOut
 from app.schemas.project import ExtraRequirement, ExtraProfileIn, ExtraGlassIn
 from app.models.project import ProjectExtraMaterial, ProjectExtraProfile, ProjectExtraGlass
+from app.models.customer import Customer
 
 from app.models.project import (
     Project,
@@ -339,6 +340,8 @@ def get_project_requirements_detailed(
     if not project:
         raise ValueError("Project not found")
 
+    customer = db.query(Customer).filter(Customer.id == project.customer_id).first()
+
     project_systems = (
         db.query(ProjectSystem)
         .filter(ProjectSystem.project_id == project_id)
@@ -461,6 +464,7 @@ def get_project_requirements_detailed(
 
     return ProjectRequirementsDetailedOut(
         id=project.id,
+        customer=customer,
         profile_color=project.profile_color,  # 🆕 renk objesi
         glass_color=project.glass_color,      # 🆕 renk objesi
         systems=result_systems,
