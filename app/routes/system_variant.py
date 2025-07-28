@@ -32,15 +32,16 @@ router = APIRouter(prefix="/api/system-variants", tags=["SystemVariants"])
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 VARIANT_PHOTO_DIR = os.path.join(BASE_DIR, "variant_photos")
 
-@router.post("/", response_model=SystemVariantOut, status_code=201)
+@router.post("/system/{system_id}", response_model=SystemVariantOut, status_code=201)
 def create_variant(
+    system_id: UUID,
     payload: SystemVariantCreate,
     db: Session = Depends(get_db)
 ):
     """
     Create a new SystemVariant for a given System.
     """
-    return create_system_variant(db, payload)
+    return create_system_variant(db, system_id, payload)
 
 @router.get("/", response_model=list[SystemVariantOut])
 def list_variants(db: Session = Depends(get_db)):

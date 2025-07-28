@@ -31,7 +31,9 @@ from app.crud.project import (
     delete_project_extra_material,
     list_project_extra_profiles,
     list_project_extra_glasses,
-    list_project_extra_materials
+    list_project_extra_materials,
+    update_project_system,
+    delete_project_system
 )
 from app.schemas.project import (
     ProjectCreate,
@@ -42,6 +44,7 @@ from app.schemas.project import (
     GlassInProject,
     MaterialInProject,
     SystemRequirement,
+    SystemInProjectOut,
     ExtraRequirement,
     ProjectSystemRequirementIn,
     ProjectExtraRequirementIn,
@@ -477,3 +480,39 @@ def list_extra_materials_endpoint(
     if extras is None:
         raise HTTPException(404, "Project not found")
     return extras
+
+# ───────── ProjectSystem güncelleme & silme ─────────
+@router.put(
+    "/{project_id}/systems/{project_system_id}",
+    response_model=SystemInProjectOut,
+)
+def update_project_system_endpoint(
+    project_id: UUID,
+    project_system_id: UUID,
+    payload: SystemRequirement,
+    db: Session = Depends(get_db)
+):
+    """
+    Belirli bir proje içi sistemi (project_system) günceller.
+    """
+    updated = update_project_system(db, project_id, project_system_id, payload)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Project system not found")
+    return updated
+
+@router.delete(
+    "/{project_id}/systems/{project_system_id}",
+    status_code=204,
+)
+def delete_project_system_endpoint(
+    project_id: UUID,
+    project_system_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """
+    Belirli bir proje içi sistemi (project_system) siler.
+    """
+    success = delete_project_system(db, project_id, project_system_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Project system not found")
+    return

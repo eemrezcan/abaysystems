@@ -59,8 +59,14 @@ def delete_system(db: Session, system_id: UUID) -> bool:
 
 # ————— SystemVariant CRUD —————
 
-def create_system_variant(db: Session, payload: SystemVariantCreate) -> SystemVariant:
-    obj = SystemVariant(id=uuid4(), **payload.dict(by_alias=True))
+def create_system_variant(db: Session, system_id: UUID, payload: SystemVariantCreate) -> SystemVariant:
+    # payload.dict() içinde gelen system_id alanını at, path'ten aldığımızı kullanacağız
+    data = payload.dict(by_alias=True, exclude={"system_id"})
+    obj = SystemVariant(
+        id=uuid4(),
+        system_id=system_id,
+        **data
+    )
     db.add(obj)
     db.commit()
     db.refresh(obj)

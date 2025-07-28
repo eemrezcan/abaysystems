@@ -407,6 +407,7 @@ def get_project_requirements_detailed(
 
         result_systems.append(
             SystemInProjectOut(
+                project_system_id=ps.id, 
                 system_variant_id=ps.system_variant_id,
                 name=variant.name,
                 system=system,
@@ -673,3 +674,92 @@ def list_project_extra_materials(db: Session, project_id: UUID) -> List[ProjectE
           .filter(ProjectExtraMaterial.project_id == project_id)
           .all()
     )
+
+# ───────── ProjectSystem CRUD ─────────
+def update_project_system(
+    db: Session,
+    project_id: UUID,
+    project_system_id: UUID,
+    payload: SystemRequirement
+) -> Optional[ProjectSystem]:
+    """
+    Belirli bir project_system kaydını günceller (ölçüler ve içerik).
+    """
+    ps = (
+        db.query(ProjectSystem)
+          .filter(
+             ProjectSystem.id == project_system_id,
+             ProjectSystem.project_id == project_id
+          )
+          .first()
+    )
+    if not ps:
+        return None
+
+    # Temel alanlar
+    ps.width_mm  = payload.width_mm
+    ps.height_mm = payload.height_mm
+    ps.quantity  = payload.quantity
+
+    # Önce mevcut child kayıtları sil
+    db.query(ProjectSystemProfile).filter(ProjectSystemProfile.project_system_id == project_system_id).delete(synchronize_session=False)
+    db.query(ProjectSystemGlass).filter(ProjectSystemGlass.project_system_id == project_system_id).delete(synchronize_session=False)
+    db.query(ProjectSystemMaterial).filter(ProjectSystemMaterial.project_system_id == project_system_id).delete(synchronize_session=False)
+
+    # Yeniden ekle
+    for p in payload.profiles:
+        db.add(ProjectSystemProfile(
+            id=uuid4(),
+            project_system_id=ps.id,
+            profile_id=p.profile_id,
+            cut_length_mm=p.cut_length_mm,
+            cut_count=p.cut_count,
+            total_weight_kg=p.total_weight_kg
+        ))
+    for g in payload.glasses:
+        db.add(ProjectSystemGlass(
+            id=uuid4(),
+            project_system_id=ps.id,
+            glass_type_id=g.glass_type_id,
+            width_mm=g.width_mm,
+            height_mm=g.height_mm,
+            count=g.count,
+            area_m2=g.area_m2
+        ))
+    for m in payload.materials:
+        db.add(ProjectSystemMaterial(
+            id=uuid4(),
+            project_system_id=ps.id,
+            material_id=m.material_id,
+            cut_length_mm=m.cut_length_mm,
+            count=m.count
+        ))
+
+    db.commit()
+    db.refresh(ps)
+    return ps
+
+def delete_project_system(
+    db: Session,
+    project_id: UUID,
+    project_system_id: UUID
+) -> bool:
+    """
+    Belirli bir project_system kaydını ve ilgili alt kayıtları siler.
+    """
+    # Child kayıtları sil
+    db.query(ProjectSystemProfile).filter(ProjectSystemProfile.project_system_id == project_system_id).delete(synchronize_session=False)
+    db.query(ProjectSystemGlass).filter(ProjectSystemGlass.project_system_id == project_system_id).delete(synchronize_session=False)
+    db.query(ProjectSystemMaterial).filter(ProjectSystemMaterial.project_system_id == project_system_id).delete(synchronize_session=False)
+
+    # ProjectSystem kaydını sil
+    deleted = (
+        db.query(ProjectSystem)
+          .filter(
+             ProjectSystem.id == project_system_id,
+             ProjectSystem.project_id == project_id
+          )
+          .delete()
+    )
+    db.commit()
+    return bool(deleted)

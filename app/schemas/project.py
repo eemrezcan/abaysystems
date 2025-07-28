@@ -29,6 +29,7 @@ class MaterialInProject(BaseModel):
 # SystemRequirement and ExtraRequirement
 # ----------------------------------------
 class SystemRequirement(BaseModel):
+    project_system_id: Optional[UUID] = None
     system_variant_id: UUID
     width_mm: float
     height_mm: float
@@ -211,6 +212,7 @@ class MaterialInProjectOut(MaterialInProject):
         orm_mode = True
 
 class SystemInProjectOut(BaseModel):
+    project_system_id: UUID
     system_variant_id: UUID
     name: str
     system: SystemBasicOut
