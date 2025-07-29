@@ -107,7 +107,8 @@ class ProjectUpdate(BaseModel):
     glass_color_id: Optional[UUID] = Field(
         None, description="Yeni cam rengi ID"
     )
-
+    created_at: Optional[datetime] = None
+    
     class Config:
         orm_mode = True
 

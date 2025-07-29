@@ -177,6 +177,9 @@ def update_project(db: Session, project_id: UUID, payload: ProjectUpdate) -> Opt
     proj = get_project(db, project_id)
     if not proj:
         return None
+    # Proje tarihini (created_at) güncelleme desteği
+    if payload.created_at is not None:
+        proj.created_at = payload.created_at
     for field, value in payload.dict(exclude_unset=True).items():
         setattr(proj, field, value)
     db.commit()
