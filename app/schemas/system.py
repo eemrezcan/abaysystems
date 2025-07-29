@@ -276,3 +276,14 @@ class SystemVariantCreateWithTemplates(BaseModel):
     class Config:
         allow_population_by_field_name = True
         orm_mode = True
+
+# ——————————————————————
+# New: Update a SystemVariant + templates
+class SystemVariantUpdateWithTemplates(BaseModel):
+    name: Optional[str] = None
+    profile_templates: List[ProfileTemplateIn] = Field(default_factory=list)
+    glass_templates: List[GlassTemplateIn] = Field(default_factory=list)
+    material_templates: List[MaterialTemplateIn] = Field(default_factory=list)
+
+    class Config:
+        orm_mode = True

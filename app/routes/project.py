@@ -64,10 +64,18 @@ from app.schemas.project import (
     ProjectExtraMaterialOut,
     ProjectExtraProfileOut,
     ProjectExtraGlassOut,
-    ProjectExtraMaterialOut
+    ProjectExtraMaterialOut,
+    ProfileInProjectOut,
+    GlassInProjectOut,
+    MaterialInProjectOut,
 
 )
-from app.models.project import ProjectSystem, ProjectExtraMaterial
+from app.models.project import ProjectSystem, ProjectExtraMaterial, ProjectSystemProfile, ProjectSystemGlass, ProjectSystemMaterial
+from app.models.system import SystemVariant, System
+
+from app.models.profile import Profile
+from app.models.glass_type import GlassType
+from app.models.other_material import OtherMaterial
 
 router = APIRouter(prefix="/api/projects", tags=["Projects"])
 

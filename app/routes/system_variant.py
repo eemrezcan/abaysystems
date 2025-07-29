@@ -18,13 +18,16 @@ from app.crud.system_variant import (
 )
 
 from app.crud.system import create_system_variant_with_templates, get_system_variant_detail
+from app.crud.system import update_system_variant_with_templates
 
 from app.schemas.system import (
     SystemVariantCreate,
     SystemVariantUpdate,
     SystemVariantOut,
     SystemVariantCreateWithTemplates,
-    SystemVariantDetailOut
+    SystemVariantDetailOut,
+    SystemVariantUpdateWithTemplates,
+    SystemVariantCreateWithTemplates
 )
 
 router = APIRouter(prefix="/api/system-variants", tags=["SystemVariants"])
@@ -185,4 +188,27 @@ def create_variant_with_templates_endpoint(
     detail = get_system_variant_detail(db, variant.id)
     if not detail:
         raise HTTPException(status_code=500, detail="Variant oluşturuldu ama detail alınamadı")
+    return detail
+
+@router.put(
+    "/{variant_id}/templates",
+    response_model=SystemVariantDetailOut,
+    summary="Update a SystemVariant and all its profile/glass/material templates"
+)
+def update_variant_templates_endpoint(
+    variant_id: UUID,
+    payload: SystemVariantUpdateWithTemplates,
+    db: Session = Depends(get_db)
+):
+    """
+    Mevcut bir variant’ın adını ve ilişkili tüm şablonlarını günceller.
+    """
+    try:
+        variant = update_system_variant_with_templates(db, variant_id, payload)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    detail = get_system_variant_detail(db, variant.id)
+    if not detail:
+        raise HTTPException(status_code=500, detail="Unable to fetch updated variant detail")
     return detail

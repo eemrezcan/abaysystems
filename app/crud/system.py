@@ -20,7 +20,8 @@ from app.schemas.system import (
     SystemMaterialTemplateCreate,
     SystemMaterialTemplateUpdate,
     SystemFullCreate,
-    SystemVariantCreateWithTemplates
+    SystemVariantCreateWithTemplates,
+    SystemVariantUpdateWithTemplates
 )
 
 # ————— System CRUD —————
@@ -304,3 +305,57 @@ def create_system_variant_with_templates(
     db.commit()
     db.refresh(variant)
     return variant
+
+# ————— Update SystemVariant + all its templates —————
+def update_system_variant_with_templates(
+    db: Session,
+    variant_id: UUID,
+    payload: SystemVariantUpdateWithTemplates
+) -> SystemVariant:
+    # 1) Var olan variant’ı al
+    variant = get_system_variant(db, variant_id)
+    if not variant:
+        raise ValueError("Variant not found")
+
+    # 2) İsim güncelle (gelmişse)
+    if payload.name is not None:
+        variant.name = payload.name
+
+    # 3) Eski şablonları sil
+    db.query(SystemProfileTemplate).filter_by(system_variant_id=variant_id).delete(synchronize_session=False)
+    db.query(SystemGlassTemplate).filter_by(system_variant_id=variant_id).delete(synchronize_session=False)
+    db.query(SystemMaterialTemplate).filter_by(system_variant_id=variant_id).delete(synchronize_session=False)
+    db.flush()
+
+    # 4) Yeni şablonları ekle
+    for pt in payload.profile_templates:
+        db.add(SystemProfileTemplate(
+            id=uuid4(),
+            system_variant_id=variant_id,
+            profile_id=pt.profile_id,
+            formula_cut_length=pt.formula_cut_length,
+            formula_cut_count=pt.formula_cut_count
+        ))
+    for gt in payload.glass_templates:
+        db.add(SystemGlassTemplate(
+            id=uuid4(),
+            system_variant_id=variant_id,
+            glass_type_id=gt.glass_type_id,
+            formula_width=gt.formula_width,
+            formula_height=gt.formula_height,
+            formula_count=gt.formula_count
+        ))
+    for mt in payload.material_templates:
+        db.add(SystemMaterialTemplate(
+            id=uuid4(),
+            system_variant_id=variant_id,
+            material_id=mt.material_id,
+            formula_quantity=mt.formula_quantity,
+            formula_cut_length=mt.formula_cut_length
+        ))
+
+    # 5) Commit ve refresh
+    db.commit()
+    db.refresh(variant)
+    return variant
+
