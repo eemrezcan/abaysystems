@@ -15,5 +15,6 @@ class Profile(Base):
     profil_kesit_fotograf = Column(TEXT, nullable=True)
     birim_agirlik = Column(Numeric, nullable=False)
     boy_uzunluk = Column(Numeric, nullable=False)
+    unit_price = Column(Numeric, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())

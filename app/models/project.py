@@ -59,6 +59,7 @@ class ProjectSystemProfile(Base):
     cut_length_mm      = Column(Numeric, nullable=False)
     cut_count          = Column(Integer, nullable=False)
     total_weight_kg    = Column(Numeric, nullable=True)
+    unit_price         = Column(Numeric, nullable=True)
 
     project_system = relationship("ProjectSystem", back_populates="profiles")
     profile        = relationship("Profile")
@@ -113,6 +114,7 @@ class ProjectExtraProfile(Base):
     profile_id = Column(PGUUID(as_uuid=True), ForeignKey("profile.id"), nullable=False)
     cut_length_mm = Column(Numeric, nullable=False)
     cut_count = Column(Integer, nullable=False)
+    unit_price = Column(Numeric, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
     project = relationship("Project", backref="extra_profiles")

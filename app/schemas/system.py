@@ -89,6 +89,7 @@ class ProfileOut(BaseModel):
     profil_kesit_fotograf: Optional[str]
     birim_agirlik: float
     boy_uzunluk: float
+    unit_price: Optional[float] = None
     created_at: datetime
     updated_at: datetime
 

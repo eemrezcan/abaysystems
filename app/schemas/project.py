@@ -29,7 +29,6 @@ class MaterialInProject(BaseModel):
 # SystemRequirement and ExtraRequirement
 # ----------------------------------------
 class SystemRequirement(BaseModel):
-    project_system_id: Optional[UUID] = None
     system_variant_id: UUID
     width_mm: float
     height_mm: float
@@ -133,6 +132,7 @@ class ProfileOut(BaseModel):
     profil_kesit_fotograf: Optional[str]
     birim_agirlik: float
     boy_uzunluk: float
+    unit_price: Optional[float]
     created_at: datetime
     updated_at: datetime
 

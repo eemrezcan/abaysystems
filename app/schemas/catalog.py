@@ -10,6 +10,7 @@ class ProfileBase(BaseModel):
     profil_kesit_fotograf: Optional[str]
     birim_agirlik: float
     boy_uzunluk: float
+    unit_price: Optional[float] = None
 
 class ProfileCreate(ProfileBase):
     pass
