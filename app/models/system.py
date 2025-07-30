@@ -57,17 +57,14 @@ class SystemVariant(Base):
         "SystemProfileTemplate",
         back_populates="variant",
         cascade="all, delete-orphan",
-        order_by="SystemMaterialTemplate.created_at"
     )
     glass_templates    = relationship(
         "SystemGlassTemplate",
         back_populates="variant",
         cascade="all, delete-orphan",
-        order_by="SystemMaterialTemplate.created_at"
     )
     material_templates = relationship(
         "SystemMaterialTemplate",
         back_populates="variant",
         cascade="all, delete-orphan",
-        order_by="SystemMaterialTemplate.created_at"
     )

@@ -45,9 +45,9 @@ class ProjectSystem(Base):
     created_at        = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
     project   = relationship("Project", back_populates="systems")
-    profiles  = relationship("ProjectSystemProfile", back_populates="project_system", cascade="all, delete-orphan", order_by="ProjectSystemProfile.created_at")
-    glasses   = relationship("ProjectSystemGlass", back_populates="project_system", cascade="all, delete-orphan", order_by="ProjectSystemGlass.created_at")
-    materials = relationship("ProjectSystemMaterial", back_populates="project_system", cascade="all, delete-orphan", order_by="ProjectSystemMaterial.created_at")
+    profiles  = relationship("ProjectSystemProfile", back_populates="project_system", cascade="all, delete-orphan")
+    glasses   = relationship("ProjectSystemGlass", back_populates="project_system", cascade="all, delete-orphan")
+    materials = relationship("ProjectSystemMaterial", back_populates="project_system", cascade="all, delete-orphan")
 
 
 class ProjectSystemProfile(Base):
