@@ -122,7 +122,8 @@ def fetch_system_templates(
             ProfileTemplateOut(
                 profile_id=tpl.profile_id,
                 formula_cut_length=tpl.formula_cut_length,
-                formula_cut_count=tpl.formula_cut_count
+                formula_cut_count=tpl.formula_cut_count,
+                profile=tpl.profile
             ) for tpl in profiles
         ],
         glassTemplates=[
@@ -130,14 +131,16 @@ def fetch_system_templates(
                 glass_type_id=tpl.glass_type_id,
                 formula_width=tpl.formula_width,
                 formula_height=tpl.formula_height,
-                formula_count=tpl.formula_count
+                formula_count=tpl.formula_count,
+                glass_type=tpl.glass_type 
             ) for tpl in glasses
         ],
         materialTemplates=[
             MaterialTemplateOut(
                 material_id=tpl.material_id,
                 formula_quantity=tpl.formula_quantity,
-                formula_cut_length=tpl.formula_cut_length
+                formula_cut_length=tpl.formula_cut_length,
+                material=tpl.material
             ) for tpl in materials
         ]
     )
