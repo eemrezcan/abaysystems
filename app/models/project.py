@@ -60,10 +60,6 @@ class ProjectSystemProfile(Base):
     cut_count          = Column(Integer, nullable=False)
     total_weight_kg    = Column(Numeric, nullable=True)
     unit_price         = Column(Numeric, nullable=True)
-    created_at         = Column(
-        TIMESTAMP(timezone=True),
-        server_default=func.now()
-    )
 
     project_system = relationship("ProjectSystem", back_populates="profiles")
     profile        = relationship("Profile")
@@ -79,10 +75,6 @@ class ProjectSystemGlass(Base):
     height_mm          = Column(Numeric, nullable=False)
     count              = Column(Integer, nullable=False)
     area_m2            = Column(Numeric, nullable=True)
-    created_at         = Column(
-        TIMESTAMP(timezone=True),
-        server_default=func.now()
-    )
 
     project_system = relationship("ProjectSystem", back_populates="glasses")
     glass_type     = relationship("GlassType")
@@ -96,10 +88,6 @@ class ProjectSystemMaterial(Base):
     material_id        = Column(PGUUID(as_uuid=True), ForeignKey("other_material.id"), nullable=False)
     cut_length_mm      = Column(Numeric, nullable=True)
     count              = Column(Integer, nullable=False)
-    created_at         = Column(
-        TIMESTAMP(timezone=True),
-        server_default=func.now()
-    )
 
     project_system = relationship("ProjectSystem", back_populates="materials")
     material       = relationship("OtherMaterial")
