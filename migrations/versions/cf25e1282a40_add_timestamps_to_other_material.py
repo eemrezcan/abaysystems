@@ -20,27 +20,28 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade():
     # 1) created_at ve updated_at sütunlarını ekle
-    op.add_column(
-        'other_material',
-        sa.Column(
-            'created_at',
-            sa.TIMESTAMP(timezone=True),
-            server_default=sa.text('now()'),
-            nullable=False
-        )
-    )
-    op.add_column(
-        'other_material',
-        sa.Column(
-            'updated_at',
-            sa.TIMESTAMP(timezone=True),
-            server_default=sa.text('now()'),
-            nullable=False
-        )
-    )
-
+    # op.add_column(
+    #     'other_material',
+    #     sa.Column(
+    #         'created_at',
+    #         sa.TIMESTAMP(timezone=True),
+    #         server_default=sa.text('now()'),
+    #         nullable=False
+    #     )
+    # )
+    # op.add_column(
+    #     'other_material',
+    #     sa.Column(
+    #         'updated_at',
+    #         sa.TIMESTAMP(timezone=True),
+    #         server_default=sa.text('now()'),
+    #         nullable=False
+    #     )
+    # )
+    pass
 
 def downgrade():
-    # rollback: önce updated_at, sonra created_at'i kaldır
-    op.drop_column('other_material', 'updated_at')
-    op.drop_column('other_material', 'created_at')
+    # # rollback: önce updated_at, sonra created_at'i kaldır
+    # op.drop_column('other_material', 'updated_at')
+    # op.drop_column('other_material', 'created_at')
+    pass
