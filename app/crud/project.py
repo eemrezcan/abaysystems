@@ -13,6 +13,9 @@ from app.schemas.project import ProjectRequirementsDetailedOut, SystemInProjectO
 from app.schemas.project import ExtraRequirement, ExtraProfileIn, ExtraGlassIn
 from app.models.project import ProjectExtraMaterial, ProjectExtraProfile, ProjectExtraGlass
 from app.models.customer import Customer
+from app.models.system_profile_template import SystemProfileTemplate
+from app.models.system_glass_template   import SystemGlassTemplate
+from app.models.system_material_template import SystemMaterialTemplate
 
 from app.models.project import (
     Project,
@@ -100,9 +103,29 @@ def add_systems_to_project(
         )
         db.add(ps)
         db.flush()
+            # --- Şablonlardaki order_index değerlerini haritala ---
+        tpl_profiles = {
+            t.profile_id: t.order_index
+            for t in db.query(SystemProfileTemplate)
+                    .filter(SystemProfileTemplate.system_variant_id == sys_req.system_variant_id)
+                    .all()
+        }
+        tpl_glasses = {
+            t.glass_type_id: t.order_index
+            for t in db.query(SystemGlassTemplate)
+                    .filter(SystemGlassTemplate.system_variant_id == sys_req.system_variant_id)
+                    .all()
+        }
+        tpl_materials = {
+            t.material_id: t.order_index
+            for t in db.query(SystemMaterialTemplate)
+                    .filter(SystemMaterialTemplate.system_variant_id == sys_req.system_variant_id)
+                    .all()
+        }
+
 
         # PROFİLLER
-        for i, p in enumerate(sys_req.profiles):
+        for p in sys_req.profiles:
             db.add(ProjectSystemProfile(
                 id=uuid4(),
                 project_system_id=ps.id,
@@ -110,11 +133,12 @@ def add_systems_to_project(
                 cut_length_mm=p.cut_length_mm,
                 cut_count=p.cut_count,
                 total_weight_kg=p.total_weight_kg,
-                order_index=p.order_index if p.order_index is not None else i    # 🆕
+                order_index=tpl_profiles.get(p.profile_id)      # ← sadece bu!
             ))
 
+
         # CAMLAR
-        for i, g in enumerate(sys_req.glasses):
+        for g in sys_req.glasses:
             db.add(ProjectSystemGlass(
                 id=uuid4(),
                 project_system_id=ps.id,
@@ -123,19 +147,20 @@ def add_systems_to_project(
                 height_mm=g.height_mm,
                 count=g.count,
                 area_m2=g.area_m2,
-                order_index=g.order_index if g.order_index is not None else i    # 🆕
+                order_index=tpl_glasses.get(g.glass_type_id)    # ←
             ))
 
-        # MALZEMELER
-        for i, m in enumerate(sys_req.materials):
+
+        for m in sys_req.materials:
             db.add(ProjectSystemMaterial(
                 id=uuid4(),
                 project_system_id=ps.id,
                 material_id=m.material_id,
                 cut_length_mm=m.cut_length_mm,
                 count=m.count,
-                order_index=m.order_index if m.order_index is not None else i    # 🆕
+                order_index=tpl_materials.get(m.material_id)    # ←
             ))
+
 
         # Project-level extra requirements
         for extra in payload.extra_requirements:
@@ -256,8 +281,29 @@ def add_only_systems_to_project(
         )
         db.add(ps)
         db.flush()
+                # --- Şablonlardaki order_index değerlerini haritala ---
+        tpl_profiles = {
+            t.profile_id: t.order_index
+            for t in db.query(SystemProfileTemplate)
+                       .filter(SystemProfileTemplate.system_variant_id == sys_req.system_variant_id)
+                       .all()
+        }
+        tpl_glasses = {
+            t.glass_type_id: t.order_index
+            for t in db.query(SystemGlassTemplate)
+                       .filter(SystemGlassTemplate.system_variant_id == sys_req.system_variant_id)
+                       .all()
+        }
+        tpl_materials = {
+            t.material_id: t.order_index
+            for t in db.query(SystemMaterialTemplate)
+                       .filter(SystemMaterialTemplate.system_variant_id == sys_req.system_variant_id)
+                       .all()
+        }
 
-        for i,p in enumerate(sys_req.profiles):
+
+        # Profiller
+        for p in sys_req.profiles:
             db.add(ProjectSystemProfile(
                 id=uuid4(),
                 project_system_id=ps.id,
@@ -265,10 +311,11 @@ def add_only_systems_to_project(
                 cut_length_mm=p.cut_length_mm,
                 cut_count=p.cut_count,
                 total_weight_kg=p.total_weight_kg,
-                order_index=p.order_index if p.order_index is not None else i
+                order_index=tpl_profiles.get(p.profile_id)      # 🔑
             ))
 
-        for i, g in enumerate(sys_req.glasses):
+        # Camlar
+        for g in sys_req.glasses:
             db.add(ProjectSystemGlass(
                 id=uuid4(),
                 project_system_id=ps.id,
@@ -277,18 +324,20 @@ def add_only_systems_to_project(
                 height_mm=g.height_mm,
                 count=g.count,
                 area_m2=g.area_m2,
-                order_index=g.order_index if g.order_index is not None else i
+                order_index=tpl_glasses.get(g.glass_type_id)    # 🔑
             ))
 
-        for i, m in enumerate(sys_req.materials):
+        # Malzemeler
+        for m in sys_req.materials:
             db.add(ProjectSystemMaterial(
                 id=uuid4(),
                 project_system_id=ps.id,
                 material_id=m.material_id,
                 cut_length_mm=m.cut_length_mm,
                 count=m.count,
-                order_index=m.order_index if m.order_index is not None else i
+                order_index=tpl_materials.get(m.material_id)    # 🔑
             ))
+
 
     db.commit()
     db.refresh(project)
@@ -708,6 +757,27 @@ def update_project_system(
           )
           .first()
     )
+    variant_id = ps.system_variant_id
+
+    tpl_profiles = {
+        t.profile_id: t.order_index
+        for t in db.query(SystemProfileTemplate)
+                   .filter_by(system_variant_id=variant_id)
+                   .all()
+    }
+    tpl_glasses = {
+        t.glass_type_id: t.order_index
+        for t in db.query(SystemGlassTemplate)
+                   .filter_by(system_variant_id=variant_id)
+                   .all()
+    }
+    tpl_materials = {
+        t.material_id: t.order_index
+        for t in db.query(SystemMaterialTemplate)
+                   .filter_by(system_variant_id=variant_id)
+                   .all()
+    }
+
     if not ps:
         return None
 
@@ -722,7 +792,7 @@ def update_project_system(
     db.query(ProjectSystemMaterial).filter(ProjectSystemMaterial.project_system_id == project_system_id).delete(synchronize_session=False)
 
     # Yeniden ekle
-    for i, p in enumerate(payload.profiles):
+    for p in payload.profiles:
         db.add(ProjectSystemProfile(
             id=uuid4(),
             project_system_id=ps.id,
@@ -730,9 +800,10 @@ def update_project_system(
             cut_length_mm=p.cut_length_mm,
             cut_count=p.cut_count,
             total_weight_kg=p.total_weight_kg,
-            order_index=p.order_index if p.order_index is not None else i
+            order_index=tpl_profiles.get(p.profile_id)      # 🔑
         ))
-    for i, g in enumerate(payload.glasses):
+
+    for g in payload.glasses:
         db.add(ProjectSystemGlass(
             id=uuid4(),
             project_system_id=ps.id,
@@ -741,17 +812,19 @@ def update_project_system(
             height_mm=g.height_mm,
             count=g.count,
             area_m2=g.area_m2,
-            order_index=g.order_index if g.order_index is not None else i
+            order_index=tpl_glasses.get(g.glass_type_id)    # 🔑
         ))
-    for i, m in enumerate(payload.materials):
+
+    for m in payload.materials:
         db.add(ProjectSystemMaterial(
             id=uuid4(),
             project_system_id=ps.id,
             material_id=m.material_id,
             cut_length_mm=m.cut_length_mm,
             count=m.count,
-            order_index=m.order_index if m.order_index is not None else i
+            order_index=tpl_materials.get(m.material_id)    # 🔑
         ))
+
 
     db.commit()
     db.refresh(ps)
