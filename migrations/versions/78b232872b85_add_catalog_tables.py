@@ -28,7 +28,7 @@ def upgrade() -> None:
                existing_type=sa.VARCHAR(length=200),
                type_=sa.String(length=100),
                nullable=True)
-    op.drop_constraint(op.f('customer_email_key'), 'customer', type_='unique')
+    #op.drop_constraint(op.f('customer_email_key'), 'customer', type_='unique')
     op.drop_constraint(op.f('customer_dealer_id_fkey'), 'customer', type_='foreignkey')
     op.create_foreign_key(None, 'customer', 'app_user', ['dealer_id'], ['id'], ondelete='CASCADE')
     op.drop_column('customer', 'updated_at')
@@ -41,7 +41,7 @@ def downgrade() -> None:
     op.add_column('customer', sa.Column('updated_at', postgresql.TIMESTAMP(timezone=True), server_default=sa.text('now()'), autoincrement=False, nullable=True))
     op.drop_constraint(None, 'customer', type_='foreignkey')
     op.create_foreign_key(op.f('customer_dealer_id_fkey'), 'customer', 'app_user', ['dealer_id'], ['id'], ondelete='SET NULL')
-    op.create_unique_constraint(op.f('customer_email_key'), 'customer', ['email'], postgresql_nulls_not_distinct=False)
+    #op.create_unique_constraint(op.f('customer_email_key'), 'customer', ['email'], postgresql_nulls_not_distinct=False)
     op.alter_column('customer', 'email',
                existing_type=sa.String(length=100),
                type_=sa.VARCHAR(length=200),
