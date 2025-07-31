@@ -20,16 +20,17 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    # glass_type tablosundan birim_agirlik sütununu düş
-    op.drop_column('glass_type', 'birim_agirlik')
-
+    # # glass_type tablosundan birim_agirlik sütununu düş
+    # op.drop_column('glass_type', 'birim_agirlik')
+    pass
 
 def downgrade() -> None:
     """Downgrade schema."""
-    # rollback: birim_agirlik sütununu yeniden ekle
-    op.add_column(
-        'glass_type',
-        sa.Column('birim_agirlik', sa.Numeric(), nullable=False, server_default='0')
-    )
-    # varsayılan değeri kaldırmak isterseniz:
-    op.alter_column('glass_type', 'birim_agirlik', server_default=None)
+    # # rollback: birim_agirlik sütununu yeniden ekle
+    # op.add_column(
+    #     'glass_type',
+    #     sa.Column('birim_agirlik', sa.Numeric(), nullable=False, server_default='0')
+    # )
+    # # varsayılan değeri kaldırmak isterseniz:
+    # op.alter_column('glass_type', 'birim_agirlik', server_default=None)
+    pass
