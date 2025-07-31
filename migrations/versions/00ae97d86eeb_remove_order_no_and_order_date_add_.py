@@ -20,28 +20,29 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # 1) Yeni sütunu ekle
-    op.add_column(
-        'project',
-        sa.Column('project_name', sa.String(length=100), nullable=False, server_default='')
-    )
-# 2) Eski sütunları sil
-    op.drop_column('project', 'order_no')
-    op.drop_column('project', 'order_date')
-# 3) Server default’u kaldır (isteğe bağlı)
-    op.alter_column('project', 'project_name', server_default=None)
+#     op.add_column(
+#         'project',
+#         sa.Column('project_name', sa.String(length=100), nullable=False, server_default='')
+#     )
+# # 2) Eski sütunları sil
+#     op.drop_column('project', 'order_no')
+#     op.drop_column('project', 'order_date')
+# # 3) Server default’u kaldır (isteğe bağlı)
+#     op.alter_column('project', 'project_name', server_default=None)
+    pass
 
 
 
 def downgrade() -> None:
 # rollback için önce eski sütunları geri ekle
-    op.add_column(
-        'project',
-        sa.Column('order_date', sa.Date(), nullable=True)
-    )
-    op.add_column(
-        'project',
-        sa.Column('order_no', sa.String(length=50), nullable=True)
-    )
-# project_name sütununu kaldır
-    op.drop_column('project', 'project_name')
-
+#     op.add_column(
+#         'project',
+#         sa.Column('order_date', sa.Date(), nullable=True)
+#     )
+#     op.add_column(
+#         'project',
+#         sa.Column('order_no', sa.String(length=50), nullable=True)
+#     )
+# # project_name sütununu kaldır
+#     op.drop_column('project', 'project_name')
+    pass
