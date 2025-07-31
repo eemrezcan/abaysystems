@@ -101,17 +101,20 @@ def add_systems_to_project(
         db.add(ps)
         db.flush()
 
-        for p in sys_req.profiles:
+        # PROFİLLER
+        for i, p in enumerate(sys_req.profiles):
             db.add(ProjectSystemProfile(
                 id=uuid4(),
                 project_system_id=ps.id,
                 profile_id=p.profile_id,
                 cut_length_mm=p.cut_length_mm,
                 cut_count=p.cut_count,
-                total_weight_kg=p.total_weight_kg
+                total_weight_kg=p.total_weight_kg,
+                order_index=p.order_index if p.order_index is not None else i    # 🆕
             ))
 
-        for g in sys_req.glasses:
+        # CAMLAR
+        for i, g in enumerate(sys_req.glasses):
             db.add(ProjectSystemGlass(
                 id=uuid4(),
                 project_system_id=ps.id,
@@ -119,27 +122,30 @@ def add_systems_to_project(
                 width_mm=g.width_mm,
                 height_mm=g.height_mm,
                 count=g.count,
-                area_m2=g.area_m2
+                area_m2=g.area_m2,
+                order_index=g.order_index if g.order_index is not None else i    # 🆕
             ))
 
-        for m in sys_req.materials:
+        # MALZEMELER
+        for i, m in enumerate(sys_req.materials):
             db.add(ProjectSystemMaterial(
                 id=uuid4(),
                 project_system_id=ps.id,
                 material_id=m.material_id,
                 cut_length_mm=m.cut_length_mm,
-                count=m.count
+                count=m.count,
+                order_index=m.order_index if m.order_index is not None else i    # 🆕
             ))
 
-    # Project-level extra requirements
-    for extra in payload.extra_requirements:
-        db.add(ProjectExtraMaterial(
-            id=uuid4(),
-            project_id=project.id,
-            material_id=extra.material_id,
-            count=extra.count,
-            cut_length_mm=extra.cut_length_mm
-        ))
+        # Project-level extra requirements
+        for extra in payload.extra_requirements:
+            db.add(ProjectExtraMaterial(
+                id=uuid4(),
+                project_id=project.id,
+                material_id=extra.material_id,
+                count=extra.count,
+                cut_length_mm=extra.cut_length_mm
+            ))
 
     db.commit()
     db.refresh(project)
@@ -251,17 +257,18 @@ def add_only_systems_to_project(
         db.add(ps)
         db.flush()
 
-        for p in sys_req.profiles:
+        for i,p in enumerate(sys_req.profiles):
             db.add(ProjectSystemProfile(
                 id=uuid4(),
                 project_system_id=ps.id,
                 profile_id=p.profile_id,
                 cut_length_mm=p.cut_length_mm,
                 cut_count=p.cut_count,
-                total_weight_kg=p.total_weight_kg
+                total_weight_kg=p.total_weight_kg,
+                order_index=p.order_index if p.order_index is not None else i
             ))
 
-        for g in sys_req.glasses:
+        for i, g in enumerate(sys_req.glasses):
             db.add(ProjectSystemGlass(
                 id=uuid4(),
                 project_system_id=ps.id,
@@ -269,16 +276,18 @@ def add_only_systems_to_project(
                 width_mm=g.width_mm,
                 height_mm=g.height_mm,
                 count=g.count,
-                area_m2=g.area_m2
+                area_m2=g.area_m2,
+                order_index=g.order_index if g.order_index is not None else i
             ))
 
-        for m in sys_req.materials:
+        for i, m in enumerate(sys_req.materials):
             db.add(ProjectSystemMaterial(
                 id=uuid4(),
                 project_system_id=ps.id,
                 material_id=m.material_id,
                 cut_length_mm=m.cut_length_mm,
-                count=m.count
+                count=m.count,
+                order_index=m.order_index if m.order_index is not None else i
             ))
 
     db.commit()
@@ -369,6 +378,7 @@ def get_project_requirements_detailed(
                 cut_length_mm=p.cut_length_mm,
                 cut_count=p.cut_count,
                 total_weight_kg=p.total_weight_kg,
+                order_index=p.order_index,
                 profile=db.query(Profile).filter(Profile.id == p.profile_id).first()
             )
             for p in profiles_raw
@@ -387,6 +397,7 @@ def get_project_requirements_detailed(
                 height_mm=g.height_mm,
                 count=g.count,
                 area_m2=g.area_m2,
+                order_index=g.order_index,
                 glass_type=db.query(GlassType).filter(GlassType.id == g.glass_type_id).first()
             )
             for g in glasses_raw
@@ -403,6 +414,7 @@ def get_project_requirements_detailed(
                 material_id=m.material_id,
                 cut_length_mm=m.cut_length_mm,
                 count=m.count,
+                order_index=m.order_index,
                 material=db.query(OtherMaterial).filter(OtherMaterial.id == m.material_id).first()
             )
             for m in materials_raw
@@ -710,16 +722,17 @@ def update_project_system(
     db.query(ProjectSystemMaterial).filter(ProjectSystemMaterial.project_system_id == project_system_id).delete(synchronize_session=False)
 
     # Yeniden ekle
-    for p in payload.profiles:
+    for i, p in enumerate(payload.profiles):
         db.add(ProjectSystemProfile(
             id=uuid4(),
             project_system_id=ps.id,
             profile_id=p.profile_id,
             cut_length_mm=p.cut_length_mm,
             cut_count=p.cut_count,
-            total_weight_kg=p.total_weight_kg
+            total_weight_kg=p.total_weight_kg,
+            order_index=p.order_index if p.order_index is not None else i
         ))
-    for g in payload.glasses:
+    for i, g in enumerate(payload.glasses):
         db.add(ProjectSystemGlass(
             id=uuid4(),
             project_system_id=ps.id,
@@ -727,15 +740,17 @@ def update_project_system(
             width_mm=g.width_mm,
             height_mm=g.height_mm,
             count=g.count,
-            area_m2=g.area_m2
+            area_m2=g.area_m2,
+            order_index=g.order_index if g.order_index is not None else i
         ))
-    for m in payload.materials:
+    for i, m in enumerate(payload.materials):
         db.add(ProjectSystemMaterial(
             id=uuid4(),
             project_system_id=ps.id,
             material_id=m.material_id,
             cut_length_mm=m.cut_length_mm,
-            count=m.count
+            count=m.count,
+            order_index=m.order_index if m.order_index is not None else i
         ))
 
     db.commit()

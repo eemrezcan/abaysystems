@@ -139,14 +139,16 @@ class SystemProfileTemplateBase(BaseModel):
     formula_cut_count: str = Field(..., min_length=1)
 
 class SystemProfileTemplateCreate(SystemProfileTemplateBase):
-    pass
+    order_index: Optional[int] = None
 
 class SystemProfileTemplateUpdate(BaseModel):
     formula_cut_length: str = Field(..., min_length=1)
     formula_cut_count: str = Field(..., min_length=1)
+    order_index: Optional[int] = None
 
 class SystemProfileTemplateOut(SystemProfileTemplateBase):
     id: UUID
+    order_index: Optional[int]
     created_at: datetime
 
     class Config:
@@ -161,12 +163,13 @@ class SystemGlassTemplateBase(BaseModel):
     formula_count: str = Field(..., min_length=1)
 
 class SystemGlassTemplateCreate(SystemGlassTemplateBase):
-    pass
+    order_index: Optional[int] = None
 
 class SystemGlassTemplateUpdate(BaseModel):
     formula_width: str = Field(..., min_length=1)
     formula_height: str = Field(..., min_length=1)
     formula_count: str = Field(..., min_length=1)
+    order_index: Optional[int] = None
 
 class SystemGlassTemplateOut(SystemGlassTemplateBase):
     id: UUID
@@ -184,11 +187,12 @@ class SystemMaterialTemplateBase(BaseModel):
 
 
 class SystemMaterialTemplateCreate(SystemMaterialTemplateBase):
-    pass
+    order_index: Optional[int] = None
 
 class SystemMaterialTemplateUpdate(BaseModel):
     formula_quantity: str = Field(..., min_length=1)
     formula_cut_length: Optional[str] = None
+    order_index: Optional[int] = None
 
 class SystemMaterialTemplateOut(SystemMaterialTemplateBase):
     id: UUID
@@ -203,6 +207,7 @@ class ProfileTemplateOut(BaseModel):
     profile_id: UUID
     formula_cut_length: str
     formula_cut_count: str
+    order_index: Optional[int] = None
     profile: ProfileOut  # EKLENDİ
 
     class Config:
@@ -213,6 +218,7 @@ class GlassTemplateOut(BaseModel):
     formula_width: str
     formula_height: str
     formula_count: str
+    order_index: Optional[int] = None
     glass_type: GlassTypeOut  # EKLENDİ
 
     class Config:
@@ -222,6 +228,7 @@ class MaterialTemplateOut(BaseModel):
     material_id: UUID
     formula_quantity: str
     formula_cut_length: str
+    order_index: Optional[int] = None
     material: OtherMaterialOut  # EKLENDİ
 
     class Config:
@@ -255,17 +262,20 @@ class ProfileTemplateIn(BaseModel):
     profile_id: UUID
     formula_cut_length: str = Field(..., min_length=1)
     formula_cut_count: str = Field(..., min_length=1)
+    order_index: Optional[int] = None
 
 class GlassTemplateIn(BaseModel):
     glass_type_id: UUID
     formula_width: str = Field(..., min_length=1)
     formula_height: str = Field(..., min_length=1)
     formula_count: str = Field(..., min_length=1)
+    order_index: Optional[int] = None
 
 class MaterialTemplateIn(BaseModel):
     material_id: UUID
     formula_quantity: str = Field(..., min_length=1)
     formula_cut_length: Optional[str] = None
+    order_index: Optional[int] = None
 
 class SystemVariantCreateWithTemplates(BaseModel):
     system_id: UUID = Field(..., alias="systemId")

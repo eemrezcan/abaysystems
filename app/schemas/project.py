@@ -12,6 +12,7 @@ class ProfileInProject(BaseModel):
     cut_length_mm: float
     cut_count: int
     total_weight_kg: float
+    order_index: Optional[int] = None
 
 class GlassInProject(BaseModel):
     glass_type_id: UUID
@@ -19,11 +20,13 @@ class GlassInProject(BaseModel):
     height_mm: float
     count: int
     area_m2: float
+    order_index: Optional[int] = None
 
 class MaterialInProject(BaseModel):
     material_id: UUID
     count: int
     cut_length_mm: Optional[float] = None
+    order_index: Optional[int] = None
 
 # ----------------------------------------
 # SystemRequirement and ExtraRequirement

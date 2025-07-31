@@ -27,7 +27,6 @@ from app.schemas.system import (
     SystemVariantCreateWithTemplates,
     SystemVariantDetailOut,
     SystemVariantUpdateWithTemplates,
-    SystemVariantCreateWithTemplates
 )
 
 router = APIRouter(prefix="/api/system-variants", tags=["SystemVariants"])

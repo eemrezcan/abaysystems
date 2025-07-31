@@ -205,6 +205,7 @@ def list_requirements_endpoint(
                 cut_length_mm=float(p.cut_length_mm),
                 cut_count=p.cut_count,
                 total_weight_kg=float(p.total_weight_kg),
+                order_index=p.order_index 
             )
             for p in sys.profiles
         ]
@@ -215,6 +216,7 @@ def list_requirements_endpoint(
                 height_mm=float(g.height_mm),
                 count=g.count,
                 area_m2=float(g.area_m2),
+                order_index=g.order_index 
             )
             for g in sys.glasses
         ]
@@ -223,6 +225,7 @@ def list_requirements_endpoint(
                 material_id=m.material_id,
                 count=m.count,
                 cut_length_mm=float(m.cut_length_mm) if m.cut_length_mm is not None else None,
+                order_index=m.order_index 
             )
             for m in sys.materials
         ]

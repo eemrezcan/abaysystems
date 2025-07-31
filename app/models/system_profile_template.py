@@ -1,7 +1,7 @@
 # app/models/system_profile_template.py
 
 import uuid
-from sqlalchemy import Column, String, ForeignKey
+from sqlalchemy import Column, String, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -16,6 +16,7 @@ class SystemProfileTemplate(Base):
     profile_id        = Column(UUID(as_uuid=True), ForeignKey("profile.id"), nullable=False)
     formula_cut_length = Column(String, nullable=False)
     formula_cut_count  = Column(String, nullable=False)
+    order_index        = Column(Integer, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
     # ilişki (opsiyonel, kullanmak isterseniz)

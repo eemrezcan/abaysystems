@@ -92,21 +92,6 @@ def delete_system_endpoint(system_id: UUID, db: Session = Depends(get_db)):
     return
 
 # ----- FULL CREATE: SYSTEM + VARIANT + GLASS-CONFIG -----
-@router.post("/systems/full", status_code=201)
-def create_full_system_endpoint(
-    payload: SystemFullCreate,
-    db: Session = Depends(get_db)
-):
-    """
-    Yeni bir request’te tek seferde:
-      1. system
-      2. system_variant
-      3. glass_configs (opsiyonel)
-    oluşturur.
-    """
-    return create_system_full(db, payload)
-
-# ----- TEMPLATE FETCH -----
 @router.get(
     "/system-templates/{variant_id}",
     response_model=SystemTemplatesOut,
@@ -117,14 +102,17 @@ def fetch_system_templates(
     db: Session = Depends(get_db)
 ):
     profiles, glasses, materials = get_system_templates(db, variant_id)
+
     return SystemTemplatesOut(
         profileTemplates=[
             ProfileTemplateOut(
                 profile_id=tpl.profile_id,
                 formula_cut_length=tpl.formula_cut_length,
                 formula_cut_count=tpl.formula_cut_count,
+                order_index=tpl.order_index,          # 🆕 bu satır
                 profile=tpl.profile
-            ) for tpl in profiles
+            )
+            for tpl in profiles
         ],
         glassTemplates=[
             GlassTemplateOut(
@@ -132,16 +120,20 @@ def fetch_system_templates(
                 formula_width=tpl.formula_width,
                 formula_height=tpl.formula_height,
                 formula_count=tpl.formula_count,
-                glass_type=tpl.glass_type 
-            ) for tpl in glasses
+                order_index=tpl.order_index,          # 🆕 bu satır
+                glass_type=tpl.glass_type
+            )
+            for tpl in glasses
         ],
         materialTemplates=[
             MaterialTemplateOut(
                 material_id=tpl.material_id,
                 formula_quantity=tpl.formula_quantity,
                 formula_cut_length=tpl.formula_cut_length,
+                order_index=tpl.order_index,          # 🆕 bu satır
                 material=tpl.material
-            ) for tpl in materials
+            )
+            for tpl in materials
         ]
     )
 

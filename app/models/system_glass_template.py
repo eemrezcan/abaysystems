@@ -1,7 +1,7 @@
 # app/models/system_glass_template.py
 
 import uuid
-from sqlalchemy import Column, String, ForeignKey
+from sqlalchemy import Column, String, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -17,6 +17,7 @@ class SystemGlassTemplate(Base):
     formula_width    = Column(String, nullable=False)
     formula_height   = Column(String, nullable=False)
     formula_count    = Column(String, nullable=False)
+    order_index = Column(Integer, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
     variant    = relationship("SystemVariant", back_populates="glass_templates")

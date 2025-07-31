@@ -270,36 +270,40 @@ def create_system_variant_with_templates(
     db.add(variant)
     db.flush()
 
-    # 2) Profile şablonları ekle
-    for pt in payload.profile_templates:
+        # 2) Profile şablonları
+    for i, pt in enumerate(payload.profile_templates):
         db.add(SystemProfileTemplate(
             id=uuid4(),
             system_variant_id=variant.id,
             profile_id=pt.profile_id,
             formula_cut_length=pt.formula_cut_length,
-            formula_cut_count=pt.formula_cut_count
+            formula_cut_count=pt.formula_cut_count,
+            order_index=pt.order_index if pt.order_index is not None else i   # 🆕
         ))
 
-    # 3) Glass şablonları ekle
-    for gt in payload.glass_templates:
+    # 3) Glass şablonları
+    for i, gt in enumerate(payload.glass_templates):
         db.add(SystemGlassTemplate(
             id=uuid4(),
             system_variant_id=variant.id,
             glass_type_id=gt.glass_type_id,
             formula_width=gt.formula_width,
             formula_height=gt.formula_height,
-            formula_count=gt.formula_count
+            formula_count=gt.formula_count,
+            order_index=gt.order_index if gt.order_index is not None else i   # 🆕
         ))
 
-    # 4) Material şablonları ekle
-    for mt in payload.material_templates:
+    # 4) Material şablonları
+    for i, mt in enumerate(payload.material_templates):
         db.add(SystemMaterialTemplate(
             id=uuid4(),
             system_variant_id=variant.id,
             material_id=mt.material_id,
             formula_quantity=mt.formula_quantity,
-            formula_cut_length=mt.formula_cut_length
+            formula_cut_length=mt.formula_cut_length,
+            order_index=mt.order_index if mt.order_index is not None else i   # 🆕
         ))
+
 
     # 5) Commit ve refresh
     db.commit()
@@ -327,31 +331,38 @@ def update_system_variant_with_templates(
     db.query(SystemMaterialTemplate).filter_by(system_variant_id=variant_id).delete(synchronize_session=False)
     db.flush()
 
-    # 4) Yeni şablonları ekle
-    for pt in payload.profile_templates:
+    # 4) Yeni şablonları ekle – PROFİL
+    for i, pt in enumerate(payload.profile_templates):
         db.add(SystemProfileTemplate(
             id=uuid4(),
             system_variant_id=variant_id,
             profile_id=pt.profile_id,
             formula_cut_length=pt.formula_cut_length,
-            formula_cut_count=pt.formula_cut_count
+            formula_cut_count=pt.formula_cut_count,
+            order_index=pt.order_index if pt.order_index is not None else i   # 🆕
         ))
-    for gt in payload.glass_templates:
+
+    # CAM
+    for i, gt in enumerate(payload.glass_templates):
         db.add(SystemGlassTemplate(
             id=uuid4(),
             system_variant_id=variant_id,
             glass_type_id=gt.glass_type_id,
             formula_width=gt.formula_width,
             formula_height=gt.formula_height,
-            formula_count=gt.formula_count
+            formula_count=gt.formula_count,
+            order_index=gt.order_index if gt.order_index is not None else i   # 🆕
         ))
-    for mt in payload.material_templates:
+
+    # MALZEME
+    for i, mt in enumerate(payload.material_templates):
         db.add(SystemMaterialTemplate(
             id=uuid4(),
             system_variant_id=variant_id,
             material_id=mt.material_id,
             formula_quantity=mt.formula_quantity,
-            formula_cut_length=mt.formula_cut_length
+            formula_cut_length=mt.formula_cut_length,
+            order_index=mt.order_index if mt.order_index is not None else i   # 🆕
         ))
 
     # 5) Commit ve refresh
