@@ -20,19 +20,20 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    # system_variant tablosundan max_width_m ve max_height_m sütunlarını kaldır
-    op.drop_column('system_variant', 'max_width_m')
-    op.drop_column('system_variant', 'max_height_m')
-
+    # # system_variant tablosundan max_width_m ve max_height_m sütunlarını kaldır
+    # op.drop_column('system_variant', 'max_width_m')
+    # op.drop_column('system_variant', 'max_height_m')
+    pass
 
 def downgrade() -> None:
     """Downgrade schema."""
     # rollback için max_width_m ve max_height_m sütunlarını geri ekle
-    op.add_column(
-        'system_variant',
-        sa.Column('max_width_m', sa.Numeric(), nullable=True)
-    )
-    op.add_column(
-        'system_variant',
-        sa.Column('max_height_m', sa.Numeric(), nullable=True)
-    )
+    # op.add_column(
+    #     'system_variant',
+    #     sa.Column('max_width_m', sa.Numeric(), nullable=True)
+    # )
+    # op.add_column(
+    #     'system_variant',
+    #     sa.Column('max_height_m', sa.Numeric(), nullable=True)
+    # )
+    pass
