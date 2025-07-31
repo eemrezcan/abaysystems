@@ -54,7 +54,7 @@ def upgrade() -> None:
     #sa.ForeignKeyConstraint(['project_system_id'], ['project_system.id'], ondelete='CASCADE'),
     #sa.PrimaryKeyConstraint('id')
     #)
-    op.add_column('project', sa.Column('customer_id', sa.UUID(), nullable=True))
+    #op.add_column('project', sa.Column('customer_id', sa.UUID(), nullable=True))
     op.execute(
         "UPDATE project "
         "SET created_by = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' "
@@ -89,7 +89,7 @@ def downgrade() -> None:
     op.drop_column('project', 'created_at')
     op.drop_column('project', 'order_date')
     op.drop_column('project', 'order_no')
-    op.drop_column('project', 'customer_id')
+    #op.drop_column('project', 'customer_id')
     #op.drop_table('project_system_profile')
     #op.drop_table('project_system_material')
     #op.drop_table('project_system_glass')
