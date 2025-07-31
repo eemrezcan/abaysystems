@@ -63,10 +63,10 @@ def upgrade() -> None:
     op.alter_column('project', 'created_by',
             existing_type=sa.UUID(),
             nullable=False)
-    op.add_column('project', sa.Column('order_no', sa.String(length=50), nullable=True))
-    op.add_column('project', sa.Column('order_date', sa.Date(), nullable=True))
-    op.add_column('project', sa.Column('created_at', postgresql.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True))
-    op.add_column('project', sa.Column('updated_at', postgresql.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True))
+    #op.add_column('project', sa.Column('order_no', sa.String(length=50), nullable=True))
+    #op.add_column('project', sa.Column('order_date', sa.Date(), nullable=True))
+    #op.add_column('project', sa.Column('created_at', postgresql.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True))
+    #op.add_column('project', sa.Column('updated_at', postgresql.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True))
     op.alter_column('project', 'created_by',
                existing_type=sa.UUID(),
                nullable=False)
@@ -85,10 +85,10 @@ def downgrade() -> None:
     op.alter_column('project', 'created_by',
                existing_type=sa.UUID(),
                nullable=True)
-    op.drop_column('project', 'updated_at')
-    op.drop_column('project', 'created_at')
-    op.drop_column('project', 'order_date')
-    op.drop_column('project', 'order_no')
+    #op.drop_column('project', 'updated_at')
+    #op.drop_column('project', 'created_at')
+    #op.drop_column('project', 'order_date')
+    #op.drop_column('project', 'order_no')
     #op.drop_column('project', 'customer_id')
     #op.drop_table('project_system_profile')
     #op.drop_table('project_system_material')
