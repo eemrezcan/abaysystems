@@ -19,16 +19,17 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade():
-    op.add_column(
-        'system_variant',
-        sa.Column('max_height_m', sa.Numeric(), nullable=True),
-    )
-    op.add_column(
-        'system_variant',
-        sa.Column('color_options', sa.ARRAY(sa.String()), nullable=True),
-    )
+    # op.add_column(
+    #     'system_variant',
+    #     sa.Column('max_height_m', sa.Numeric(), nullable=True),
+    # )
+    # op.add_column(
+    #     'system_variant',
+    #     sa.Column('color_options', sa.ARRAY(sa.String()), nullable=True),
+    # )
+    pass
 
 def downgrade():
-    op.drop_column('system_variant', 'color_options')
-    op.drop_column('system_variant', 'max_height_m')
-
+    # op.drop_column('system_variant', 'color_options')
+    # op.drop_column('system_variant', 'max_height_m')
+    pass
