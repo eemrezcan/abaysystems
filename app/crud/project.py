@@ -5,17 +5,11 @@ from datetime import datetime
 from uuid import UUID
 from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
+
 from app.models.system import SystemVariant, System
 from app.models.profile import Profile
 from app.models.glass_type import GlassType
 from app.models.other_material import OtherMaterial
-from app.schemas.project import ProjectRequirementsDetailedOut, SystemInProjectOut, ProfileInProjectOut, GlassInProjectOut, MaterialInProjectOut
-from app.schemas.project import ExtraRequirement, ExtraProfileIn, ExtraGlassIn
-from app.models.project import ProjectExtraMaterial, ProjectExtraProfile, ProjectExtraGlass
-from app.models.customer import Customer
-from app.models.system_profile_template import SystemProfileTemplate
-from app.models.system_glass_template   import SystemGlassTemplate
-from app.models.system_material_template import SystemMaterialTemplate
 
 from app.models.project import (
     Project,
@@ -27,6 +21,11 @@ from app.models.project import (
     ProjectExtraProfile,
     ProjectExtraGlass
 )
+from app.models.customer import Customer
+from app.models.system_profile_template import SystemProfileTemplate
+from app.models.system_glass_template   import SystemGlassTemplate
+from app.models.system_material_template import SystemMaterialTemplate
+
 from app.schemas.project import (
     ProjectCreate,
     ProjectUpdate,
@@ -36,38 +35,55 @@ from app.schemas.project import (
     ExtraProfileIn,
     ExtraGlassIn,
     ExtraProfileDetailed,
-    ExtraGlassDetailed
+    ExtraGlassDetailed,
+    ProjectRequirementsDetailedOut,
+    SystemInProjectOut,
+    ProfileInProjectOut,
+    GlassInProjectOut,
+    MaterialInProjectOut,
 )
 
+# ------------------------------------------------------------
+# Yardımcılar
+# ------------------------------------------------------------
 
-def _generate_project_code(db: Session) -> str:
+def _generate_project_code(db: Session, owner_id: UUID) -> str:
     """
-    Fetches the most recently created project's code, increments its numeric part,
-    starting at 10000 if none or invalid.
+    Kullanıcıya özel artan proje kodu üretir.
+    Son projeyi created_by=owner_id filtresiyle bulur; TALU-xxxxx formatındaki numarayı arttırır.
+    Bulunamazsa 10000'dan başlar.
     """
-    last = db.query(Project).order_by(Project.created_at.desc()).first()
+    last = (
+        db.query(Project)
+          .filter(Project.created_by == owner_id)
+          .order_by(Project.created_at.desc())
+          .first()
+    )
     if last and isinstance(last.project_kodu, str) and last.project_kodu.startswith("TALU-"):
         try:
-            parts = last.project_kodu.split("-", 1)
-            n = int(parts[1]) + 1
+            n = int(last.project_kodu.split("-", 1)[1]) + 1
         except (ValueError, IndexError):
             n = 10000
     else:
         n = 10000
     return f"TALU-{n}"
 
+# ------------------------------------------------------------
+# Proje CRUD
+# ------------------------------------------------------------
 
-def create_project(db: Session, payload: ProjectCreate) -> Project:
+def create_project(db: Session, payload: ProjectCreate, created_by: UUID) -> Project:
     """
-    Creates a new Project with an auto-incremented project_kodu (TALU-xxxx).
+    Yeni Project oluşturur. Proje kodu kullanıcıya özel sıralı üretilir (TALU-xxxxx).
     """
-    code = _generate_project_code(db)
+    code = _generate_project_code(db, created_by)
     project = Project(
+        id=uuid4(),
         customer_id=payload.customer_id,
-        project_name=payload.project_name,   # 🟢 Yeni eklenen alan
-        created_by=payload.created_by,
+        project_name=payload.project_name,
+        created_by=created_by,
         project_kodu=code,
-        created_at=datetime.utcnow()
+        created_at=datetime.utcnow(),
     )
     db.add(project)
     db.commit()
@@ -75,109 +91,124 @@ def create_project(db: Session, payload: ProjectCreate) -> Project:
     return project
 
 
-def add_systems_to_project(
-    db: Session,
-    project_id: UUID,
-    payload: ProjectSystemsUpdate
-) -> Project:
+def get_projects(db: Session, owner_id: UUID) -> List[Project]:
     """
-    Adds calculated systems and extra materials to an existing project.
-
-    1) Look up project by ID, raise if not found.
-    2) For each system requirement, create ProjectSystem and related child records.
-    3) Create project-level extra material records.
+    Sadece ilgili kullanıcının projelerini döner.
     """
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise ValueError("Project not found")
-
-    # Create system entries
-    for sys_req in payload.systems:
-        ps = ProjectSystem(
-            id=uuid4(),
-            project_id=project.id,
-            system_variant_id=sys_req.system_variant_id,
-            width_mm=sys_req.width_mm,
-            height_mm=sys_req.height_mm,
-            quantity=sys_req.quantity
-        )
-        db.add(ps)
-        db.flush()
-            # --- Şablonlardaki order_index değerlerini haritala ---
-        tpl_profiles = {
-            t.profile_id: t.order_index
-            for t in db.query(SystemProfileTemplate)
-                    .filter(SystemProfileTemplate.system_variant_id == sys_req.system_variant_id)
-                    .all()
-        }
-        tpl_glasses = {
-            t.glass_type_id: t.order_index
-            for t in db.query(SystemGlassTemplate)
-                    .filter(SystemGlassTemplate.system_variant_id == sys_req.system_variant_id)
-                    .all()
-        }
-        tpl_materials = {
-            t.material_id: t.order_index
-            for t in db.query(SystemMaterialTemplate)
-                    .filter(SystemMaterialTemplate.system_variant_id == sys_req.system_variant_id)
-                    .all()
-        }
+    return (
+        db.query(Project)
+          .filter(Project.created_by == owner_id)
+          .order_by(Project.created_at.desc())
+          .all()
+    )
 
 
-        # PROFİLLER
-        for p in sys_req.profiles:
-            db.add(ProjectSystemProfile(
-                id=uuid4(),
-                project_system_id=ps.id,
-                profile_id=p.profile_id,
-                cut_length_mm=p.cut_length_mm,
-                cut_count=p.cut_count,
-                total_weight_kg=p.total_weight_kg,
-                order_index=tpl_profiles.get(p.profile_id)      # ← sadece bu!
-            ))
+def get_project(db: Session, project_id: UUID) -> Optional[Project]:
+    """
+    Tekil proje (sahiplik kontrolü route katmanında yapılır).
+    """
+    return db.query(Project).filter(Project.id == project_id).first()
 
 
-        # CAMLAR
-        for g in sys_req.glasses:
-            db.add(ProjectSystemGlass(
-                id=uuid4(),
-                project_system_id=ps.id,
-                glass_type_id=g.glass_type_id,
-                width_mm=g.width_mm,
-                height_mm=g.height_mm,
-                count=g.count,
-                area_m2=g.area_m2,
-                order_index=tpl_glasses.get(g.glass_type_id)    # ←
-            ))
+def update_project(db: Session, project_id: UUID, payload: ProjectUpdate) -> Optional[Project]:
+    proj = get_project(db, project_id)
+    if not proj:
+        return None
 
+    # created_at güncellemesi isteğe bağlı
+    if payload.created_at is not None:
+        proj.created_at = payload.created_at
 
-        for m in sys_req.materials:
-            db.add(ProjectSystemMaterial(
-                id=uuid4(),
-                project_system_id=ps.id,
-                material_id=m.material_id,
-                cut_length_mm=m.cut_length_mm,
-                count=m.count,
-                order_index=tpl_materials.get(m.material_id)    # ←
-            ))
-
-
-        # Project-level extra requirements
-        for extra in payload.extra_requirements:
-            db.add(ProjectExtraMaterial(
-                id=uuid4(),
-                project_id=project.id,
-                material_id=extra.material_id,
-                count=extra.count,
-                cut_length_mm=extra.cut_length_mm
-            ))
+    for field, value in payload.dict(exclude_unset=True).items():
+        # id / created_by korumasına gerek yoksa schema zaten içermez
+        setattr(proj, field, value)
 
     db.commit()
-    db.refresh(project)
-    return project
+    db.refresh(proj)
+    return proj
 
-def update_project_code(db: Session, project_id: UUID, new_code: str) -> Project | None:
-    # Aynı project_kodu başka bir projede var mı?
+def update_project_all(
+    db: Session,
+    project_id: UUID,
+    payload,              # ProjectUpdate
+    owner_id: UUID,
+) -> Optional[Project]:
+    # Proje sahibine ait mi?
+    proj = (
+        db.query(Project)
+          .filter(Project.id == project_id, Project.created_by == owner_id)
+          .first()
+    )
+    if not proj:
+        return None
+
+    # Müşteri değişiyorsa; o müşteri de bu kullanıcıya (bayiye/admin’e) ait ve silinmemiş olmalı
+    if payload.customer_id is not None and payload.customer_id != proj.customer_id:
+        cust = (
+            db.query(Customer)
+              .filter(
+                  Customer.id == payload.customer_id,
+                  Customer.dealer_id == owner_id,
+                  Customer.is_deleted == False,
+              )
+              .first()
+        )
+        if not cust:
+            raise ValueError("Customer not found or not owned by you.")
+
+    # Proje kodu değişiyorsa: aynı owner altında benzersiz olmalı
+    if payload.project_kodu is not None and payload.project_kodu != proj.project_kodu:
+        exists = (
+            db.query(Project)
+              .filter(
+                  Project.created_by == owner_id,
+                  Project.project_kodu == payload.project_kodu,
+                  Project.id != project_id,
+              )
+              .first()
+        )
+        if exists:
+            raise ValueError("This project code is already used in your account.")
+        proj.project_kodu = payload.project_kodu
+
+    # Diğer alanlar (unset olanları dokunma; None gönderdiyse temizlemeye izin verelim)
+    data = payload.dict(exclude_unset=True)
+
+    # Zaten yukarıda ayrı ele aldık:
+    data.pop("project_kodu", None)
+
+    # created_at açıkça gönderildiyse güncelle
+    if "created_at" in data:
+        proj.created_at = data["created_at"]
+
+    # isim / müşteri / renkler
+    if "project_name" in data:
+        proj.project_name = data["project_name"]
+    if "customer_id" in data:
+        proj.customer_id = data["customer_id"]
+    if "profile_color_id" in data:
+        proj.profile_color_id = data["profile_color_id"]  # None gelirse temizler
+    if "glass_color_id" in data:
+        proj.glass_color_id = data["glass_color_id"]      # None gelirse temizler
+
+    db.commit()
+    db.refresh(proj)
+    return proj
+
+def delete_project(db: Session, project_id: UUID, owner_id: Optional[UUID] = None) -> bool:
+    """
+    Hard delete. owner_id verilirse sahiplik filtresi de uygulanır.
+    """
+    q = db.query(Project).filter(Project.id == project_id)
+    if owner_id is not None:
+        q = q.filter(Project.created_by == owner_id)
+    deleted = q.delete()
+    db.commit()
+    return bool(deleted)
+
+
+def update_project_code(db: Session, project_id: UUID, new_code: str) -> Optional[Project]:
+    # Benzersizlik kontrolü (global)
     exists = (
         db.query(Project)
         .filter(Project.project_kodu == new_code, Project.id != project_id)
@@ -195,93 +226,37 @@ def update_project_code(db: Session, project_id: UUID, new_code: str) -> Project
     db.refresh(project)
     return project
 
+# ------------------------------------------------------------
+# Gereksinimler (sistem + ekstra)
+# ------------------------------------------------------------
 
-def get_projects(db: Session) -> List[Project]:
-    return db.query(Project).all()
-
-
-def get_project(db: Session, project_id: UUID) -> Optional[Project]:
-    return db.query(Project).filter(Project.id == project_id).first()
-
-
-def update_project(db: Session, project_id: UUID, payload: ProjectUpdate) -> Optional[Project]:
-    proj = get_project(db, project_id)
-    if not proj:
-        return None
-    # Proje tarihini (created_at) güncelleme desteği
-    if payload.created_at is not None:
-        proj.created_at = payload.created_at
-    for field, value in payload.dict(exclude_unset=True).items():
-        setattr(proj, field, value)
-    db.commit()
-    db.refresh(proj)
-    return proj
-
-
-def delete_project(db: Session, project_id: UUID) -> bool:
-    deleted = db.query(Project).filter(Project.id == project_id).delete()
-    db.commit()
-    return bool(deleted)
-
-
-def update_systems_for_project(
+def add_systems_to_project(
     db: Session,
     project_id: UUID,
     payload: ProjectSystemsUpdate
-) -> Optional[Project]:
-    db.query(ProjectSystemProfile).join(ProjectSystem).filter(ProjectSystem.project_id == project_id).delete(synchronize_session=False)
-    db.query(ProjectSystemGlass).join(ProjectSystem).filter(ProjectSystem.project_id == project_id).delete(synchronize_session=False)
-    db.query(ProjectSystemMaterial).join(ProjectSystem).filter(ProjectSystem.project_id == project_id).delete(synchronize_session=False)
-    db.query(ProjectSystem).filter(ProjectSystem.project_id == project_id).delete(synchronize_session=False)
-    db.query(ProjectExtraMaterial).filter(ProjectExtraMaterial.project_id == project_id).delete(synchronize_session=False)
-    db.commit()
-
-    return add_systems_to_project(db, project_id, payload)
-
-
-def get_project_requirements(
-    db: Session,
-    project_id: UUID
-) -> Tuple[List[ProjectSystem], List[ProjectExtraMaterial]]:
-    """
-    Verilen project_id’ye ait:
-      - ProjectSystem kayıtlarını (ilişkili profiller, camlar, malzemeler yüklü olarak)
-      - Ve ProjectExtraMaterial kayıtlarını
-    döner.
-    """
-    systems = (
-        db.query(ProjectSystem)
-          .filter(ProjectSystem.project_id == project_id)
-          .all()
-    )
-    extras = (
-        db.query(ProjectExtraMaterial)
-          .filter(ProjectExtraMaterial.project_id == project_id)
-          .all()
-    )
-    return systems, extras
-
-def add_only_systems_to_project(
-    db: Session,
-    project_id: UUID,
-    systems: List[SystemRequirement]
 ) -> Project:
+    """
+    Projeye sistemleri ve ekstra malzemeleri ekler.
+    NOT: Extra requirements artık sistem döngüsünün DIŞINDA ekleniyor (bug fix).
+    """
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise ValueError("Project not found")
 
-    for sys_req in systems:
+    # --- Sistemler
+    for sys_req in payload.systems:
         ps = ProjectSystem(
             id=uuid4(),
             project_id=project.id,
             system_variant_id=sys_req.system_variant_id,
             width_mm=sys_req.width_mm,
             height_mm=sys_req.height_mm,
-            quantity=sys_req.quantity
+            quantity=sys_req.quantity,
         )
         db.add(ps)
         db.flush()
-                # --- Şablonlardaki order_index değerlerini haritala ---
+
+        # Şablonlara göre order_index haritaları
         tpl_profiles = {
             t.profile_id: t.order_index
             for t in db.query(SystemProfileTemplate)
@@ -301,7 +276,6 @@ def add_only_systems_to_project(
                        .all()
         }
 
-
         # Profiller
         for p in sys_req.profiles:
             db.add(ProjectSystemProfile(
@@ -311,7 +285,7 @@ def add_only_systems_to_project(
                 cut_length_mm=p.cut_length_mm,
                 cut_count=p.cut_count,
                 total_weight_kg=p.total_weight_kg,
-                order_index=tpl_profiles.get(p.profile_id)      # 🔑
+                order_index=tpl_profiles.get(p.profile_id),
             ))
 
         # Camlar
@@ -324,7 +298,7 @@ def add_only_systems_to_project(
                 height_mm=g.height_mm,
                 count=g.count,
                 area_m2=g.area_m2,
-                order_index=tpl_glasses.get(g.glass_type_id)    # 🔑
+                order_index=tpl_glasses.get(g.glass_type_id),
             ))
 
         # Malzemeler
@@ -335,13 +309,138 @@ def add_only_systems_to_project(
                 material_id=m.material_id,
                 cut_length_mm=m.cut_length_mm,
                 count=m.count,
-                order_index=tpl_materials.get(m.material_id)    # 🔑
+                order_index=tpl_materials.get(m.material_id),
             ))
 
+    # --- Proje seviyesi ekstra malzemeler (DÖNGÜ DIŞI) 🔧
+    for extra in payload.extra_requirements:
+        db.add(ProjectExtraMaterial(
+            id=uuid4(),
+            project_id=project.id,
+            material_id=extra.material_id,
+            count=extra.count,
+            cut_length_mm=extra.cut_length_mm,
+        ))
 
     db.commit()
     db.refresh(project)
     return project
+
+
+def update_systems_for_project(
+    db: Session,
+    project_id: UUID,
+    payload: ProjectSystemsUpdate
+) -> Optional[Project]:
+    # mevcut tüm içerikleri sil
+    db.query(ProjectSystemProfile).join(ProjectSystem).filter(ProjectSystem.project_id == project_id).delete(synchronize_session=False)
+    db.query(ProjectSystemGlass).join(ProjectSystem).filter(ProjectSystem.project_id == project_id).delete(synchronize_session=False)
+    db.query(ProjectSystemMaterial).join(ProjectSystem).filter(ProjectSystem.project_id == project_id).delete(synchronize_session=False)
+    db.query(ProjectSystem).filter(ProjectSystem.project_id == project_id).delete(synchronize_session=False)
+    db.query(ProjectExtraMaterial).filter(ProjectExtraMaterial.project_id == project_id).delete(synchronize_session=False)
+    db.commit()
+
+    return add_systems_to_project(db, project_id, payload)
+
+
+def get_project_requirements(
+    db: Session,
+    project_id: UUID
+) -> Tuple[List[ProjectSystem], List[ProjectExtraMaterial]]:
+    systems = (
+        db.query(ProjectSystem)
+          .filter(ProjectSystem.project_id == project_id)
+          .all()
+    )
+    extras = (
+        db.query(ProjectExtraMaterial)
+          .filter(ProjectExtraMaterial.project_id == project_id)
+          .all()
+    )
+    return systems, extras
+
+
+def add_only_systems_to_project(
+    db: Session,
+    project_id: UUID,
+    systems: List[SystemRequirement]
+) -> Project:
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise ValueError("Project not found")
+
+    for sys_req in systems:
+        ps = ProjectSystem(
+            id=uuid4(),
+            project_id=project.id,
+            system_variant_id=sys_req.system_variant_id,
+            width_mm=sys_req.width_mm,
+            height_mm=sys_req.height_mm,
+            quantity=sys_req.quantity,
+        )
+        db.add(ps)
+        db.flush()
+
+        tpl_profiles = {
+            t.profile_id: t.order_index
+            for t in db.query(SystemProfileTemplate)
+                       .filter(SystemProfileTemplate.system_variant_id == sys_req.system_variant_id)
+                       .all()
+        }
+        tpl_glasses = {
+            t.glass_type_id: t.order_index
+            for t in db.query(SystemGlassTemplate)
+                       .filter(SystemGlassTemplate.system_variant_id == sys_req.system_variant_id)
+                       .all()
+        }
+        tpl_materials = {
+            t.material_id: t.order_index
+            for t in db.query(SystemMaterialTemplate)
+                       .filter(SystemMaterialTemplate.system_variant_id == sys_req.system_variant_id)
+                       .all()
+        }
+
+        # Profiller
+        for p in sys_req.profiles:
+            db.add(ProjectSystemProfile(
+                id=uuid4(),
+                project_system_id=ps.id,
+                profile_id=p.profile_id,
+                cut_length_mm=p.cut_length_mm,
+                cut_count=p.cut_count,
+                total_weight_kg=p.total_weight_kg,
+                order_index=tpl_profiles.get(p.profile_id),
+            ))
+
+        # Camlar
+        for g in sys_req.glasses:
+            db.add(ProjectSystemGlass(
+                id=uuid4(),
+                project_system_id=ps.id,
+                glass_type_id=g.glass_type_id,
+                width_mm=g.width_mm,
+                height_mm=g.height_mm,
+                count=g.count,
+                area_m2=g.area_m2,
+                order_index=tpl_glasses.get(g.glass_type_id),
+            ))
+
+        # Malzemeler
+        for m in sys_req.materials:
+            db.add(ProjectSystemMaterial(
+                id=uuid4(),
+                project_system_id=ps.id,
+                material_id=m.material_id,
+                cut_length_mm=m.cut_length_mm,
+                count=m.count,
+                order_index=tpl_materials.get(m.material_id),
+            ))
+
+    db.commit()
+    db.refresh(project)
+    return project
+
+
 def add_only_extras_to_project(
     db: Session,
     project_id: UUID,
@@ -360,7 +459,7 @@ def add_only_extras_to_project(
             project_id=project.id,
             material_id=extra.material_id,
             count=extra.count,
-            cut_length_mm=extra.cut_length_mm
+            cut_length_mm=extra.cut_length_mm,
         ))
 
     # Profiller
@@ -370,12 +469,12 @@ def add_only_extras_to_project(
             project_id=project.id,
             profile_id=profile.profile_id,
             cut_length_mm=profile.cut_length_mm,
-            cut_count=profile.cut_count
+            cut_count=profile.cut_count,
         ))
 
     # Camlar
     for glass in extra_glasses:
-        area_m2 = (glass.width_mm / 1000) * (glass.height_mm / 1000)  # isteğe bağlı hesap
+        area_m2 = (glass.width_mm / 1000) * (glass.height_mm / 1000)
         db.add(ProjectExtraGlass(
             id=uuid4(),
             project_id=project.id,
@@ -383,20 +482,18 @@ def add_only_extras_to_project(
             width_mm=glass.width_mm,
             height_mm=glass.height_mm,
             count=glass.count,
-            area_m2=area_m2
+            area_m2=area_m2,
         ))
 
     db.commit()
     db.refresh(project)
     return project
 
+
 def get_project_requirements_detailed(
     db: Session,
     project_id: UUID
 ) -> ProjectRequirementsDetailedOut:
-    """
-    Verilen project_id’ye ait tüm sistem içeriklerini ve ekstra malzemeleri katalog bilgileriyle birlikte döndürür.
-    """
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise ValueError("Project not found")
@@ -411,11 +508,9 @@ def get_project_requirements_detailed(
 
     result_systems = []
     for ps in project_systems:
-        # Sistem varyant ve üst sistem bilgisi
         variant = db.query(SystemVariant).filter(SystemVariant.id == ps.system_variant_id).first()
         system = db.query(System).filter(System.id == variant.system_id).first()
 
-        # Profiller
         profiles_raw = (
             db.query(ProjectSystemProfile)
             .filter(ProjectSystemProfile.project_system_id == ps.id)
@@ -428,12 +523,11 @@ def get_project_requirements_detailed(
                 cut_count=p.cut_count,
                 total_weight_kg=p.total_weight_kg,
                 order_index=p.order_index,
-                profile=db.query(Profile).filter(Profile.id == p.profile_id).first()
+                profile=db.query(Profile).filter(Profile.id == p.profile_id).first(),
             )
             for p in profiles_raw
         ]
 
-        # Camlar
         glasses_raw = (
             db.query(ProjectSystemGlass)
             .filter(ProjectSystemGlass.project_system_id == ps.id)
@@ -447,12 +541,11 @@ def get_project_requirements_detailed(
                 count=g.count,
                 area_m2=g.area_m2,
                 order_index=g.order_index,
-                glass_type=db.query(GlassType).filter(GlassType.id == g.glass_type_id).first()
+                glass_type=db.query(GlassType).filter(GlassType.id == g.glass_type_id).first(),
             )
             for g in glasses_raw
         ]
 
-        # Malzemeler
         materials_raw = (
             db.query(ProjectSystemMaterial)
             .filter(ProjectSystemMaterial.project_system_id == ps.id)
@@ -464,14 +557,14 @@ def get_project_requirements_detailed(
                 cut_length_mm=m.cut_length_mm,
                 count=m.count,
                 order_index=m.order_index,
-                material=db.query(OtherMaterial).filter(OtherMaterial.id == m.material_id).first()
+                material=db.query(OtherMaterial).filter(OtherMaterial.id == m.material_id).first(),
             )
             for m in materials_raw
         ]
 
         result_systems.append(
             SystemInProjectOut(
-                project_system_id=ps.id, 
+                project_system_id=ps.id,
                 system_variant_id=ps.system_variant_id,
                 name=variant.name,
                 system=system,
@@ -480,23 +573,22 @@ def get_project_requirements_detailed(
                 quantity=ps.quantity,
                 profiles=profiles,
                 glasses=glasses,
-                materials=materials
+                materials=materials,
             )
         )
 
-    # Proje seviyesi ekstra malzemeler
     extras_raw = db.query(ProjectExtraMaterial).filter(ProjectExtraMaterial.project_id == project_id).all()
     extra_requirements = [
         MaterialInProjectOut(
             material_id=e.material_id,
             cut_length_mm=e.cut_length_mm,
             count=e.count,
-            material=db.query(OtherMaterial).filter(OtherMaterial.id == e.material_id).first()
+            material=db.query(OtherMaterial).filter(OtherMaterial.id == e.material_id).first(),
         )
         for e in extras_raw
     ]
 
-        # --- ekstra profiller detaylı olarak yükle ---
+    # ekstra profiller (detaylı)
     extra_profiles = []
     for p in db.query(ProjectExtraProfile).filter(ProjectExtraProfile.project_id == project_id).all():
         prof = db.query(Profile).filter(Profile.id == p.profile_id).first()
@@ -505,11 +597,11 @@ def get_project_requirements_detailed(
                 profile_id=p.profile_id,
                 cut_length_mm=float(p.cut_length_mm),
                 cut_count=p.cut_count,
-                profile=prof
+                profile=prof,
             )
         )
 
-    # --- ekstra camlar detaylı olarak yükle ---
+    # ekstra camlar (detaylı)
     extra_glasses = []
     for g in db.query(ProjectExtraGlass).filter(ProjectExtraGlass.project_id == project_id).all():
         gt = db.query(GlassType).filter(GlassType.id == g.glass_type_id).first()
@@ -519,32 +611,31 @@ def get_project_requirements_detailed(
                 width_mm=float(g.width_mm),
                 height_mm=float(g.height_mm),
                 count=g.count,
-                glass_type=gt
+                glass_type=gt,
             )
         )
-
-
-
-
 
     return ProjectRequirementsDetailedOut(
         id=project.id,
         customer=customer,
-        profile_color=project.profile_color,  # 🆕 renk objesi
-        glass_color=project.glass_color,      # 🆕 renk objesi
+        profile_color=project.profile_color,
+        glass_color=project.glass_color,
         systems=result_systems,
         extra_requirements=extra_requirements,
         extra_profiles=extra_profiles,
         extra_glasses=extra_glasses,
-
     )
+
+# ------------------------------------------------------------
+# Renk güncelleme
+# ------------------------------------------------------------
 
 def update_project_colors(
     db: Session,
     project_id: UUID,
     profile_color_id: Optional[UUID],
     glass_color_id: Optional[UUID]
-) -> Project | None:
+) -> Optional[Project]:
     project = get_project(db, project_id)
     if not project:
         return None
@@ -554,7 +645,9 @@ def update_project_colors(
     db.refresh(project)
     return project
 
-# ───────── Extra Profile CRUD ─────────
+# ------------------------------------------------------------
+# Extra Profile CRUD
+# ------------------------------------------------------------
 
 def create_project_extra_profile(
     db: Session,
@@ -568,7 +661,7 @@ def create_project_extra_profile(
         project_id=project_id,
         profile_id=profile_id,
         cut_length_mm=cut_length_mm,
-        cut_count=cut_count
+        cut_count=cut_count,
     )
     db.add(extra)
     db.commit()
@@ -604,7 +697,9 @@ def delete_project_extra_profile(
     db.commit()
     return bool(deleted)
 
-# ───────── Extra Glass CRUD ─────────
+# ------------------------------------------------------------
+# Extra Glass CRUD
+# ------------------------------------------------------------
 
 def create_project_extra_glass(
     db: Session,
@@ -622,7 +717,7 @@ def create_project_extra_glass(
         width_mm=width_mm,
         height_mm=height_mm,
         count=count,
-        area_m2=area_m2
+        area_m2=area_m2,
     )
     db.add(extra)
     db.commit()
@@ -665,7 +760,9 @@ def delete_project_extra_glass(
     db.commit()
     return bool(deleted)
 
-# ───────── Extra Material CRUD ─────────
+# ------------------------------------------------------------
+# Extra Material CRUD
+# ------------------------------------------------------------
 
 def create_project_extra_material(
     db: Session,
@@ -679,7 +776,7 @@ def create_project_extra_material(
         project_id=project_id,
         material_id=material_id,
         count=count,
-        cut_length_mm=cut_length_mm
+        cut_length_mm=cut_length_mm,
     )
     db.add(extra)
     db.commit()
@@ -715,8 +812,9 @@ def delete_project_extra_material(
     db.commit()
     return bool(deleted)
 
-
-# ───────── List Extra CRUD ─────────
+# ------------------------------------------------------------
+# Listeler
+# ------------------------------------------------------------
 
 def list_project_extra_profiles(db: Session, project_id: UUID) -> List[ProjectExtraProfile]:
     return (
@@ -739,7 +837,10 @@ def list_project_extra_materials(db: Session, project_id: UUID) -> List[ProjectE
           .all()
     )
 
-# ───────── ProjectSystem CRUD ─────────
+# ------------------------------------------------------------
+# ProjectSystem güncelle/sil
+# ------------------------------------------------------------
+
 def update_project_system(
     db: Session,
     project_id: UUID,
@@ -757,6 +858,9 @@ def update_project_system(
           )
           .first()
     )
+    if not ps:
+        return None  # 🔧 önce None kontrolü
+
     variant_id = ps.system_variant_id
 
     tpl_profiles = {
@@ -778,9 +882,6 @@ def update_project_system(
                    .all()
     }
 
-    if not ps:
-        return None
-
     # Temel alanlar
     ps.width_mm  = payload.width_mm
     ps.height_mm = payload.height_mm
@@ -800,7 +901,7 @@ def update_project_system(
             cut_length_mm=p.cut_length_mm,
             cut_count=p.cut_count,
             total_weight_kg=p.total_weight_kg,
-            order_index=tpl_profiles.get(p.profile_id)      # 🔑
+            order_index=tpl_profiles.get(p.profile_id),
         ))
 
     for g in payload.glasses:
@@ -812,7 +913,7 @@ def update_project_system(
             height_mm=g.height_mm,
             count=g.count,
             area_m2=g.area_m2,
-            order_index=tpl_glasses.get(g.glass_type_id)    # 🔑
+            order_index=tpl_glasses.get(g.glass_type_id),
         ))
 
     for m in payload.materials:
@@ -822,13 +923,13 @@ def update_project_system(
             material_id=m.material_id,
             cut_length_mm=m.cut_length_mm,
             count=m.count,
-            order_index=tpl_materials.get(m.material_id)    # 🔑
+            order_index=tpl_materials.get(m.material_id),
         ))
-
 
     db.commit()
     db.refresh(ps)
     return ps
+
 
 def delete_project_system(
     db: Session,

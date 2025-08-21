@@ -1,9 +1,9 @@
 # app/models/system.py
 
 import uuid
-from sqlalchemy import Column, String, TEXT, Numeric, ForeignKey
+from sqlalchemy import Column, String, TEXT, Numeric, ForeignKey, Boolean
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
-from sqlalchemy.sql import func
+from sqlalchemy.sql import func, expression 
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import ARRAY
 from app.db.base import Base
@@ -21,6 +21,10 @@ class System(Base):
         server_default=func.now(),
         onupdate=func.now()
     )
+
+    # ✅ publish + soft delete
+    is_published = Column(Boolean, nullable=False, server_default=expression.false())
+    is_deleted   = Column(Boolean, nullable=False, server_default=expression.false())
 
     # Bir system birden fazla varyanta sahiptir
     variants = relationship(
@@ -48,6 +52,10 @@ class SystemVariant(Base):
         server_default=func.now(),
         onupdate=func.now()
     )
+
+    # ✅ publish + soft delete
+    is_published = Column(Boolean, nullable=False, server_default=expression.false())
+    is_deleted   = Column(Boolean, nullable=False, server_default=expression.false())
 
     # System ile iki yönlü ilişki
     system = relationship("System", back_populates="variants")

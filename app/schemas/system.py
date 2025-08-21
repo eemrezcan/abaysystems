@@ -17,15 +17,19 @@ class SystemCreate(SystemBase):
 
 class SystemUpdate(BaseModel):
     """Fields for updating an existing System"""
-    name: Optional[str]
-    description: Optional[str]
+    name: Optional[str] = None
+    description: Optional[str] = None
     photo_url: Optional[str] = None
+    # ✅ publish/unpublish için
+    is_published: Optional[bool] = None
 
 class SystemOut(SystemBase):
     id: UUID
     photo_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    # ✅ publish durumu
+    is_published: bool
 
     class Config:
         orm_mode = True
@@ -46,8 +50,10 @@ class SystemVariantCreate(SystemVariantBase):
 
 class SystemVariantUpdate(BaseModel):
     """Fields for updating a System Variant"""
-    name: Optional[str]
+    name: Optional[str] = None
     photo_url: Optional[str] = None
+    # ✅ publish/unpublish için
+    is_published: Optional[bool] = None
 
     class Config:
         orm_mode = True
@@ -57,6 +63,8 @@ class SystemVariantOut(SystemVariantBase):
     photo_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    # ✅ publish durumu
+    is_published: bool
 
     class Config:
         orm_mode = True
@@ -184,7 +192,6 @@ class SystemMaterialTemplateBase(BaseModel):
     material_id: UUID
     formula_quantity: str = Field(..., min_length=1)
     formula_cut_length: Optional[str] = None
-
 
 class SystemMaterialTemplateCreate(SystemMaterialTemplateBase):
     order_index: Optional[int] = None

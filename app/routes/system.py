@@ -1,6 +1,6 @@
 # app/routes/system.py
 
-from fastapi import APIRouter, Depends, HTTPException,UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 import os, shutil
 from sqlalchemy.orm import Session
 from uuid import UUID
@@ -8,9 +8,18 @@ from fastapi.responses import FileResponse
 from pathlib import Path
 
 from app.db.session import get_db
+
+# 🔐 Rol kontrolleri
+from app.core.security import get_current_user
+from app.api.deps import get_current_admin
+from app.models.app_user import AppUser
+
+# 🔎 Model erişimleri (GET filtreleri için)
+from app.models.system import System, SystemVariant
+
 from app.crud.system import (
     create_system,
-    get_systems,
+    get_systems,                 # not: listede kendi sorgumuzu da kullanacağız (filtre için)
     get_system,
     update_system,
     delete_system,
@@ -50,8 +59,11 @@ router = APIRouter(prefix="/api", tags=["Systems"])
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 SYSTEM_PHOTO_DIR = os.path.join(BASE_DIR, "system_photos")
 
-# ----- SYSTEM CRUD -----
-@router.post("/systems", response_model=SystemOut, status_code=201)
+# -----------------------------------------------------------------------------
+# SYSTEM - GET (bayi + admin), diğerleri admin-only
+# -----------------------------------------------------------------------------
+
+@router.post("/systems", response_model=SystemOut, status_code=201, dependencies=[Depends(get_current_admin)])
 def create_system_endpoint(
     payload: SystemCreate,
     db: Session = Depends(get_db)
@@ -60,19 +72,35 @@ def create_system_endpoint(
 
 
 @router.get("/systems", response_model=list[SystemOut])
-def list_systems(db: Session = Depends(get_db)):
-    return get_systems(db)
+def list_systems(
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    # Silinmeyen sistemler
+    q = db.query(System).filter(System.is_deleted == False)
+    # Bayi taslak görmesin
+    if current_user.role != "admin":
+        q = q.filter(System.is_published == True)
+    items = q.order_by(System.created_at.desc()).all()
+    return items
 
 
 @router.get("/systems/{system_id}", response_model=SystemOut)
-def get_system_endpoint(system_id: UUID, db: Session = Depends(get_db)):
+def get_system_endpoint(
+    system_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
     obj = get_system(db, system_id)
     if not obj:
+        raise HTTPException(404, "System not found")
+    # Bayi unpublished/silinmiş görmesin
+    if current_user.role != "admin" and (obj.is_deleted or not obj.is_published):
         raise HTTPException(404, "System not found")
     return obj
 
 
-@router.put("/systems/{system_id}", response_model=SystemOut)
+@router.put("/systems/{system_id}", response_model=SystemOut, dependencies=[Depends(get_current_admin)])
 def update_system_endpoint(
     system_id: UUID,
     payload: SystemUpdate,
@@ -84,14 +112,17 @@ def update_system_endpoint(
     return obj
 
 
-@router.delete("/systems/{system_id}", status_code=204)
+@router.delete("/systems/{system_id}", status_code=204, dependencies=[Depends(get_current_admin)])
 def delete_system_endpoint(system_id: UUID, db: Session = Depends(get_db)):
     deleted = delete_system(db, system_id)
     if not deleted:
         raise HTTPException(404, "System not found")
     return
 
-# ----- FULL CREATE: SYSTEM + VARIANT + GLASS-CONFIG -----
+# -----------------------------------------------------------------------------
+# TEMPLATES - GET (bayi + admin), mutasyonlar admin-only
+# -----------------------------------------------------------------------------
+
 @router.get(
     "/system-templates/{variant_id}",
     response_model=SystemTemplatesOut,
@@ -99,8 +130,31 @@ def delete_system_endpoint(system_id: UUID, db: Session = Depends(get_db)):
 )
 def fetch_system_templates(
     variant_id: UUID,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
 ):
+    # Bayi unpublished/silinmiş variant veya sistemin şablonlarını göremesin
+    if current_user.role != "admin":
+        v = (
+            db.query(SystemVariant)
+            .join(System, SystemVariant.system_id == System.id)
+            .filter(
+                SystemVariant.id == variant_id,
+                SystemVariant.is_deleted == False,
+                System.is_deleted == False,
+                SystemVariant.is_published == True,
+                System.is_published == True,
+            )
+            .first()
+        )
+        if not v:
+            raise HTTPException(status_code=404, detail="System variant not found")
+    else:
+        # Admin için de en azından var mı kontrol edelim
+        exists = db.query(SystemVariant).filter(SystemVariant.id == variant_id).first()
+        if not exists:
+            raise HTTPException(status_code=404, detail="System variant not found")
+
     profiles, glasses, materials = get_system_templates(db, variant_id)
 
     return SystemTemplatesOut(
@@ -109,7 +163,7 @@ def fetch_system_templates(
                 profile_id=tpl.profile_id,
                 formula_cut_length=tpl.formula_cut_length,
                 formula_cut_count=tpl.formula_cut_count,
-                order_index=tpl.order_index,          # 🆕 bu satır
+                order_index=tpl.order_index,
                 profile=tpl.profile
             )
             for tpl in profiles
@@ -120,7 +174,7 @@ def fetch_system_templates(
                 formula_width=tpl.formula_width,
                 formula_height=tpl.formula_height,
                 formula_count=tpl.formula_count,
-                order_index=tpl.order_index,          # 🆕 bu satır
+                order_index=tpl.order_index,
                 glass_type=tpl.glass_type
             )
             for tpl in glasses
@@ -130,12 +184,13 @@ def fetch_system_templates(
                 material_id=tpl.material_id,
                 formula_quantity=tpl.formula_quantity,
                 formula_cut_length=tpl.formula_cut_length,
-                order_index=tpl.order_index,          # 🆕 bu satır
+                order_index=tpl.order_index,
                 material=tpl.material
             )
             for tpl in materials
         ]
     )
+
 
 @router.get(
     "/system-variants/{variant_id}",
@@ -144,15 +199,26 @@ def fetch_system_templates(
 )
 def get_system_variant_detail_endpoint(
     variant_id: UUID,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
 ):
     variant = get_system_variant_detail(db, variant_id)
     if not variant:
         raise HTTPException(status_code=404, detail="System variant not found")
+
+    # Bayi unpublished/silinmiş variant/sistem görmesin
+    if current_user.role != "admin":
+        # variant.system ilişkisi dönüyorsa bunu kontrol ediyoruz
+        if getattr(variant, "is_deleted", False) or not getattr(variant, "is_published", False):
+            raise HTTPException(status_code=404, detail="System variant not found")
+        sys = getattr(variant, "system", None)
+        if not sys or getattr(sys, "is_deleted", False) or not getattr(sys, "is_published", False):
+            raise HTTPException(status_code=404, detail="System variant not found")
+
     return variant
 
-# ----- PROFILE TEMPLATE CRUD -----
-@router.post("/system-templates/profiles", response_model=ProfileTemplateOut, status_code=201)
+# ----- PROFILE TEMPLATE CRUD (admin-only) -----
+@router.post("/system-templates/profiles", response_model=ProfileTemplateOut, status_code=201, dependencies=[Depends(get_current_admin)])
 def create_profile_template_endpoint(
     payload: SystemProfileTemplateCreate,
     db: Session = Depends(get_db)
@@ -160,7 +226,7 @@ def create_profile_template_endpoint(
     return create_profile_template(db, payload)
 
 
-@router.put("/system-templates/profiles/{template_id}", response_model=ProfileTemplateOut)
+@router.put("/system-templates/profiles/{template_id}", response_model=ProfileTemplateOut, dependencies=[Depends(get_current_admin)])
 def update_profile_template_endpoint(
     template_id: UUID,
     payload: SystemProfileTemplateUpdate,
@@ -172,7 +238,7 @@ def update_profile_template_endpoint(
     return obj
 
 
-@router.delete("/system-templates/profiles/{template_id}", status_code=204)
+@router.delete("/system-templates/profiles/{template_id}", status_code=204, dependencies=[Depends(get_current_admin)])
 def delete_profile_template_endpoint(
     template_id: UUID,
     db: Session = Depends(get_db)
@@ -182,8 +248,8 @@ def delete_profile_template_endpoint(
         raise HTTPException(404, "Profile template not found")
     return
 
-# ----- GLASS TEMPLATE CRUD -----
-@router.post("/system-templates/glasses", response_model=GlassTemplateOut, status_code=201)
+# ----- GLASS TEMPLATE CRUD (admin-only) -----
+@router.post("/system-templates/glasses", response_model=GlassTemplateOut, status_code=201, dependencies=[Depends(get_current_admin)])
 def create_glass_template_endpoint(
     payload: SystemGlassTemplateCreate,
     db: Session = Depends(get_db)
@@ -191,7 +257,7 @@ def create_glass_template_endpoint(
     return create_glass_template(db, payload)
 
 
-@router.put("/system-templates/glasses/{template_id}", response_model=GlassTemplateOut)
+@router.put("/system-templates/glasses/{template_id}", response_model=GlassTemplateOut, dependencies=[Depends(get_current_admin)])
 def update_glass_template_endpoint(
     template_id: UUID,
     payload: SystemGlassTemplateUpdate,
@@ -203,7 +269,7 @@ def update_glass_template_endpoint(
     return obj
 
 
-@router.delete("/system-templates/glasses/{template_id}", status_code=204)
+@router.delete("/system-templates/glasses/{template_id}", status_code=204, dependencies=[Depends(get_current_admin)])
 def delete_glass_template_endpoint(
     template_id: UUID,
     db: Session = Depends(get_db)
@@ -213,8 +279,8 @@ def delete_glass_template_endpoint(
         raise HTTPException(404, "Glass template not found")
     return
 
-# ----- MATERIAL TEMPLATE CRUD -----
-@router.post("/system-templates/materials", response_model=MaterialTemplateOut, status_code=201)
+# ----- MATERIAL TEMPLATE CRUD (admin-only) -----
+@router.post("/system-templates/materials", response_model=MaterialTemplateOut, status_code=201, dependencies=[Depends(get_current_admin)])
 def create_material_template_endpoint(
     payload: SystemMaterialTemplateCreate,
     db: Session = Depends(get_db)
@@ -222,7 +288,7 @@ def create_material_template_endpoint(
     return create_material_template(db, payload)
 
 
-@router.put("/system-templates/materials/{template_id}", response_model=MaterialTemplateOut)
+@router.put("/system-templates/materials/{template_id}", response_model=MaterialTemplateOut, dependencies=[Depends(get_current_admin)])
 def update_material_template_endpoint(
     template_id: UUID,
     payload: SystemMaterialTemplateUpdate,
@@ -234,7 +300,7 @@ def update_material_template_endpoint(
     return obj
 
 
-@router.delete("/system-templates/materials/{template_id}", status_code=204)
+@router.delete("/system-templates/materials/{template_id}", status_code=204, dependencies=[Depends(get_current_admin)])
 def delete_material_template_endpoint(
     template_id: UUID,
     db: Session = Depends(get_db)
@@ -244,7 +310,12 @@ def delete_material_template_endpoint(
         raise HTTPException(404, "Material template not found")
     return
 
-@router.post("/systems/{system_id}/photo", summary="System fotoğrafı yükle/güncelle")
+
+# -----------------------------------------------------------------------------
+# SYSTEM PHOTO - GET (bayi + admin), POST/DELETE admin-only
+# -----------------------------------------------------------------------------
+
+@router.post("/systems/{system_id}/photo", summary="System fotoğrafı yükle/güncelle", dependencies=[Depends(get_current_admin)])
 def upload_or_replace_system_photo(
     system_id: UUID,
     file: UploadFile = File(...),
@@ -276,7 +347,8 @@ def upload_or_replace_system_photo(
         "photo_url": photo_url
     }
 
-@router.delete("/systems/{system_id}/photo", summary="System fotoğrafını sil")
+
+@router.delete("/systems/{system_id}/photo", summary="System fotoğrafını sil", dependencies=[Depends(get_current_admin)])
 def delete_system_photo(
     system_id: UUID,
     db: Session = Depends(get_db)
@@ -293,20 +365,29 @@ def delete_system_photo(
 
     return {"message": "Fotoğraf silindi"}
 
+
 @router.get("/systems/{system_id}/photo", summary="Sisteme ait fotoğrafı döner")
-def get_system_photo_file(system_id: UUID, db: Session = Depends(get_db)):
+def get_system_photo_file(
+    system_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
     # Veritabanından system nesnesini al
     obj = get_system(db, system_id)
     if not obj or not obj.photo_url:
         raise HTTPException(404, "Fotoğraf bilgisi bulunamadı")
 
+    # Bayi unpublished/silinmiş sistemin fotoğrafını göremesin
+    if current_user.role != "admin" and (obj.is_deleted or not obj.is_published):
+        raise HTTPException(404, "Fotoğraf bilgisi bulunamadı")
+
     # system_photos klasörünü proje kök dizinine göre belirle
-    BASE_DIR = Path(__file__).resolve().parent.parent.parent
-    SYSTEM_PHOTO_DIR = BASE_DIR / "system_photos"
+    BASE_DIR_LOCAL = Path(__file__).resolve().parent.parent.parent
+    SYSTEM_PHOTO_DIR_LOCAL = BASE_DIR_LOCAL / "system_photos"
 
     # Dosya adı sadece UUID.png (veya uzantısı neyse)
     filename = Path(obj.photo_url).name
-    photo_path = SYSTEM_PHOTO_DIR / filename
+    photo_path = SYSTEM_PHOTO_DIR_LOCAL / filename
 
     # Dosya gerçekten varsa göster
     if not photo_path.exists():
@@ -314,3 +395,28 @@ def get_system_photo_file(system_id: UUID, db: Session = Depends(get_db)):
 
     return FileResponse(path=str(photo_path), media_type="image/jpeg")
 
+@router.put("/systems/{system_id}/publish", response_model=SystemOut, dependencies=[Depends(get_current_admin)])
+def publish_system(
+    system_id: UUID,
+    db: Session = Depends(get_db),
+):
+    obj = get_system(db, system_id)
+    if not obj or obj.is_deleted:
+        raise HTTPException(status_code=404, detail="System not found")
+    updated = update_system(db, system_id, SystemUpdate(is_published=True))
+    if not updated:
+        raise HTTPException(status_code=404, detail="System not found")
+    return updated
+
+@router.put("/systems/{system_id}/unpublish", response_model=SystemOut, dependencies=[Depends(get_current_admin)])
+def unpublish_system(
+    system_id: UUID,
+    db: Session = Depends(get_db),
+):
+    obj = get_system(db, system_id)
+    if not obj or obj.is_deleted:
+        raise HTTPException(status_code=404, detail="System not found")
+    updated = update_system(db, system_id, SystemUpdate(is_published=False))
+    if not updated:
+        raise HTTPException(status_code=404, detail="System not found")
+    return updated

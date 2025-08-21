@@ -2,6 +2,8 @@ from sqlalchemy.orm import Session
 
 from app.models.app_user import AppUser
 
+from typing import Optional
+
 from uuid import UUID
 
 def get_user_by_username(db: Session, username: str) -> AppUser | None:
@@ -15,3 +17,6 @@ def get_user_by_id(db: Session, user_id: str) -> AppUser | None:
     Verilen UUID string’ine karşılık gelen AppUser kaydını döner.
     """
     return db.query(AppUser).filter(AppUser.id == user_id).first()
+
+def get_user_by_email(db: Session, email: str) -> Optional[AppUser]:
+    return db.query(AppUser).filter(AppUser.email == email, AppUser.is_deleted == False).first()

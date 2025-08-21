@@ -1,8 +1,8 @@
 # app/models/profile.py
 import uuid
-from sqlalchemy import Column, String, Numeric, TEXT
+from sqlalchemy import Column, String, Numeric, TEXT, Boolean
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
-from sqlalchemy.sql import func
+from sqlalchemy.sql import func, expression
 
 from app.db.base import Base
 
@@ -18,3 +18,8 @@ class Profile(Base):
     unit_price = Column(Numeric, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # ✅ soft delete / aktiflik
+    is_active  = Column(Boolean, nullable=False, server_default=expression.true())
+    is_deleted = Column(Boolean, nullable=False, server_default=expression.false())
+

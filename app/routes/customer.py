@@ -12,7 +12,7 @@ from app.crud.customer import (
     update_customer,
     delete_customer
 )
-from app.core.security import get_current_user
+from app.api.deps import get_current_dealer
 from app.models.app_user import AppUser
 
 router = APIRouter(prefix="/api/customers", tags=["Customers"])
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/customers", tags=["Customers"])
 @router.post("/", response_model=CustomerOut, status_code=201)
 def create_customer_endpoint(
     payload: CustomerCreate,
-    current_user: AppUser = Depends(get_current_user),
+    current_user: AppUser = Depends(get_current_dealer),
     db: Session = Depends(get_db)
 ):
     """
@@ -30,7 +30,7 @@ def create_customer_endpoint(
 
 @router.get("/", response_model=List[CustomerOut])
 def list_customers_endpoint(
-    current_user: AppUser = Depends(get_current_user),
+    current_user: AppUser = Depends(get_current_dealer),
     db: Session = Depends(get_db)
 ):
     """
@@ -41,7 +41,7 @@ def list_customers_endpoint(
 @router.get("/{customer_id}", response_model=CustomerOut)
 def get_customer_endpoint(
     customer_id: UUID,
-    current_user: AppUser = Depends(get_current_user),
+    current_user: AppUser = Depends(get_current_dealer),
     db: Session = Depends(get_db)
 ):
     """
@@ -56,7 +56,7 @@ def get_customer_endpoint(
 def update_customer_endpoint(
     customer_id: UUID,
     payload: CustomerUpdate,
-    current_user: AppUser = Depends(get_current_user),
+    current_user: AppUser = Depends(get_current_dealer),
     db: Session = Depends(get_db)
 ):
     """
@@ -71,7 +71,7 @@ def update_customer_endpoint(
 @router.delete("/{customer_id}", status_code=204)
 def delete_customer_endpoint(
     customer_id: UUID,
-    current_user: AppUser = Depends(get_current_user),
+    current_user: AppUser = Depends(get_current_dealer),
     db: Session = Depends(get_db)
 ):
     """

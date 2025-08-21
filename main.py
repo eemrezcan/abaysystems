@@ -16,6 +16,8 @@ from app.routes.catalog import router as catalog_router
 from app.routes.system_variant import router as variant_router
 from app.routes.auth import router as auth_router
 from app.routes.customer import router as customer_router
+from app.routes.dealers import router as dealers_router
+from app.routes.auth_extra import router as auth_extra_router
 from app.routes import color
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -34,14 +36,24 @@ app.add_middleware(
     allow_headers=["*"],        # Tüm başlıklar
 )
 
-# Authentication routes
-app.include_router(auth_router)
+
+
+
 
 # Core resource routes
-app.include_router(variant_router)
-app.include_router(order_router)
-app.include_router(system_router)
-app.include_router(project_router)
-app.include_router(catalog_router)
-app.include_router(color.router)
+app.include_router(auth_router)
+app.include_router(auth_extra_router)
+app.include_router(dealers_router)
 app.include_router(customer_router)
+app.include_router(project_router)
+app.include_router(system_router)
+app.include_router(variant_router)
+
+#app.include_router(order_router)
+
+app.include_router(color.router)
+app.include_router(catalog_router)
+
+
+
+

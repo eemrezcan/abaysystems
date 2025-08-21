@@ -1,17 +1,24 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-
+from sqlalchemy import engine_from_config, pool
 from alembic import context
 
-import sys
 import os
+import sys
+import re
+from dotenv import load_dotenv
+from sqlalchemy.engine import URL
+
+# Proje kökünü PYTHONPATH'e ekle
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from app.core.settings import settings
-from app.db.base import Base 
+# .env dosyasını erkenden yükle
+load_dotenv()
 
+from app.core.settings import settings
+from app.db.base import Base
+
+# Modeller (autogenerate için)
 from app.models.app_user import AppUser
 from app.models.customer import Customer
 from app.models.profile import Profile
@@ -30,66 +37,94 @@ from app.models.order import (
     OrderItemMaterial,
     OrderItemExtraMaterial,
 )
+import app.models.user_token   # ← eklendi
 
 
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
+# Alembic Config nesnesi
 config = context.config
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
+# Logging yapılandırması
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
+# Autogenerate için metadata
 target_metadata = Base.metadata
 
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
+
+def _mask_pwd(url: str) -> str:
+    """Log/debug için parolayı yıldızlar."""
+    try:
+        return re.sub(r"(?<=//[^:]+:)[^@]+", "***", url)
+    except Exception:
+        return url
+
+
+def get_db_url() -> str:
+    """
+    Önce .env'den DATABASE_URL'i al, UTF-8 olarak encode edilebiliyorsa onu kullan.
+    Değilse POSTGRES_* değişkenlerinden güvenli bir URL yarat (URL.create).
+    """
+    # 1) .env içindeki DATABASE_URL'i dene
+    env_url = os.getenv("DATABASE_URL")
+    if env_url:
+        try:
+            env_url.encode("utf-8")  # UTF-8 kontrolü
+            return env_url
+        except UnicodeEncodeError:
+            # Gizli/Türkçe karakter karışmış; fallback'e geç
+            pass
+
+    # 2) Fallback: POSTGRES_* değişkenlerinden güvenli URL oluştur
+    user = os.getenv("POSTGRES_USER", "abaysystems_user")
+    password = os.getenv("POSTGRES_PASSWORD", "")
+    host = os.getenv("POSTGRES_SERVER", "127.0.0.1")
+    port = int(os.getenv("POSTGRES_PORT", "5432"))
+    database = os.getenv("POSTGRES_DB", "abaysystems_db")
+
+    # URL.create özel karakterleri güvenli biçimde kaçışlar
+    url_obj = URL.create(
+        "postgresql+psycopg2",
+        username=user,
+        password=password,
+        host=host,
+        port=port,
+        database=database,
+    )
+    return str(url_obj)
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
+    """'Offline' modda migration çalıştırır."""
+    db_url = get_db_url()
+    # print(f"[alembic] offline db_url = { _mask_pwd(db_url) }")  # gerekirse aç
 
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
-
-    """
-    url = str(settings.database_url)
-    context.configure(url=url, target_metadata=target_metadata, literal_binds=True, dialect_opts={"paramstyle": "named"})
+    config.set_main_option("sqlalchemy.url", db_url)
+    context.configure(
+        url=db_url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        dialect_opts={"paramstyle": "named"},
+    )
 
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
+    """'Online' modda migration çalıştırır."""
+    db_url = get_db_url()
+    # print(f"[alembic] online db_url = { _mask_pwd(db_url) }")  # gerekirse aç
 
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
+    config.set_main_option("sqlalchemy.url", db_url)
 
-    """
     connectable = engine_from_config(
-        {"sqlalchemy.url": str(settings.database_url)},
+        config.get_section(config.config_ini_section),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
-
+        context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()
 

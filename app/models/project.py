@@ -1,7 +1,7 @@
 # app/models/project.py
 
 import uuid
-from sqlalchemy import Column, String, Numeric, Integer, ForeignKey
+from sqlalchemy import Column, String, Numeric, Integer, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID as PGUUID, TIMESTAMP
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -12,6 +12,13 @@ from app.db.base import Base
 
 class Project(Base):
     __tablename__ = "project"
+
+    __table_args__ = (
+        # Aynı kullanıcının içinde proje kodu tek olsun
+        UniqueConstraint('created_by', 'project_kodu', name='uq_project_owner_code'),
+        # Listelemelerde hız için
+        Index('ix_project_created_by', 'created_by'),
+    )
 
     id             = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_kodu   = Column(String(50), unique=True, nullable=False)
@@ -32,6 +39,9 @@ class Project(Base):
     systems         = relationship("ProjectSystem", back_populates="project", cascade="all, delete-orphan")
     extra_materials = relationship("ProjectExtraMaterial", back_populates="project", cascade="all, delete-orphan")
 
+
+# 🔹 customer_id üzerinde doğrudan index (FK erişimleri için)
+Index("ix_project_customer", Project.customer_id)
 
 class ProjectSystem(Base):
     __tablename__ = "project_system"

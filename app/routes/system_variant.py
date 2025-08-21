@@ -8,17 +8,31 @@ from fastapi.responses import FileResponse
 from pathlib import Path
 
 from app.db.session import get_db
+
+# 🔐 rol kontrolü
+from app.core.security import get_current_user
+from app.api.deps import get_current_admin
+from app.models.app_user import AppUser
+
+# 🔎 filtreler için modeller
+from app.models.system import System, SystemVariant
+
+from app.schemas.system import SystemVariantUpdate, SystemVariantOut
+
 from app.crud.system_variant import (
     create_system_variant,
-    get_system_variants,
     get_system_variant,
     update_system_variant,
     delete_system_variant,
-    get_variants_for_system,
+    get_variants_for_system,  # admin için kullanılabilir; bayi filtreleri için aşağıda ORM query kullanıyoruz
+
 )
 
-from app.crud.system import create_system_variant_with_templates, get_system_variant_detail
-from app.crud.system import update_system_variant_with_templates
+from app.crud.system import (
+    create_system_variant_with_templates,
+    get_system_variant_detail,
+    update_system_variant_with_templates,
+)
 
 from app.schemas.system import (
     SystemVariantCreate,
@@ -34,81 +48,145 @@ router = APIRouter(prefix="/api/system-variants", tags=["SystemVariants"])
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 VARIANT_PHOTO_DIR = os.path.join(BASE_DIR, "variant_photos")
 
-@router.post("/system/{system_id}", response_model=SystemVariantOut, status_code=201)
+
+# -----------------------------------------------------------------------------
+# GET uçları: bayi + admin (bayi → sadece published & not-deleted)
+# -----------------------------------------------------------------------------
+
+@router.get("/", response_model=list[SystemVariantOut])
+def list_variants(
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    """
+    Tüm SystemVariant kayıtlarını listeler.
+    Bayi ise: SystemVariant.is_published = True ve System.is_published = True
+    Her iki rolde de: is_deleted = False filtreleri uygulanır.
+    """
+    q = (
+        db.query(SystemVariant)
+        .join(System, SystemVariant.system_id == System.id)
+        .filter(SystemVariant.is_deleted == False, System.is_deleted == False)
+    )
+
+    if current_user.role != "admin":
+        q = q.filter(SystemVariant.is_published == True, System.is_published == True)
+
+    items = q.order_by(SystemVariant.created_at.desc()).all()
+    return items
+
+
+@router.get(
+    "/system/{system_id}",
+    response_model=list[SystemVariantOut],
+    summary="Belirli bir sistemin tüm varyantlarını listele"
+)
+def list_variants_by_system(
+    system_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    """
+    Verilen system_id için varyant listesi.
+    Bayi ise: hem System hem Variant published olmalı; her iki rolde de deleted=false.
+    """
+    q = (
+        db.query(SystemVariant)
+        .join(System, SystemVariant.system_id == System.id)
+        .filter(
+            SystemVariant.system_id == system_id,
+            SystemVariant.is_deleted == False,
+            System.is_deleted == False,
+        )
+    )
+    if current_user.role != "admin":
+        q = q.filter(SystemVariant.is_published == True, System.is_published == True)
+
+    items = q.order_by(SystemVariant.created_at.desc()).all()
+    return items
+
+
+@router.get("/{variant_id}/photo", summary="Variant'a ait fotoğrafı döner")
+def get_variant_photo_file(
+    variant_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    obj = get_system_variant(db, variant_id)
+    if not obj or not obj.photo_url:
+        raise HTTPException(404, "Variant için fotoğraf bilgisi bulunamadı")
+
+    # Bayi unpublished/silinmiş variant veya sistemi görmesin
+    if current_user.role != "admin":
+        # variant ve bağlı sistem publish/deleted kontrolü
+        if obj.is_deleted or not obj.is_published:
+            raise HTTPException(404, "Variant için fotoğraf bilgisi bulunamadı")
+        sys = getattr(obj, "system", None)
+        if not sys or sys.is_deleted or not sys.is_published:
+            raise HTTPException(404, "Variant için fotoğraf bilgisi bulunamadı")
+
+    # Klasör yolu: proje kökü / variant_photos /
+    BASE_DIR_LOCAL = Path(__file__).resolve().parent.parent.parent
+    VARIANT_PHOTO_DIR_LOCAL = BASE_DIR_LOCAL / "variant_photos"
+
+    filename = Path(obj.photo_url).name
+    photo_path = VARIANT_PHOTO_DIR_LOCAL / filename
+
+    if not photo_path.exists():
+        raise HTTPException(404, f"Fotoğraf dosyası bulunamadı: {photo_path}")
+
+    return FileResponse(path=str(photo_path), media_type="image/jpeg")
+
+
+# -----------------------------------------------------------------------------
+# Mutasyon uçları: ADMIN-ONLY
+# -----------------------------------------------------------------------------
+
+@router.post("/system/{system_id}", response_model=SystemVariantOut, status_code=201, dependencies=[Depends(get_current_admin)])
 def create_variant(
     system_id: UUID,
     payload: SystemVariantCreate,
     db: Session = Depends(get_db)
 ):
     """
-    Create a new SystemVariant for a given System.
+    Verilen System için yeni SystemVariant oluşturur.
     """
+    # klasör yoksa oluştur (foto yükleme için)
+    if not os.path.exists(VARIANT_PHOTO_DIR):
+        os.makedirs(VARIANT_PHOTO_DIR, exist_ok=True)
     return create_system_variant(db, system_id, payload)
 
-@router.get("/", response_model=list[SystemVariantOut])
-def list_variants(db: Session = Depends(get_db)):
-    """
-    List all SystemVariants.
-    """
-    return get_system_variants(db)
 
-#@router.get("/{variant_id}", response_model=SystemVariantOut)
-#def get_variant_endpoint(
-#    variant_id: UUID,
-#    db: Session = Depends(get_db)
-#):
-#    """
-#    Retrieve a specific SystemVariant by ID.
-#    """
-#    obj = get_system_variant(db, variant_id)
-#    if not obj:
-#        raise HTTPException(status_code=404, detail="SystemVariant not found")
-#    return obj
-
-@router.put("/{variant_id}", response_model=SystemVariantOut)
+@router.put("/{variant_id}", response_model=SystemVariantOut, dependencies=[Depends(get_current_admin)])
 def update_variant(
     variant_id: UUID,
     payload: SystemVariantUpdate,
     db: Session = Depends(get_db)
 ):
     """
-    Update fields of an existing SystemVariant.
+    Mevcut SystemVariant alanlarını günceller.
     """
     obj = update_system_variant(db, variant_id, payload)
     if not obj:
         raise HTTPException(status_code=404, detail="SystemVariant not found")
     return obj
 
-@router.delete("/{variant_id}", status_code=204)
+
+@router.delete("/{variant_id}", status_code=204, dependencies=[Depends(get_current_admin)])
 def delete_variant(
     variant_id: UUID,
     db: Session = Depends(get_db)
 ):
     """
-    Delete a SystemVariant by ID.
+    SystemVariant siler (bizde soft delete alanı var; CRUD içinde buna göre davranır).
     """
     deleted = delete_system_variant(db, variant_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="SystemVariant not found")
     return
 
-# ----- New: Variants by System -----
-@router.get(
-    "/system/{system_id}",
-    response_model=list[SystemVariantOut],
-    summary="List all SystemVariants for a given System ID"
-)
-def list_variants_by_system(
-    system_id: UUID,
-    db: Session = Depends(get_db)
-):
-    """
-    List all variants for the specified system.
-    """
-    variants = get_variants_for_system(db, system_id)
-    return variants
 
-@router.post("/{variant_id}/photo", summary="Variant fotoğrafı yükle/güncelle")
+@router.post("/{variant_id}/photo", summary="Variant fotoğrafı yükle/güncelle", dependencies=[Depends(get_current_admin)])
 def upload_or_replace_variant_photo(
     variant_id: UUID,
     file: UploadFile = File(...),
@@ -123,6 +201,10 @@ def upload_or_replace_variant_photo(
         old_path = os.path.join(BASE_DIR, obj.photo_url)
         if os.path.exists(old_path):
             os.remove(old_path)
+
+    # Klasör yoksa oluştur
+    if not os.path.exists(VARIANT_PHOTO_DIR):
+        os.makedirs(VARIANT_PHOTO_DIR, exist_ok=True)
 
     # Yeni fotoğrafı yükle
     ext = os.path.splitext(file.filename)[-1]
@@ -140,7 +222,8 @@ def upload_or_replace_variant_photo(
         "photo_url": photo_url
     }
 
-@router.delete("/{variant_id}/photo", summary="Variant fotoğrafını sil")
+
+@router.delete("/{variant_id}/photo", summary="Variant fotoğrafını sil", dependencies=[Depends(get_current_admin)])
 def delete_variant_photo(
     variant_id: UUID,
     db: Session = Depends(get_db)
@@ -157,25 +240,8 @@ def delete_variant_photo(
 
     return {"message": "Fotoğraf silindi"}
 
-@router.get("/{variant_id}/photo", summary="Variant'a ait fotoğrafı döner")
-def get_variant_photo_file(variant_id: UUID, db: Session = Depends(get_db)):
-    obj = get_system_variant(db, variant_id)
-    if not obj or not obj.photo_url:
-        raise HTTPException(404, "Variant için fotoğraf bilgisi bulunamadı")
 
-    # Klasör yolu: proje kökü / variant_photos /
-    BASE_DIR = Path(__file__).resolve().parent.parent.parent
-    VARIANT_PHOTO_DIR = BASE_DIR / "variant_photos"
-
-    filename = Path(obj.photo_url).name
-    photo_path = VARIANT_PHOTO_DIR / filename
-
-    if not photo_path.exists():
-        raise HTTPException(404, f"Fotoğraf dosyası bulunamadı: {photo_path}")
-
-    return FileResponse(path=str(photo_path), media_type="image/jpeg")
-
-@router.post("/", response_model=SystemVariantDetailOut, status_code=201)
+@router.post("/", response_model=SystemVariantDetailOut, status_code=201, dependencies=[Depends(get_current_admin)])
 def create_variant_with_templates_endpoint(
     payload: SystemVariantCreateWithTemplates,
     db: Session = Depends(get_db)
@@ -183,16 +249,22 @@ def create_variant_with_templates_endpoint(
     """
     Yeni system variant oluşturur ve ilişkili profil, cam, malzeme şablonlarını ekler.
     """
+    # klasör yoksa oluştur (foto yükleme için)
+    if not os.path.exists(VARIANT_PHOTO_DIR):
+        os.makedirs(VARIANT_PHOTO_DIR, exist_ok=True)
+
     variant = create_system_variant_with_templates(db, payload)
     detail = get_system_variant_detail(db, variant.id)
     if not detail:
         raise HTTPException(status_code=500, detail="Variant oluşturuldu ama detail alınamadı")
     return detail
 
+
 @router.put(
     "/{variant_id}/templates",
     response_model=SystemVariantDetailOut,
-    summary="Update a SystemVariant and all its profile/glass/material templates"
+    summary="Bir SystemVariant ve tüm profil/cam/malzeme şablonlarını güncelle",
+    dependencies=[Depends(get_current_admin)]
 )
 def update_variant_templates_endpoint(
     variant_id: UUID,
@@ -211,3 +283,43 @@ def update_variant_templates_endpoint(
     if not detail:
         raise HTTPException(status_code=500, detail="Unable to fetch updated variant detail")
     return detail
+
+@router.put("/{variant_id}/publish", response_model=SystemVariantOut, dependencies=[Depends(get_current_admin)])
+def publish_variant(
+    variant_id: UUID,
+    db: Session = Depends(get_db),
+):
+    v = get_system_variant(db, variant_id)
+    if not v or v.is_deleted:
+        raise HTTPException(status_code=404, detail="Variant not found")
+
+    # Ebeveyn sistemi güvenle bul
+    parent = getattr(v, "system", None)
+    if parent is None:
+        parent = db.query(System).filter(System.id == v.system_id).first()
+
+    if parent is None or getattr(parent, "is_deleted", False):
+        raise HTTPException(status_code=400, detail="Parent system is deleted or missing")
+
+    if not getattr(parent, "is_published", False):
+        raise HTTPException(status_code=400, detail="Parent system must be published first")
+
+    updated = update_system_variant(db, variant_id, SystemVariantUpdate(is_published=True))
+    if not updated:
+        raise HTTPException(status_code=404, detail="Variant not found")
+    return updated
+
+
+@router.put("/{variant_id}/unpublish", response_model=SystemVariantOut, dependencies=[Depends(get_current_admin)])
+def unpublish_variant(
+    variant_id: UUID,
+    db: Session = Depends(get_db),
+):
+    v = get_system_variant(db, variant_id)
+    if not v or v.is_deleted:
+        raise HTTPException(status_code=404, detail="Variant not found")
+
+    updated = update_system_variant(db, variant_id, SystemVariantUpdate(is_published=False))
+    if not updated:
+        raise HTTPException(status_code=404, detail="Variant not found")
+    return updated
