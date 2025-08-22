@@ -6,7 +6,9 @@ from typing import Optional, List
 
 from app.models.customer import Customer
 from app.schemas.customer import CustomerCreate, CustomerUpdate
+from typing import Optional
 
+from sqlalchemy import func
 
 def create_customer(
     db: Session,
@@ -47,21 +49,36 @@ def get_customer(
     )
 
 
-def get_customers_by_dealer(
+def get_customers(
     db: Session,
-    dealer_id: UUID
-) -> List[Customer]:
+    owner_id: UUID,
+    name: Optional[str] = None,
+    limit: Optional[int] = None,
+) -> list[Customer]:
     """
-    Belirli bayiye ait tüm aktif müşterileri listeler.
+    Kendi müşterilerini döndürür:
+    - Sadece is_deleted=False
+    - En yeni -> en eski (created_at DESC)
+    - İsteğe bağlı 'name' filtresi (case-insensitive contains)
+    - İsteğe bağlı 'limit'
     """
-    return (
+    q = (
         db.query(Customer)
-          .filter(
-              Customer.dealer_id == dealer_id,
-              Customer.is_deleted == False
-          )
-          .all()
+        .filter(
+            Customer.dealer_id == owner_id,
+            Customer.is_deleted == False,
+        )
+        .order_by(Customer.created_at.desc())
     )
+
+    if name:
+        like_val = f"%{name.lower()}%"
+        q = q.filter(func.lower(Customer.company_name).like(like_val))
+
+    if limit is not None:
+        q = q.limit(limit)
+
+    return q.all()
 
 
 def update_customer(

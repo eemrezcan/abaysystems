@@ -1,14 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List
 from uuid import UUID
 
+from app.core.security import get_current_user
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.schemas.customer import CustomerCreate, CustomerUpdate, CustomerOut
 from app.crud.customer import (
     create_customer,
     get_customer,
-    get_customers_by_dealer,
+    get_customers,
     update_customer,
     delete_customer
 )
@@ -29,14 +30,23 @@ def create_customer_endpoint(
     return create_customer(db, dealer_id=current_user.id, payload=payload)
 
 @router.get("/", response_model=List[CustomerOut])
-def list_customers_endpoint(
-    current_user: AppUser = Depends(get_current_dealer),
-    db: Session = Depends(get_db)
+def list_customers(
+    name: str | None = Query(
+        default=None,
+        min_length=1,
+        description="Müşteri adına göre filtre (contains, case-insensitive)"
+    ),
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=200,
+        description="Listelenecek maksimum müşteri sayısı"
+    ),
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
 ):
-    """
-    Oturum açan kullanıcının tüm aktif müşterilerini listeler.
-    """
-    return get_customers_by_dealer(db, dealer_id=current_user.id)
+    """Sadece oturumdaki kullanıcının müşterileri; en yeni → en eski sırada."""
+    return get_customers(db, owner_id=current_user.id, name=name, limit=limit)
 
 @router.get("/{customer_id}", response_model=CustomerOut)
 def get_customer_endpoint(

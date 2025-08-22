@@ -5,7 +5,7 @@ from datetime import datetime
 from uuid import UUID
 from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
-
+from sqlalchemy import func
 from app.models.system import SystemVariant, System
 from app.models.profile import Profile
 from app.models.glass_type import GlassType
@@ -91,16 +91,30 @@ def create_project(db: Session, payload: ProjectCreate, created_by: UUID) -> Pro
     return project
 
 
-def get_projects(db: Session, owner_id: UUID) -> List[Project]:
+def get_projects(
+    db: Session,
+    owner_id: UUID,
+    name: Optional[str] = None,
+    limit: Optional[int] = None,
+) -> list[Project]:
     """
-    Sadece ilgili kullanıcının projelerini döner.
+    Kendi projelerini, en yeniden eskiye sıralı döndürür.
+    İsteğe bağlı olarak 'name' (contains, case-insensitive) filtresi ve 'limit' uygular.
     """
-    return (
+    query = (
         db.query(Project)
-          .filter(Project.created_by == owner_id)
-          .order_by(Project.created_at.desc())
-          .all()
+        .filter(Project.created_by == owner_id)
+        .order_by(Project.created_at.desc())
     )
+
+    if name:
+        like_val = f"%{name.lower()}%"
+        query = query.filter(func.lower(Project.project_name).like(like_val))
+
+    if limit is not None:
+        query = query.limit(limit)
+
+    return query.all()
 
 
 def get_project(db: Session, project_id: UUID) -> Optional[Project]:

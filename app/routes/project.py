@@ -1,6 +1,6 @@
 # app/routes/project.py
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
@@ -95,11 +95,22 @@ def create_project_endpoint(
 
 @router.get("/", response_model=List[ProjectOut])
 def list_projects(
+    name: str | None = Query(
+        default=None,
+        min_length=1,
+        description="Proje adına göre filtre (contains, case-insensitive)"
+    ),
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=200,
+        description="Listelenecek maksimum proje sayısı"
+    ),
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    """Sadece oturumdaki kullanıcının projeleri listelenir."""
-    return get_projects(db, owner_id=current_user.id)
+    """Sadece oturumdaki kullanıcının projeleri; en yeni → en eski sırada."""
+    return get_projects(db, owner_id=current_user.id, name=name, limit=limit)
 
 
 @router.get("/{project_id}", response_model=ProjectOut)
