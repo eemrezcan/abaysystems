@@ -1,5 +1,5 @@
 # app/core/settings.py
-from pydantic import BaseSettings, AnyUrl, EmailStr
+from pydantic import BaseSettings, AnyUrl, EmailStr, Field
 
 class Settings(BaseSettings):
     database_url: AnyUrl
@@ -16,6 +16,13 @@ class Settings(BaseSettings):
     
     DEBUG: bool = False
     
+    access_token_expire_minutes: int = Field(30, env="ACCESS_TOKEN_EXPIRE_MINUTES")
+    refresh_token_expire_days: int = Field(30, env="REFRESH_TOKEN_EXPIRE_DAYS")
+    refresh_cookie_name: str = Field("refresh_token", env="REFRESH_COOKIE_NAME")
+    refresh_cookie_secure: bool = Field(False, env="REFRESH_COOKIE_SECURE")
+    refresh_cookie_samesite: str = Field("lax", env="REFRESH_COOKIE_SAMESITE")  # "lax" | "strict" | "none"
+    refresh_cookie_domain: str | None = Field(None, env="REFRESH_COOKIE_DOMAIN")
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
