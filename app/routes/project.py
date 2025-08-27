@@ -106,12 +106,22 @@ def list_projects(
         le=200,
         description="Listelenecek maksimum proje sayısı"
     ),
+    offset: int = Query(  # 🟢 yeni
+        default=0,
+        ge=0,
+        description="Kaç kayıt atlanacağı (sayfalama)"
+    ),
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
     """Sadece oturumdaki kullanıcının projeleri; en yeni → en eski sırada."""
-    return get_projects(db, owner_id=current_user.id, name=name, limit=limit)
-
+    return get_projects(
+        db,
+        owner_id=current_user.id,
+        name=name,
+        limit=limit,
+        offset=offset,  # 🟢 yeni
+    )
 
 @router.get("/{project_id}", response_model=ProjectOut)
 def get_project_endpoint(

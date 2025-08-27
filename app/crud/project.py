@@ -96,10 +96,12 @@ def get_projects(
     owner_id: UUID,
     name: Optional[str] = None,
     limit: Optional[int] = None,
+    offset: int = 0,  # 🟢 yeni
 ) -> list[Project]:
     """
     Kendi projelerini, en yeniden eskiye sıralı döndürür.
-    İsteğe bağlı olarak 'name' (contains, case-insensitive) filtresi ve 'limit' uygular.
+    İsteğe bağlı olarak 'name' (contains, case-insensitive) filtresi,
+    'offset' ve 'limit' uygular (klasik sayfalama).
     """
     query = (
         db.query(Project)
@@ -111,10 +113,15 @@ def get_projects(
         like_val = f"%{name.lower()}%"
         query = query.filter(func.lower(Project.project_name).like(like_val))
 
+    # 🟢 offset önce uygulanır
+    if offset:
+        query = query.offset(offset)
+
     if limit is not None:
         query = query.limit(limit)
 
     return query.all()
+
 
 
 def get_project(db: Session, project_id: UUID) -> Optional[Project]:

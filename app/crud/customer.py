@@ -54,13 +54,14 @@ def get_customers(
     owner_id: UUID,
     name: Optional[str] = None,
     limit: Optional[int] = None,
+    offset: int = 0,  # 🟢 yeni
 ) -> list[Customer]:
     """
     Kendi müşterilerini döndürür:
     - Sadece is_deleted=False
     - En yeni -> en eski (created_at DESC)
     - İsteğe bağlı 'name' filtresi (case-insensitive contains)
-    - İsteğe bağlı 'limit'
+    - 'offset' ve 'limit' ile sayfalama
     """
     q = (
         db.query(Customer)
@@ -75,10 +76,14 @@ def get_customers(
         like_val = f"%{name.lower()}%"
         q = q.filter(func.lower(Customer.company_name).like(like_val))
 
+    if offset:
+        q = q.offset(offset)  # 🟢 yeni
+
     if limit is not None:
         q = q.limit(limit)
 
     return q.all()
+
 
 
 def update_customer(
