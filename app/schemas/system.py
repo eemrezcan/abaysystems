@@ -69,6 +69,24 @@ class SystemVariantOut(SystemVariantBase):
     class Config:
         orm_mode = True
 
+
+class SystemPageOut(BaseModel):
+    items: List[SystemOut]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
+
+class SystemVariantPageOut(BaseModel):
+    items: List[SystemVariantOut]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
 # ——————————————————————
 # Combined System & Variant & Glass create schema
 class GlassConfig(BaseModel):

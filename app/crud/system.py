@@ -3,7 +3,7 @@
 from uuid import uuid4, UUID
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import joinedload, selectinload
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from app.models.system import System, SystemVariant
 from app.models.system_profile_template import SystemProfileTemplate
 from app.models.system_glass_template import SystemGlassTemplate
@@ -36,6 +36,40 @@ def create_system(db: Session, payload: SystemCreate) -> System:
 
 def get_systems(db: Session) -> list[System]:
     return db.query(System).all()
+
+def get_systems_page(
+    db: Session,
+    is_admin: bool,
+    q: Optional[str],
+    limit: int,
+    offset: int,
+) -> Tuple[List[System], int]:
+    """
+    Sistemleri sayfalı döndürür.
+    - is_deleted=False zorunlu
+    - admin değilse is_published=True
+    - q varsa name içinde ilike
+    - total (count) + items (limit/offset)
+    """
+    base_q = db.query(System).filter(System.is_deleted == False)
+
+    if not is_admin:
+        base_q = base_q.filter(System.is_published == True)
+
+    if q:
+        like = f"%{q}%"
+        base_q = base_q.filter(System.name.ilike(like))
+
+    total = base_q.order_by(None).count()
+
+    items = (
+        base_q.order_by(System.created_at.desc())
+              .offset(offset)
+              .limit(limit)
+              .all()
+    )
+
+    return items, total
 
 
 def get_system(db: Session, system_id: UUID) -> System | None:

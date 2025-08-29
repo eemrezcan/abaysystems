@@ -23,6 +23,15 @@ class ProfileOut(ProfileBase):
     class Config:
         orm_mode = True
 
+class ProfilePageOut(BaseModel):
+    items: List[ProfileOut]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
+
 # ------- GlassType
 class GlassTypeBase(BaseModel):
     cam_isim: str = Field(..., min_length=1)
@@ -39,6 +48,15 @@ class GlassTypeOut(GlassTypeBase):
 
     class Config:
         orm_mode = True
+
+class GlassTypePageOut(BaseModel):
+    items: List[GlassTypeOut]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
 
 # ------- OtherMaterial
 class OtherMaterialBase(BaseModel):
@@ -57,3 +75,12 @@ class OtherMaterialOut(OtherMaterialBase):
 
     class Config:
         orm_mode = True
+
+class OtherMaterialPageOut(BaseModel):
+    items: List[OtherMaterialOut]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool

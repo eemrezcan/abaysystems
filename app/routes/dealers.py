@@ -20,6 +20,11 @@ from app.core.settings import settings
 from app.core.mailer import send_email
 from app.models.user_token import UserToken
 
+from math import ceil
+from app.crud.user import get_dealers_page  # 🟢 eklendi
+from app.schemas.user import DealerPageOut  # 🟢 eklendi
+
+
 router = APIRouter(prefix="/api/dealers", tags=["Dealers"])
 
 @router.post("/invite", response_model=DealerOut, status_code=201, dependencies=[Depends(get_current_admin)])
@@ -101,18 +106,32 @@ def delete_dealer(dealer_id: UUID, db: Session = Depends(get_db)):
     return
 
 # 3.1 — Bayileri listele (admin-only)
-@router.get("/", response_model=List[DealerOut], dependencies=[Depends(get_current_admin)])
+@router.get("/", response_model=DealerPageOut, dependencies=[Depends(get_current_admin)])
 def list_dealers(
     db: Session = Depends(get_db),
-    q: Optional[str] = Query(None, description="İsme/emaile göre filtre"),
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
+    q: Optional[str] = Query(None, description="İsme/emaile/şehre göre filtre"),
+    limit: int = Query(50, ge=1, le=200, description="Sayfa başına kayıt (page size)"),
+    page: int = Query(1, ge=1, description="1'den başlayan sayfa numarası"),
 ):
-    query = db.query(AppUser).filter(AppUser.role == "dealer", AppUser.is_deleted == False)
-    if q:
-        like = f"%{q}%"
-        query = query.filter(or_(AppUser.name.ilike(like), AppUser.email.ilike(like), AppUser.city.ilike(like)))
-    return query.order_by(AppUser.created_at.desc()).limit(limit).offset(offset).all()
+    offset = (page - 1) * limit
+
+    items, total = get_dealers_page(
+        db=db,
+        q=q,
+        limit=limit,
+        offset=offset,
+    )
+
+    total_pages = ceil(total / limit) if total > 0 else 0
+    return DealerPageOut(
+        items=items,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=total_pages,
+        has_next=(page < total_pages) if total_pages > 0 else False,
+        has_prev=(page > 1) and (total_pages > 0),
+    )
 
 # 3.2 — Daveti tekrar gönder (eski invite tokenlarını geçersiz kılar)
 @router.post("/{dealer_id}/resend-invite", status_code=200, dependencies=[Depends(get_current_admin)])

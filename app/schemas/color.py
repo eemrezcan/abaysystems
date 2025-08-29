@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Annotated, Optional
+from typing import Annotated, Optional, List
 from uuid import UUID
 from decimal import Decimal
 from datetime import datetime
@@ -26,3 +26,12 @@ class ColorOut(ColorBase):
 
     class Config:
         orm_mode = True
+
+class ColorPageOut(BaseModel):
+    items: List[ColorOut]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool

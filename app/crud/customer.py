@@ -2,7 +2,7 @@
 
 from sqlalchemy.orm import Session
 from uuid import uuid4, UUID
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 from app.models.customer import Customer
 from app.schemas.customer import CustomerCreate, CustomerUpdate
@@ -84,6 +84,38 @@ def get_customers(
 
     return q.all()
 
+def get_customers_page(
+    db: Session,
+    owner_id: UUID,
+    name: Optional[str],
+    limit: int,
+    offset: int,
+) -> Tuple[List[Customer], int]:
+    """
+    Filtrelenmiş toplam kayıt sayısı + sayfadaki kayıtları birlikte döndürür.
+    Sadece is_deleted=False olanlar.
+    """
+    base_q = (
+        db.query(Customer)
+        .filter(
+            Customer.dealer_id == owner_id,
+            Customer.is_deleted == False,
+        )
+    )
+
+    if name:
+        like_val = f"%{name.lower()}%"
+        base_q = base_q.filter(func.lower(Customer.company_name).like(like_val))
+
+    total = base_q.order_by(None).count()
+
+    items = (
+        base_q.order_by(Customer.created_at.desc())
+              .offset(offset)
+              .limit(limit)
+              .all()
+    )
+    return items, total
 
 
 def update_customer(

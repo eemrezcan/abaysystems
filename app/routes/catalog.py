@@ -5,6 +5,9 @@ from typing import List
 from uuid import UUID
 import os, shutil
 
+from math import ceil                              # 🟢
+from fastapi import Query 
+
 from fastapi.responses import FileResponse
 from app.db.session import get_db
 
@@ -19,10 +22,13 @@ from app.models.glass_type import GlassType
 from app.models.other_material import OtherMaterial
 
 from app.crud import catalog as crud
-from app.schemas.catalog import (
-    ProfileCreate, ProfileOut,
-    GlassTypeCreate, GlassTypeOut,
-    OtherMaterialCreate, OtherMaterialOut
+from app.schemas.catalog import (                  # 🟢
+    ProfileCreate, ProfileOut, ProfilePageOut,
+    GlassTypeCreate, GlassTypeOut, GlassTypePageOut,
+    OtherMaterialCreate, OtherMaterialOut, OtherMaterialPageOut
+)
+from app.crud.catalog import (                     # 🟢
+    get_profiles_page, get_glass_types_page, get_other_materials_page
 )
 
 router = APIRouter(prefix="/api/catalog", tags=["Catalog"])
@@ -46,21 +52,36 @@ def create_profile(payload: ProfileCreate, db: Session = Depends(get_db)):
             detail="Failed to create profile due to database constraint"
         )
 
-@router.get("/profiles", response_model=List[ProfileOut])
+@router.get("/profiles", response_model=ProfilePageOut)
 def list_profiles(
+    q: str | None = Query(None, description="Profil kodu/ismine göre filtre (contains, case-insensitive)"),
+    limit: int = Query(50, ge=1, le=200, description="Sayfa başına kayıt (page size)"),
+    page: int = Query(1, ge=1, description="1'den başlayan sayfa numarası"),
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    # Admin: tüm aktif/silinmemişleri crud'dan; Bayi: sadece aktif & silinmemiş
-    if current_user.role == "admin":
-        return crud.get_profiles(db)
-    items = (
-        db.query(Profile)
-          .filter(Profile.is_deleted == False, Profile.is_active == True)
-          .order_by(Profile.profil_isim.asc())
-          .all()
+    is_admin = (current_user.role == "admin")
+    offset = (page - 1) * limit
+
+    items, total = get_profiles_page(
+        db=db,
+        is_admin=is_admin,
+        q=q,
+        limit=limit,
+        offset=offset,
     )
-    return items
+
+    total_pages = ceil(total / limit) if total > 0 else 0
+    return ProfilePageOut(
+        items=items,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=total_pages,
+        has_next=(page < total_pages) if total_pages > 0 else False,
+        has_prev=(page > 1) and (total_pages > 0),
+    )
+
 
 @router.get("/profiles/{profile_id}", response_model=ProfileOut)
 def get_profile(
@@ -158,20 +179,36 @@ def delete_profile_image(profile_id: UUID, db: Session = Depends(get_db)):
 def create_glass_type(payload: GlassTypeCreate, db: Session = Depends(get_db)):
     return crud.create_glass_type(db, payload)
 
-@router.get("/glass-types", response_model=List[GlassTypeOut])
+@router.get("/glass-types", response_model=GlassTypePageOut)
 def list_glass_types(
+    q: str | None = Query(None, description="Cam ismine göre filtre (contains, case-insensitive)"),
+    limit: int = Query(50, ge=1, le=200, description="Sayfa başına kayıt (page size)"),
+    page: int = Query(1, ge=1, description="1'den başlayan sayfa numarası"),
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    if current_user.role == "admin":
-        return crud.get_glass_types(db)
-    items = (
-        db.query(GlassType)
-          .filter(GlassType.is_deleted == False, GlassType.is_active == True)
-          .order_by(GlassType.cam_isim.asc())
-          .all()
+    is_admin = (current_user.role == "admin")
+    offset = (page - 1) * limit
+
+    items, total = get_glass_types_page(
+        db=db,
+        is_admin=is_admin,
+        q=q,
+        limit=limit,
+        offset=offset,
     )
-    return items
+
+    total_pages = ceil(total / limit) if total > 0 else 0
+    return GlassTypePageOut(
+        items=items,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=total_pages,
+        has_next=(page < total_pages) if total_pages > 0 else False,
+        has_prev=(page > 1) and (total_pages > 0),
+    )
+
 
 @router.get("/glass-types/{glass_type_id}", response_model=GlassTypeOut)
 def get_glass_type(
@@ -206,20 +243,36 @@ def delete_glass_type(glass_type_id: UUID, db: Session = Depends(get_db)):
 def create_other_material(payload: OtherMaterialCreate, db: Session = Depends(get_db)):
     return crud.create_other_material(db, payload)
 
-@router.get("/other-materials", response_model=List[OtherMaterialOut])
+@router.get("/other-materials", response_model=OtherMaterialPageOut)
 def list_other_materials(
+    q: str | None = Query(None, description="Diğer malzeme adına göre filtre (contains, case-insensitive)"),
+    limit: int = Query(50, ge=1, le=200, description="Sayfa başına kayıt (page size)"),
+    page: int = Query(1, ge=1, description="1'den başlayan sayfa numarası"),
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    if current_user.role == "admin":
-        return crud.get_other_materials(db)
-    items = (
-        db.query(OtherMaterial)
-          .filter(OtherMaterial.is_deleted == False, OtherMaterial.is_active == True)
-          .order_by(OtherMaterial.diger_malzeme_isim.asc())
-          .all()
+    is_admin = (current_user.role == "admin")
+    offset = (page - 1) * limit
+
+    items, total = get_other_materials_page(
+        db=db,
+        is_admin=is_admin,
+        q=q,
+        limit=limit,
+        offset=offset,
     )
-    return items
+
+    total_pages = ceil(total / limit) if total > 0 else 0
+    return OtherMaterialPageOut(
+        items=items,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=total_pages,
+        has_next=(page < total_pages) if total_pages > 0 else False,
+        has_prev=(page > 1) and (total_pages > 0),
+    )
+
 
 @router.get("/other-materials/{material_id}", response_model=OtherMaterialOut)
 def get_other_material(

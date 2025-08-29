@@ -122,6 +122,33 @@ def get_projects(
 
     return query.all()
 
+def get_projects_page(
+    db: Session,
+    owner_id: UUID,
+    name: Optional[str],
+    limit: int,
+    offset: int,
+) -> Tuple[List[Project], int]:
+    """
+    Filtrelenmiş toplam kayıt sayısı + sayfadaki kayıtları birlikte döndürür.
+    """
+    base_q = db.query(Project).filter(Project.created_by == owner_id)
+
+    if name:
+        like_val = f"%{name.lower()}%"
+        base_q = base_q.filter(func.lower(Project.project_name).like(like_val))
+
+    # Toplam (limit/offset uygulanmadan)
+    total = base_q.order_by(None).count()
+
+    # Sayfa verisi
+    items = (
+        base_q.order_by(Project.created_at.desc())
+              .offset(offset)
+              .limit(limit)
+              .all()
+    )
+    return items, total
 
 
 def get_project(db: Session, project_id: UUID) -> Optional[Project]:

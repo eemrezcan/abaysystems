@@ -32,3 +32,12 @@ class CustomerOut(CustomerBase):
 
     class Config:
         orm_mode = True
+
+class CustomerPageOut(BaseModel):
+    items: List[CustomerOut]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool

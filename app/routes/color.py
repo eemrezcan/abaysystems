@@ -2,6 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from uuid import UUID
 
+from typing import Optional  
+
+from math import ceil 
+
 from app.db.session import get_db
 
 # 🔐 roller
@@ -12,13 +16,14 @@ from app.models.app_user import AppUser
 # 🔎 bayi GET filtreleri için model
 from app.models.color import Color
 
-from app.schemas.color import ColorCreate, ColorUpdate, ColorOut
+from app.schemas.color import ColorCreate, ColorUpdate, ColorOut, ColorPageOut 
 from app.crud.color import (
     create_color,
     get_colors,
     get_color,
     update_color,
     delete_color,
+    get_colors_page
 )
 
 router = APIRouter(prefix="/api/colors", tags=["Colors"])
@@ -48,25 +53,42 @@ def delete_color_endpoint(color_id: UUID, db: Session = Depends(get_db)):
 
 # ----------------- GET (BAYİ + ADMIN) -----------------
 
-@router.get("/", response_model=list[ColorOut])
+@router.get("/", response_model=ColorPageOut)
 def list_colors(
-    type: str | None = Query(default=None, pattern="^(profile|glass)$"),
+    type: str | None = Query(default=None, pattern="^(profile|glass)$", description="Renk tipi filtresi"),
+    q: str | None = Query(default=None, description="Ada göre filtre (contains, case-insensitive)"),
+    limit: int = Query(default=50, ge=1, le=200, description="Sayfa başına kayıt (page size)"),
+    page: int = Query(default=1, ge=1, description="1'den başlayan sayfa numarası"),
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
     """
-    Renkleri listeler. `?type=profile` veya `?type=glass` ile filtrelenebilir.
-    Bayi: sadece `is_active=true AND is_deleted=false` kayıtlar döner.
-    Admin: CRUD katmanındaki liste (genelde tüm silinmemiş) döner.
+    Renkleri listeler. Bayi: sadece aktif & silinmemiş. Admin: silinmemiş tüm renkler.
+    Paginated döner: items, total, page, limit, total_pages, has_next, has_prev
     """
-    if current_user.role == "admin":
-        return get_colors(db, type_filter=type)
+    is_admin = (current_user.role == "admin")
+    offset = (page - 1) * limit
 
-    # bayi → aktif & silinmemiş
-    q = db.query(Color).filter(Color.is_deleted == False, Color.is_active == True)
-    if type:
-        q = q.filter(Color.type == type)
-    return q.order_by(Color.name.asc()).all()
+    items, total = get_colors_page(
+        db=db,
+        is_admin=is_admin,
+        type_filter=type,
+        q=q,
+        limit=limit,
+        offset=offset,
+    )
+
+    total_pages = ceil(total / limit) if total > 0 else 0
+    return ColorPageOut(
+        items=items,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=total_pages,
+        has_next=(page < total_pages) if total_pages > 0 else False,
+        has_prev=(page > 1) and (total_pages > 0),
+    )
+
 
 
 @router.get("/{color_id}", response_model=ColorOut)

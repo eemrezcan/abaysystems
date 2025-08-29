@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
+from math import ceil
 
 from app.db.session import get_db
 from app.core.security import get_current_user
@@ -39,7 +40,8 @@ from app.crud.project import (
     list_project_extra_materials,
     update_project_system,
     delete_project_system,
-    update_project_all
+    update_project_all,
+    get_projects_page, 
 )
 
 from app.schemas.project import (
@@ -67,6 +69,7 @@ from app.schemas.project import (
     ProjectExtraMaterialCreate,
     ProjectExtraMaterialUpdate,
     ProjectExtraMaterialOut,
+    ProjectPageOut,
 )
 
 # Ek: Extra* sahiplik kontrolünde projeye join için Project ve Extra modellerine ihtiyacımız var
@@ -93,7 +96,7 @@ def create_project_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/", response_model=List[ProjectOut])
+@router.get("/", response_model=ProjectPageOut)  # 🟢 değişti
 def list_projects(
     name: str | None = Query(
         default=None,
@@ -104,23 +107,36 @@ def list_projects(
         default=50,
         ge=1,
         le=200,
-        description="Listelenecek maksimum proje sayısı"
+        description="Sayfa başına kayıt (page size)"
     ),
-    offset: int = Query(  # 🟢 yeni
-        default=0,
-        ge=0,
-        description="Kaç kayıt atlanacağı (sayfalama)"
+    page: int = Query(                # 🟢 yeni
+        default=1,
+        ge=1,
+        description="1'den başlayan sayfa numarası"
     ),
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
     """Sadece oturumdaki kullanıcının projeleri; en yeni → en eski sırada."""
-    return get_projects(
-        db,
+    offset = (page - 1) * limit
+
+    items, total = get_projects_page(
+        db=db,
         owner_id=current_user.id,
         name=name,
         limit=limit,
-        offset=offset,  # 🟢 yeni
+        offset=offset,
+    )
+
+    total_pages = ceil(total / limit) if total > 0 else 0
+    return ProjectPageOut(
+        items=items,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=total_pages,
+        has_next=(page < total_pages) if total_pages > 0 else False,
+        has_prev=(page > 1) and (total_pages > 0),
     )
 
 @router.get("/{project_id}", response_model=ProjectOut)

@@ -3,8 +3,11 @@
 from uuid import uuid4, UUID
 from sqlalchemy.orm import Session
 
+from typing import Optional, Tuple, List   # 🟢
+from sqlalchemy import or_                 # 🟢 q filtresi için
+
 # Model SystemVariant is defined in app/models/system.py
-from app.models.system import SystemVariant
+from app.models.system import System, SystemVariant
 from app.schemas.system import SystemVariantCreate, SystemVariantUpdate, SystemVariantOut
 
 # ————— SystemVariant CRUD —————
@@ -23,6 +26,82 @@ def create_system_variant(db: Session, payload: SystemVariantCreate) -> SystemVa
 def get_system_variants(db: Session) -> list[SystemVariant]:
     """List all system variants."""
     return db.query(SystemVariant).all()
+
+def get_system_variants_page(
+    db: Session,
+    is_admin: bool,
+    q: Optional[str],
+    limit: int,
+    offset: int,
+) -> Tuple[List[SystemVariant], int]:
+    """
+    Tüm varyantlar için sayfalama:
+    - SystemVariant.is_deleted=False ve System.is_deleted=False
+    - admin değilse: her ikisi de is_published=True
+    - q varsa: variant adı veya system adı içinde ilike
+    """
+    base_q = (
+        db.query(SystemVariant)
+        .join(System, SystemVariant.system_id == System.id)
+        .filter(SystemVariant.is_deleted == False, System.is_deleted == False)
+    )
+
+    if not is_admin:
+        base_q = base_q.filter(SystemVariant.is_published == True, System.is_published == True)
+
+    if q:
+        like = f"%{q}%"
+        base_q = base_q.filter(or_(SystemVariant.name.ilike(like), System.name.ilike(like)))
+
+    total = base_q.order_by(None).count()
+
+    items = (
+        base_q.order_by(SystemVariant.created_at.desc())
+              .offset(offset)
+              .limit(limit)
+              .all()
+    )
+    return items, total
+
+
+def get_variants_for_system_page(
+    db: Session,
+    system_id: UUID,
+    is_admin: bool,
+    q: Optional[str],
+    limit: int,
+    offset: int,
+) -> Tuple[List[SystemVariant], int]:
+    """
+    Belirli bir sistem için varyantları sayfalı döndürür.
+    """
+    base_q = (
+        db.query(SystemVariant)
+        .join(System, SystemVariant.system_id == System.id)
+        .filter(
+            SystemVariant.system_id == system_id,
+            SystemVariant.is_deleted == False,
+            System.is_deleted == False,
+        )
+    )
+
+    if not is_admin:
+        base_q = base_q.filter(SystemVariant.is_published == True, System.is_published == True)
+
+    if q:
+        like = f"%{q}%"
+        base_q = base_q.filter(SystemVariant.name.ilike(like))
+
+    total = base_q.order_by(None).count()
+
+    items = (
+        base_q.order_by(SystemVariant.created_at.desc())
+              .offset(offset)
+              .limit(limit)
+              .all()
+    )
+    return items, total
+
 
 
 def get_system_variant(db: Session, variant_id: UUID) -> SystemVariant | None:

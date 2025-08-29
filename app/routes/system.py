@@ -9,6 +9,9 @@ from pathlib import Path
 
 from app.db.session import get_db
 
+from math import ceil
+from fastapi import Query  # zaten var olabilir
+
 # 🔐 Rol kontrolleri
 from app.core.security import get_current_user
 from app.api.deps import get_current_admin
@@ -35,6 +38,7 @@ from app.crud.system import (
     delete_material_template,
     create_system_full,
     get_system_variant_detail,
+    get_systems_page
 )
 from app.schemas.system import (
     SystemCreate,
@@ -52,6 +56,7 @@ from app.schemas.system import (
     SystemMaterialTemplateCreate,
     SystemMaterialTemplateUpdate,
     SystemVariantDetailOut,
+    SystemPageOut
 )
 
 router = APIRouter(prefix="/api", tags=["Systems"])
@@ -71,18 +76,36 @@ def create_system_endpoint(
     return create_system(db, payload)
 
 
-@router.get("/systems", response_model=list[SystemOut])
+@router.get("/systems", response_model=SystemPageOut)
 def list_systems(
+    q: str | None = Query(None, description="İsme göre filtre (contains, case-insensitive)"),
+    limit: int = Query(50, ge=1, le=200, description="Sayfa başına kayıt (page size)"),
+    page: int = Query(1, ge=1, description="1'den başlayan sayfa numarası"),
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    # Silinmeyen sistemler
-    q = db.query(System).filter(System.is_deleted == False)
-    # Bayi taslak görmesin
-    if current_user.role != "admin":
-        q = q.filter(System.is_published == True)
-    items = q.order_by(System.created_at.desc()).all()
-    return items
+    is_admin = (current_user.role == "admin")
+    offset = (page - 1) * limit
+
+    items, total = get_systems_page(
+        db=db,
+        is_admin=is_admin,
+        q=q,
+        limit=limit,
+        offset=offset,
+    )
+
+    total_pages = ceil(total / limit) if total > 0 else 0
+    return SystemPageOut(
+        items=items,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=total_pages,
+        has_next=(page < total_pages) if total_pages > 0 else False,
+        has_prev=(page > 1) and (total_pages > 0),
+    )
+
 
 
 @router.get("/systems/{system_id}", response_model=SystemOut)

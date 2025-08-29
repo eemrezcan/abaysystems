@@ -126,6 +126,15 @@ class ProjectOut(ProjectMeta):
     class Config:
         orm_mode = True
 
+class ProjectPageOut(BaseModel):
+    items: List[ProjectOut]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
+    
 # ----------------------------------------
 # Detailed Response Models for GET /requirements-detailed
 # ----------------------------------------

@@ -2,16 +2,19 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List
 from uuid import UUID
 
+from math import ceil
+
 from app.core.security import get_current_user
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.schemas.customer import CustomerCreate, CustomerUpdate, CustomerOut
+from app.schemas.customer import CustomerCreate, CustomerUpdate, CustomerOut, CustomerPageOut
 from app.crud.customer import (
     create_customer,
     get_customer,
     get_customers,
     update_customer,
-    delete_customer
+    delete_customer,
+    get_customers_page,
 )
 from app.api.deps import get_current_dealer
 from app.models.app_user import AppUser
@@ -29,7 +32,7 @@ def create_customer_endpoint(
     """
     return create_customer(db, dealer_id=current_user.id, payload=payload)
 
-@router.get("/", response_model=List[CustomerOut])
+@router.get("/", response_model=CustomerPageOut)  # 🟢 değişti
 def list_customers(
     name: str | None = Query(
         default=None,
@@ -40,23 +43,36 @@ def list_customers(
         default=50,
         ge=1,
         le=200,
-        description="Listelenecek maksimum müşteri sayısı"
+        description="Sayfa başına kayıt (page size)"
     ),
-    offset: int = Query(  # 🟢 yeni
-        default=0,
-        ge=0,
-        description="Kaç kayıt atlanacağı (sayfalama)"
+    page: int = Query(                # 🟢 yeni
+        default=1,
+        ge=1,
+        description="1'den başlayan sayfa numarası"
     ),
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
     """Sadece oturumdaki kullanıcının müşterileri; en yeni → en eski sırada."""
-    return get_customers(
-        db,
+    offset = (page - 1) * limit
+
+    items, total = get_customers_page(
+        db=db,
         owner_id=current_user.id,
         name=name,
         limit=limit,
-        offset=offset,  # 🟢 yeni
+        offset=offset,
+    )
+
+    total_pages = ceil(total / limit) if total > 0 else 0
+    return CustomerPageOut(
+        items=items,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=total_pages,
+        has_next=(page < total_pages) if total_pages > 0 else False,
+        has_prev=(page > 1) and (total_pages > 0),
     )
 
 

@@ -3,7 +3,7 @@
 from pydantic import BaseModel, EmailStr, Field
 from uuid import UUID
 from datetime import datetime
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 
 class UserOut(BaseModel):
     id: UUID
@@ -47,6 +47,14 @@ class DealerOut(BaseModel):
     class Config:
         orm_mode = True  # (Pydantic v1) — v2 kullanıyorsan: from_attributes = True
 
+class DealerPageOut(BaseModel):
+    items: List[DealerOut]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
 # ---- Auth akış şemaları ----
 class AcceptInviteIn(BaseModel):
     token: str = Field(..., min_length=32)                 # maildeki token

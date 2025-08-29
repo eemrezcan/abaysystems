@@ -9,6 +9,9 @@ from pathlib import Path
 
 from app.db.session import get_db
 
+from math import ceil
+from fastapi import Query  # varsa tekrar ekleme
+
 # 🔐 rol kontrolü
 from app.core.security import get_current_user
 from app.api.deps import get_current_admin
@@ -17,7 +20,7 @@ from app.models.app_user import AppUser
 # 🔎 filtreler için modeller
 from app.models.system import System, SystemVariant
 
-from app.schemas.system import SystemVariantUpdate, SystemVariantOut
+from app.schemas.system import SystemVariantUpdate, SystemVariantOut, SystemVariantPageOut
 
 from app.crud.system_variant import (
     create_system_variant,
@@ -25,6 +28,8 @@ from app.crud.system_variant import (
     update_system_variant,
     delete_system_variant,
     get_variants_for_system,  # admin için kullanılabilir; bayi filtreleri için aşağıda ORM query kullanıyoruz
+    get_system_variants_page,
+    get_variants_for_system_page,
 
 )
 
@@ -32,6 +37,7 @@ from app.crud.system import (
     create_system_variant_with_templates,
     get_system_variant_detail,
     update_system_variant_with_templates,
+
 )
 
 from app.schemas.system import (
@@ -53,57 +59,74 @@ VARIANT_PHOTO_DIR = os.path.join(BASE_DIR, "variant_photos")
 # GET uçları: bayi + admin (bayi → sadece published & not-deleted)
 # -----------------------------------------------------------------------------
 
-@router.get("/", response_model=list[SystemVariantOut])
+@router.get("/", response_model=SystemVariantPageOut)
 def list_variants(
+    q: str | None = Query(None, description="Varyant veya sistem adına göre filtre"),
+    limit: int = Query(50, ge=1, le=200, description="Sayfa başına kayıt (page size)"),
+    page: int = Query(1, ge=1, description="1'den başlayan sayfa numarası"),
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    """
-    Tüm SystemVariant kayıtlarını listeler.
-    Bayi ise: SystemVariant.is_published = True ve System.is_published = True
-    Her iki rolde de: is_deleted = False filtreleri uygulanır.
-    """
-    q = (
-        db.query(SystemVariant)
-        .join(System, SystemVariant.system_id == System.id)
-        .filter(SystemVariant.is_deleted == False, System.is_deleted == False)
+    is_admin = (current_user.role == "admin")
+    offset = (page - 1) * limit
+
+    items, total = get_system_variants_page(
+        db=db,
+        is_admin=is_admin,
+        q=q,
+        limit=limit,
+        offset=offset,
     )
 
-    if current_user.role != "admin":
-        q = q.filter(SystemVariant.is_published == True, System.is_published == True)
+    total_pages = ceil(total / limit) if total > 0 else 0
+    return SystemVariantPageOut(
+        items=items,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=total_pages,
+        has_next=(page < total_pages) if total_pages > 0 else False,
+        has_prev=(page > 1) and (total_pages > 0),
+    )
 
-    items = q.order_by(SystemVariant.created_at.desc()).all()
-    return items
 
 
 @router.get(
     "/system/{system_id}",
-    response_model=list[SystemVariantOut],
-    summary="Belirli bir sistemin tüm varyantlarını listele"
+    response_model=SystemVariantPageOut,
+    summary="Belirli bir sistemin varyantlarını (sayfalı) listele"
 )
 def list_variants_by_system(
     system_id: UUID,
+    q: str | None = Query(None, description="Varyant adına göre filtre"),
+    limit: int = Query(50, ge=1, le=200, description="Sayfa başına kayıt (page size)"),
+    page: int = Query(1, ge=1, description="1'den başlayan sayfa numarası"),
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    """
-    Verilen system_id için varyant listesi.
-    Bayi ise: hem System hem Variant published olmalı; her iki rolde de deleted=false.
-    """
-    q = (
-        db.query(SystemVariant)
-        .join(System, SystemVariant.system_id == System.id)
-        .filter(
-            SystemVariant.system_id == system_id,
-            SystemVariant.is_deleted == False,
-            System.is_deleted == False,
-        )
-    )
-    if current_user.role != "admin":
-        q = q.filter(SystemVariant.is_published == True, System.is_published == True)
+    is_admin = (current_user.role == "admin")
+    offset = (page - 1) * limit
 
-    items = q.order_by(SystemVariant.created_at.desc()).all()
-    return items
+    items, total = get_variants_for_system_page(
+        db=db,
+        system_id=system_id,
+        is_admin=is_admin,
+        q=q,
+        limit=limit,
+        offset=offset,
+    )
+
+    total_pages = ceil(total / limit) if total > 0 else 0
+    return SystemVariantPageOut(
+        items=items,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=total_pages,
+        has_next=(page < total_pages) if total_pages > 0 else False,
+        has_prev=(page > 1) and (total_pages > 0),
+    )
+
 
 
 @router.get("/{variant_id}/photo", summary="Variant'a ait fotoğrafı döner")

@@ -1,7 +1,8 @@
 # app/crud/catalog.py
 
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Tuple  # 🟢 Tuple ekle
+from sqlalchemy import or_  
 from uuid import UUID
 
 from app.models.profile        import Profile
@@ -118,3 +119,100 @@ def delete_other_material(db: Session, material_id: UUID) -> bool:
     deleted = db.query(OtherMaterial).filter(OtherMaterial.id == material_id).delete()
     db.commit()
     return bool(deleted)
+
+
+
+# ------- PROFILE (paginated) -------
+def get_profiles_page(
+    db: Session,
+    is_admin: bool,
+    q: Optional[str],
+    limit: int,
+    offset: int,
+) -> Tuple[List[Profile], int]:
+    """
+    - is_deleted = False zorunlu
+    - admin değilse is_active = True
+    - q varsa profil_isim veya profil_kodu içinde arar (ILIKE)
+    """
+    base_q = db.query(Profile).filter(Profile.is_deleted == False)
+
+    if not is_admin:
+        base_q = base_q.filter(Profile.is_active == True)
+
+    if q:
+        like = f"%{q}%"
+        base_q = base_q.filter(
+            or_(Profile.profil_isim.ilike(like), Profile.profil_kodu.ilike(like))
+        )
+
+    total = base_q.order_by(None).count()
+    items = (
+        base_q.order_by(Profile.profil_isim.asc())
+              .offset(offset)
+              .limit(limit)
+              .all()
+    )
+    return items, total
+
+# ------- GLASS TYPE (paginated) -------
+def get_glass_types_page(
+    db: Session,
+    is_admin: bool,
+    q: Optional[str],
+    limit: int,
+    offset: int,
+) -> Tuple[List[GlassType], int]:
+    """
+    - is_deleted = False zorunlu
+    - admin değilse is_active = True
+    - q varsa cam_isim içinde arar (ILIKE)
+    """
+    base_q = db.query(GlassType).filter(GlassType.is_deleted == False)
+
+    if not is_admin:
+        base_q = base_q.filter(GlassType.is_active == True)
+
+    if q:
+        like = f"%{q}%"
+        base_q = base_q.filter(GlassType.cam_isim.ilike(like))
+
+    total = base_q.order_by(None).count()
+    items = (
+        base_q.order_by(GlassType.cam_isim.asc())
+              .offset(offset)
+              .limit(limit)
+              .all()
+    )
+    return items, total
+
+# ------- OTHER MATERIAL (paginated) -------
+def get_other_materials_page(
+    db: Session,
+    is_admin: bool,
+    q: Optional[str],
+    limit: int,
+    offset: int,
+) -> Tuple[List[OtherMaterial], int]:
+    """
+    - is_deleted = False zorunlu
+    - admin değilse is_active = True
+    - q varsa diger_malzeme_isim içinde arar (ILIKE)
+    """
+    base_q = db.query(OtherMaterial).filter(OtherMaterial.is_deleted == False)
+
+    if not is_admin:
+        base_q = base_q.filter(OtherMaterial.is_active == True)
+
+    if q:
+        like = f"%{q}%"
+        base_q = base_q.filter(OtherMaterial.diger_malzeme_isim.ilike(like))
+
+    total = base_q.order_by(None).count()
+    items = (
+        base_q.order_by(OtherMaterial.diger_malzeme_isim.asc())
+              .offset(offset)
+              .limit(limit)
+              .all()
+    )
+    return items, total
