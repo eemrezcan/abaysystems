@@ -16,7 +16,7 @@ class AppUser(Base):
     role = Column(String(20), nullable=False, default="dealer")
     # --- Dealer bilgileri ---
     name        = Column(String(100), nullable=True)   # Bayi/Firma adı
-    email       = Column(String(200), unique=True, nullable=True)
+    email       = Column(String(200), nullable=True)
     phone       = Column(String(20),  nullable=True)
     owner_name  = Column(String(100), nullable=True)
     city        = Column(String(100), nullable=True)

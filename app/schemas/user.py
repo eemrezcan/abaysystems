@@ -1,6 +1,6 @@
 # app/schemas/user.py
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field,  root_validator
 from uuid import UUID
 from datetime import datetime
 from typing import Optional, Literal, List
@@ -71,3 +71,14 @@ class ResetPasswordIn(BaseModel):
 class ChangePasswordIn(BaseModel):
     old_password: str = Field(..., min_length=8)
     new_password: str = Field(..., min_length=8)
+
+
+class DealerReactivateIn(BaseModel):
+    id: Optional[UUID] = None
+    email: Optional[EmailStr] = None
+
+    @root_validator(pre=True)
+    def _one_of_id_or_email(cls, values):
+        if not values.get("id") and not values.get("email"):
+            raise ValueError("id veya email alanlarından en az biri zorunludur.")
+        return values

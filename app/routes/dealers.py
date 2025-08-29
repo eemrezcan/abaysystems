@@ -14,11 +14,13 @@ from app.services.tokens import create_user_token
 
 from typing import List, Optional
 from fastapi import Query
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from app.services.tokens import create_user_token
 from app.core.settings import settings
 from app.core.mailer import send_email
 from app.models.user_token import UserToken
+
+from app.schemas.user import DealerOut, DealerReactivateIn
 
 from math import ceil
 from app.crud.user import get_dealers_page  # 🟢 eklendi
@@ -29,18 +31,59 @@ router = APIRouter(prefix="/api/dealers", tags=["Dealers"])
 
 @router.post("/invite", response_model=DealerOut, status_code=201, dependencies=[Depends(get_current_admin)])
 def invite_dealer(payload: DealerInviteCreate, db: Session = Depends(get_db)):
-    # Email benzersizliği
-    exists = get_user_by_email(db, payload.email)
-    if exists and not exists.is_deleted:
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="Bu e-posta zaten kayıtlı")
-    if exists and exists.is_deleted:
-        # İsterseniz burada 'geri getir' mantığı yazılabilir; şimdilik 409 verelim
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="Bu e-posta eski bir kullanıcıya ait (silinmiş)")
+    # 🔁 Eskiden: exists = get_user_by_email(db, payload.email)  (yalnızca is_deleted=False döndürüyordu)
+    # 🟢 Yeni: e-postayı is_deleted *dahil* her durumda ham sorgu ile bul
+    existing = db.query(AppUser).filter(AppUser.email == payload.email).first()
 
-    # Kullanıcıyı 'invited' olarak oluştur
+    # 🟢 1) Aktif/askıda kayıt varsa: yeniden davete gerek yok → 409
+    if existing and not existing.is_deleted:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Bu e-posta zaten kayıtlı")
+
+    # 🟢 2) Silinmiş kayıt varsa: restore + re-invite
+    if existing and existing.is_deleted:
+        existing.is_deleted = False
+        existing.status = "invited"
+        existing.username = None
+        existing.password_hash = None
+        existing.password_set_at = None
+
+        # Profil bilgilerini güncelle (gelen payload'a göre)
+        existing.name = payload.name
+        existing.phone = payload.phone
+        existing.owner_name = payload.owner_name
+        existing.city = payload.city
+
+        db.add(existing)
+        db.commit()
+        db.refresh(existing)
+
+        # Eski "invite" tokenlarını iptal ederek yeni token üret
+        ut, plain = create_user_token(db, user_id=existing.id, token_type="invite", ttl_minutes=60*48)
+
+        link = f"{settings.FRONTEND_URL}/set-password?token={plain}"
+        html = f"""
+            <h3>Abay Systems - Bayi Daveti (Yeniden)</h3>
+            <p>Merhaba {existing.name},</p>
+            <p>Hesabınızı etkinleştirmek için aşağıdaki bağlantıya tıklayın ve kullanıcı adı/şifrenizi belirleyin:</p>
+            <p><a href="{link}">{link}</a></p>
+            <p>Bağlantı 48 saat geçerlidir.</p>
+        """
+        try:
+            send_email(existing.email, "Bayi Daveti - Abay Systems", html)
+        except Exception as e:
+            # Mail gönderimi başarısızsa kullanıcı geri döndürülebilir ama burada 500 veriyoruz
+            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Davet maili gönderilemedi: {e}")
+
+        # DEBUG modda token döndürmek testleri kolaylaştırır (resend-invite’ta yaptığımız gibi)
+        if getattr(settings, "DEBUG", False):
+            return {**DealerOut.from_orm(existing).dict(), "debug_token": plain}  # Pydantic v1 için
+
+        return existing
+
+    # 🟢 3) Hiç kayıt yoksa: yeni "invited" kullanıcı oluştur + davet
     user = AppUser(
-        username=None,                 # aktivasyonda set edilecek
-        password_hash=None,            # aktivasyonda set edilecek
+        username=None,
+        password_hash=None,
         role="dealer",
         name=payload.name,
         email=payload.email,
@@ -54,10 +97,8 @@ def invite_dealer(payload: DealerInviteCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    # Davet tokeni üret
     ut, plain = create_user_token(db, user_id=user.id, token_type="invite", ttl_minutes=60*48)
 
-    # Davet maili
     link = f"{settings.FRONTEND_URL}/set-password?token={plain}"
     html = f"""
         <h3>Abay Systems - Bayi Daveti</h3>
@@ -69,8 +110,10 @@ def invite_dealer(payload: DealerInviteCreate, db: Session = Depends(get_db)):
     try:
         send_email(user.email, "Bayi Daveti - Abay Systems", html)
     except Exception as e:
-        # Mail hata verse de kullanıcı oluşturuldu; isterseniz burada rollback tercih edebilirsiniz.
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Davet maili gönderilemedi: {e}")
+
+    if getattr(settings, "DEBUG", False):
+        return {**DealerOut.from_orm(user).dict(), "debug_token": plain}
 
     return user
 
@@ -198,3 +241,70 @@ def activate_dealer(dealer_id: UUID, db: Session = Depends(get_db)):
     user.status = "active"
     db.commit()
     return {"message": "Bayi yeniden aktifleştirildi"}
+
+@router.post(
+    "/reactivate",
+    response_model=DealerOut,
+    status_code=200,
+    dependencies=[Depends(get_current_admin)]
+)
+def reactivate_dealer(
+    payload: DealerReactivateIn,
+    send_invite: bool = Query(False, description="True ise re-activate sonrası davet maili gönderir."),
+    db: Session = Depends(get_db),
+):
+    # 1) Hedef kullanıcıyı sadece silinmişler arasından bul (id veya email)
+    q = db.query(AppUser).filter(AppUser.is_deleted == True, AppUser.role == "dealer")
+
+    target = None
+    if payload.id:
+        target = q.filter(AppUser.id == payload.id).first()
+    elif payload.email:
+        target = q.filter(func.lower(AppUser.email) == payload.email.lower()).order_by(AppUser.updated_at.desc()).first()
+
+    if not target:
+        # Silinmemiş (aktif) bir kullanıcı olma ihtimalini kontrol edip ona göre mesaj verelim
+        active = None
+        if payload.id:
+            active = db.query(AppUser).filter(AppUser.id == payload.id, AppUser.role == "dealer", AppUser.is_deleted == False).first()
+        elif payload.email:
+            active = db.query(AppUser).filter(func.lower(AppUser.email) == payload.email.lower(), AppUser.role == "dealer", AppUser.is_deleted == False).first()
+        if active:
+            raise HTTPException(status.HTTP_409_CONFLICT, detail="Bayi zaten aktif (silinmiş değil).")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Silinmiş böyle bir bayi bulunamadı.")
+
+    # 2) Reactivate
+    target.is_deleted = False
+    # Hesap kurulmuş mu? (parola set edilmişse aktif kabul edelim)
+    if target.password_hash:
+        target.status = "active"
+    else:
+        target.status = "invited"
+
+    db.add(target)
+    db.commit()
+    db.refresh(target)
+
+    # 3) (Opsiyonel) Daveti mail ile yeniden gönder
+    if send_invite and target.status != "active":
+        ut, plain = create_user_token(db, user_id=target.id, token_type="invite", ttl_minutes=60*48)
+        link = f"{settings.FRONTEND_URL}/set-password?token={plain}"
+        html = f"""
+            <h3>Abay Systems - Bayi Yeniden Aktivasyon & Davet</h3>
+            <p>Merhaba {target.name},</p>
+            <p>Hesabınız yeniden etkinleştirildi. Kullanıcı adı/şifre belirlemek için:</p>
+            <p><a href="{link}">{link}</a></p>
+            <p>Bağlantı 48 saat geçerlidir.</p>
+        """
+        try:
+            send_email(target.email, "Bayi Daveti - Abay Systems", html)
+        except Exception as e:
+            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Davet maili gönderilemedi: {e}")
+
+        # DEBUG modda token ham değerini tester için döndürelim
+        if getattr(settings, "DEBUG", False):
+            out = DealerOut.from_orm(target).dict()
+            out["debug_token"] = plain
+            return out
+
+    return target
