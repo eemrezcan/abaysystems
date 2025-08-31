@@ -31,7 +31,7 @@ def get_system_variants_page(
     db: Session,
     is_admin: bool,
     q: Optional[str],
-    limit: int,
+    limit: Optional[int],   # 🟢 int -> Optional[int]
     offset: int,
 ) -> Tuple[List[SystemVariant], int]:
     """
@@ -55,12 +55,13 @@ def get_system_variants_page(
 
     total = base_q.order_by(None).count()
 
-    items = (
-        base_q.order_by(SystemVariant.created_at.desc())
-              .offset(offset)
-              .limit(limit)
-              .all()
-    )
+    # 🟢 "all" modunda (limit=None) LIMIT/OFFSET uygulama
+    q_items = base_q.order_by(SystemVariant.created_at.desc())
+    if limit is None:
+        items = q_items.all()
+    else:
+        items = q_items.offset(offset).limit(limit).all()
+
     return items, total
 
 
@@ -69,7 +70,7 @@ def get_variants_for_system_page(
     system_id: UUID,
     is_admin: bool,
     q: Optional[str],
-    limit: int,
+    limit: Optional[int],   # 🟢 int -> Optional[int]
     offset: int,
 ) -> Tuple[List[SystemVariant], int]:
     """
@@ -94,13 +95,15 @@ def get_variants_for_system_page(
 
     total = base_q.order_by(None).count()
 
-    items = (
-        base_q.order_by(SystemVariant.created_at.desc())
-              .offset(offset)
-              .limit(limit)
-              .all()
-    )
+    # 🟢 "all" modunda (limit=None) LIMIT/OFFSET uygulama
+    q_items = base_q.order_by(SystemVariant.created_at.desc())
+    if limit is None:
+        items = q_items.all()
+    else:
+        items = q_items.offset(offset).limit(limit).all()
+
     return items, total
+
 
 
 

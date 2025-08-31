@@ -79,32 +79,52 @@ def create_system_endpoint(
 @router.get("/systems", response_model=SystemPageOut)
 def list_systems(
     q: str | None = Query(None, description="İsme göre filtre (contains, case-insensitive)"),
-    limit: int = Query(50, ge=1, le=200, description="Sayfa başına kayıt (page size)"),
+    # 🟢 limit artık str kabul ediyor: "10" veya "all"
+    limit: str = Query("50", description='Sayfa başına kayıt. "all" desteklenir.'),
     page: int = Query(1, ge=1, description="1'den başlayan sayfa numarası"),
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
     is_admin = (current_user.role == "admin")
-    offset = (page - 1) * limit
+
+    # 🟢 limit'i çöz: "all" → None (sınırsız), sayı → int (1..200 arası sınırla)
+    limit_val = None if isinstance(limit, str) and limit.lower() == "all" else int(limit)
+    if limit_val is not None:
+        limit_val = max(1, min(limit_val, 200))
+    offset = 0 if limit_val is None else (page - 1) * limit_val
 
     items, total = get_systems_page(
         db=db,
         is_admin=is_admin,
         q=q,
-        limit=limit,
+        limit=limit_val,   # 🟢 None ise LIMIT uygulanmayacak (Adım 2)
         offset=offset,
     )
 
-    total_pages = ceil(total / limit) if total > 0 else 0
+    if limit_val is None:
+        # 🟢 "all" modunda tek sayfa mantığı
+        effective_limit = total
+        total_pages = 1 if total > 0 else 0
+        page_out = 1
+        has_next = False
+        has_prev = False
+    else:
+        effective_limit = limit_val
+        total_pages = ceil(total / limit_val) if total > 0 else 0
+        page_out = page
+        has_next = (page < total_pages) if total_pages > 0 else False
+        has_prev = (page > 1) and (total_pages > 0)
+
     return SystemPageOut(
         items=items,
         total=total,
-        page=page,
-        limit=limit,
+        page=page_out,
+        limit=effective_limit,
         total_pages=total_pages,
-        has_next=(page < total_pages) if total_pages > 0 else False,
-        has_prev=(page > 1) and (total_pages > 0),
+        has_next=has_next,
+        has_prev=has_prev,
     )
+
 
 
 

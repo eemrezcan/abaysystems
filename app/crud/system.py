@@ -41,7 +41,7 @@ def get_systems_page(
     db: Session,
     is_admin: bool,
     q: Optional[str],
-    limit: int,
+    limit: Optional[int],
     offset: int,
 ) -> Tuple[List[System], int]:
     """
@@ -62,12 +62,11 @@ def get_systems_page(
 
     total = base_q.order_by(None).count()
 
-    items = (
-        base_q.order_by(System.created_at.desc())
-              .offset(offset)
-              .limit(limit)
-              .all()
-    )
+    q_items = base_q.order_by(System.created_at.desc())
+    if limit is None:
+        items = q_items.all()          # 🟢 "all" → LIMIT yok
+    else:
+        items = q_items.offset(offset).limit(limit).all()
 
     return items, total
 
