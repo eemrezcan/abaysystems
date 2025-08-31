@@ -133,7 +133,7 @@ def refresh_access_token(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing refresh token")
 
     try:
-        user, new_plain = consume_and_rotate(
+        user, new_plain, lifetime_seconds = consume_and_rotate(
             db,
             plain,
             user_agent=request.headers.get("User-Agent"),
@@ -145,7 +145,8 @@ def refresh_access_token(
 
     minutes = int(getattr(settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 30))
     access_token = create_access_token({"sub": str(user.id)}, expires_delta=timedelta(minutes=minutes))
-    set_refresh_cookie(response, new_plain)
+    # Rotasyondan gelen orijinal kalan ömürle cookie max-age set edelim:
+    set_refresh_cookie(response, new_plain, max_age_seconds=lifetime_seconds)
     return {"access_token": access_token, "token_type": "bearer"}
 
 
