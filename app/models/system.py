@@ -76,3 +76,9 @@ class SystemVariant(Base):
         back_populates="variant",
         cascade="all, delete-orphan",
     )
+    remote_templates = relationship(
+        "SystemRemoteTemplate",
+        back_populates="variant",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )

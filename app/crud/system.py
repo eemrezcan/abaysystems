@@ -2,12 +2,13 @@
 
 from uuid import uuid4, UUID
 from sqlalchemy.orm import Session
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import joinedload
 from typing import Optional, List, Tuple
 from app.models.system import System, SystemVariant
 from app.models.system_profile_template import SystemProfileTemplate
 from app.models.system_glass_template import SystemGlassTemplate
 from app.models.system_material_template import SystemMaterialTemplate
+from app.models.system_remote_template import SystemRemoteTemplate 
 from app.schemas.system import (
     SystemCreate,
     SystemUpdate,
@@ -21,7 +22,10 @@ from app.schemas.system import (
     SystemMaterialTemplateUpdate,
     SystemFullCreate,
     SystemVariantCreateWithTemplates,
-    SystemVariantUpdateWithTemplates
+    SystemVariantUpdateWithTemplates,
+    SystemRemoteTemplateCreate,
+    SystemRemoteTemplateUpdate,
+    RemoteTemplateIn,
 )
 
 # ————— System CRUD —————
@@ -219,13 +223,81 @@ def delete_material_template(db: Session, template_id: UUID) -> bool:
     db.commit()
     return bool(deleted)
 
+# ----- REMOTE TEMPLATE CRUD -----
+
+def create_remote_template(db: Session, payload: SystemRemoteTemplateCreate) -> SystemRemoteTemplate:
+    obj = SystemRemoteTemplate(id=uuid4(), **payload.dict())
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+def get_remote_templates(db: Session, variant_id: UUID) -> list[SystemRemoteTemplate]:
+    return (
+        db.query(SystemRemoteTemplate)
+        .filter_by(system_variant_id=variant_id)
+        .order_by(SystemRemoteTemplate.order_index.asc().nulls_last(),
+                  SystemRemoteTemplate.created_at.asc())
+        .all()
+    )
+
+def update_remote_template(db: Session, template_id: UUID, payload: SystemRemoteTemplateUpdate) -> SystemRemoteTemplate | None:
+    obj = db.query(SystemRemoteTemplate).filter_by(id=template_id).first()
+    if not obj:
+        return None
+    for k, v in payload.dict(exclude_unset=True).items():
+        setattr(obj, k, v)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+def delete_remote_template(db: Session, template_id: UUID) -> bool:
+    deleted = db.query(SystemRemoteTemplate).filter_by(id=template_id).delete()
+    db.commit()
+    return bool(deleted)
+
+
 # ————— Combined template fetch —————
 
 def get_system_templates(db: Session, variant_id: UUID):
-    profiles = get_profile_templates(db, variant_id)
-    glasses = get_glass_templates(db, variant_id)
-    materials = get_material_templates(db, variant_id)
-    return profiles, glasses, materials
+    profiles = (
+        db.query(SystemProfileTemplate)
+        .options(joinedload(SystemProfileTemplate.profile))
+        .filter(SystemProfileTemplate.system_variant_id == variant_id)
+        .order_by(SystemProfileTemplate.order_index.asc().nulls_last(),
+                  SystemProfileTemplate.created_at.asc())
+        .all()
+    )
+
+    glasses = (
+        db.query(SystemGlassTemplate)
+        .options(joinedload(SystemGlassTemplate.glass_type))
+        .filter(SystemGlassTemplate.system_variant_id == variant_id)
+        .order_by(SystemGlassTemplate.order_index.asc().nulls_last(),
+                  SystemGlassTemplate.created_at.asc())
+        .all()
+    )
+
+    materials = (
+        db.query(SystemMaterialTemplate)
+        .options(joinedload(SystemMaterialTemplate.material))
+        .filter(SystemMaterialTemplate.system_variant_id == variant_id)
+        .order_by(SystemMaterialTemplate.order_index.asc().nulls_last(),
+                  SystemMaterialTemplate.created_at.asc())
+        .all()
+    )
+
+    remotes = (
+        db.query(SystemRemoteTemplate)
+        .options(joinedload(SystemRemoteTemplate.remote))
+        .filter(SystemRemoteTemplate.system_variant_id == variant_id)
+        .order_by(SystemRemoteTemplate.order_index.asc().nulls_last(),
+                  SystemRemoteTemplate.created_at.asc())
+        .all()
+    )
+
+    return profiles, glasses, materials, remotes  # 🆕
+
 
 # ————— Combined full creation —————
 
@@ -282,6 +354,7 @@ def get_system_variant_detail(db: Session, variant_id: UUID) -> Optional[SystemV
             joinedload(SystemVariant.profile_templates).joinedload(SystemProfileTemplate.profile),
             joinedload(SystemVariant.glass_templates).joinedload(SystemGlassTemplate.glass_type),
             joinedload(SystemVariant.material_templates).joinedload(SystemMaterialTemplate.material),
+            joinedload(SystemVariant.remote_templates).joinedload(SystemRemoteTemplate.remote)
         )
         .first()
     )
@@ -336,6 +409,17 @@ def create_system_variant_with_templates(
             formula_cut_length=mt.formula_cut_length,
             order_index=mt.order_index if mt.order_index is not None else i   # 🆕
         ))
+    
+    # 4.5) Remote (kumanda) şablonları  🆕
+    rts: List[RemoteTemplateIn] = payload.remote_templates
+    for i, rt in enumerate(rts):
+        db.add(SystemRemoteTemplate(
+            id=uuid4(),
+            system_variant_id=variant.id,
+            remote_id=rt.remote_id,
+            order_index=rt.order_index if rt.order_index is not None else i
+        ))
+
 
 
     # 5) Commit ve refresh
@@ -362,6 +446,7 @@ def update_system_variant_with_templates(
     db.query(SystemProfileTemplate).filter_by(system_variant_id=variant_id).delete(synchronize_session=False)
     db.query(SystemGlassTemplate).filter_by(system_variant_id=variant_id).delete(synchronize_session=False)
     db.query(SystemMaterialTemplate).filter_by(system_variant_id=variant_id).delete(synchronize_session=False)
+    db.query(SystemRemoteTemplate).filter_by(system_variant_id=variant_id).delete(synchronize_session=False)
     db.flush()
 
     # 4) Yeni şablonları ekle – PROFİL
@@ -397,6 +482,17 @@ def update_system_variant_with_templates(
             formula_cut_length=mt.formula_cut_length,
             order_index=mt.order_index if mt.order_index is not None else i   # 🆕
         ))
+
+    # REMOTE (kumanda)  🆕
+    rts: List[RemoteTemplateIn] = payload.remote_templates
+    for i, rt in enumerate(rts):
+        db.add(SystemRemoteTemplate(
+            id=uuid4(),
+            system_variant_id=variant_id,
+            remote_id=rt.remote_id,
+            order_index=rt.order_index if rt.order_index is not None else i
+        ))
+
 
     # 5) Commit ve refresh
     db.commit()

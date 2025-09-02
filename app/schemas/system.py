@@ -3,6 +3,8 @@ from uuid import UUID
 from datetime import datetime
 from typing import Optional, List
 
+from app.schemas.catalog import RemoteOut
+
 # ——————————————————————
 # System CRUD Schemas
 # — System entity —
@@ -226,6 +228,42 @@ class SystemMaterialTemplateOut(SystemMaterialTemplateBase):
     class Config:
         orm_mode = True
 
+# — SystemRemoteTemplate —
+
+class SystemRemoteTemplateOut(BaseModel):
+    id: UUID
+    system_variant_id: UUID
+    remote_id: UUID
+    order_index: Optional[int] = None
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+class SystemRemoteTemplateCreate(BaseModel):
+    system_variant_id: UUID
+    remote_id: UUID
+    order_index: Optional[int] = None
+
+
+class SystemRemoteTemplateUpdate(BaseModel):
+    remote_id: Optional[UUID] = None
+    order_index: Optional[int] = None
+
+
+class RemoteTemplateOut(BaseModel):
+    id: UUID
+    system_variant_id: UUID
+    remote_id: UUID
+    order_index: Optional[int] = None
+    created_at: Optional[datetime]
+
+    # ilişki
+    remote: RemoteOut
+
+    class Config:
+        orm_mode = True
+
 # ——————————————————————
 # Toplu GET için “view” Şemaları
 class ProfileTemplateOut(BaseModel):
@@ -263,6 +301,7 @@ class SystemTemplatesOut(BaseModel):
     profileTemplates: List[ProfileTemplateOut]
     glassTemplates: List[GlassTemplateOut]
     materialTemplates: List[MaterialTemplateOut]
+    remoteTemplates: List[RemoteTemplateOut] 
 
     class Config:
         orm_mode = True
@@ -277,6 +316,7 @@ class SystemVariantDetailOut(BaseModel):
     profile_templates: List[ProfileTemplateOut]
     glass_templates: List[GlassTemplateOut]
     material_templates: List[MaterialTemplateOut]
+    remote_templates: List[RemoteTemplateOut]
 
     class Config:
         orm_mode = True
@@ -302,12 +342,18 @@ class MaterialTemplateIn(BaseModel):
     formula_cut_length: Optional[str] = None
     order_index: Optional[int] = None
 
+class RemoteTemplateIn(BaseModel):
+    remote_id: UUID
+    order_index: Optional[int] = None
+
+
 class SystemVariantCreateWithTemplates(BaseModel):
     system_id: UUID = Field(..., alias="systemId")
     name: str = Field(..., min_length=1)
     profile_templates: List[ProfileTemplateIn] = Field(default_factory=list)
     glass_templates: List[GlassTemplateIn] = Field(default_factory=list)
     material_templates: List[MaterialTemplateIn] = Field(default_factory=list)
+    remote_templates: List[RemoteTemplateIn] = Field(default_factory=list)
 
     class Config:
         allow_population_by_field_name = True
@@ -320,6 +366,7 @@ class SystemVariantUpdateWithTemplates(BaseModel):
     profile_templates: List[ProfileTemplateIn] = Field(default_factory=list)
     glass_templates: List[GlassTemplateIn] = Field(default_factory=list)
     material_templates: List[MaterialTemplateIn] = Field(default_factory=list)
-
+    remote_templates: List[RemoteTemplateIn] = Field(default_factory=list)
+    
     class Config:
         orm_mode = True

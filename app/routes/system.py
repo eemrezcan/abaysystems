@@ -38,7 +38,10 @@ from app.crud.system import (
     delete_material_template,
     create_system_full,
     get_system_variant_detail,
-    get_systems_page
+    get_systems_page,
+    create_remote_template,
+    update_remote_template,
+    delete_remote_template,
 )
 from app.schemas.system import (
     SystemCreate,
@@ -56,7 +59,10 @@ from app.schemas.system import (
     SystemMaterialTemplateCreate,
     SystemMaterialTemplateUpdate,
     SystemVariantDetailOut,
-    SystemPageOut
+    SystemPageOut,
+    RemoteTemplateOut,
+    SystemRemoteTemplateCreate,
+    SystemRemoteTemplateUpdate,
 )
 
 router = APIRouter(prefix="/api", tags=["Systems"])
@@ -198,7 +204,8 @@ def fetch_system_templates(
         if not exists:
             raise HTTPException(status_code=404, detail="System variant not found")
 
-    profiles, glasses, materials = get_system_templates(db, variant_id)
+    profiles, glasses, materials, remotes = get_system_templates(db, variant_id)  # 🆕
+
 
     return SystemTemplatesOut(
         profileTemplates=[
@@ -231,6 +238,17 @@ def fetch_system_templates(
                 material=tpl.material
             )
             for tpl in materials
+        ],
+        remote_templates=[  # 🆕 Şeman şu an snake_case, ona uygun yazıyorum
+            RemoteTemplateOut(
+                id=tpl.id,
+                system_variant_id=tpl.system_variant_id,
+                remote_id=tpl.remote_id,
+                order_index=tpl.order_index,
+                created_at=tpl.created_at,
+                remote=tpl.remote,   # ilişki objesi (RemoteOut)
+            )
+        for tpl in remotes
         ]
     )
 
@@ -353,6 +371,49 @@ def delete_material_template_endpoint(
         raise HTTPException(404, "Material template not found")
     return
 
+# ----- REMOTE TEMPLATE CRUD (admin-only) -----
+@router.post(
+    "/system-templates/remotes",
+    response_model=RemoteTemplateOut,
+    status_code=201,
+    dependencies=[Depends(get_current_admin)],
+)
+def create_remote_template_endpoint(
+    payload: SystemRemoteTemplateCreate,
+    db: Session = Depends(get_db),
+):
+    return create_remote_template(db, payload)
+
+
+@router.put(
+    "/system-templates/remotes/{template_id}",
+    response_model=RemoteTemplateOut,
+    dependencies=[Depends(get_current_admin)],
+)
+def update_remote_template_endpoint(
+    template_id: UUID,
+    payload: SystemRemoteTemplateUpdate,
+    db: Session = Depends(get_db),
+):
+    obj = update_remote_template(db, template_id, payload)
+    if not obj:
+        raise HTTPException(404, "Remote template not found")
+    return obj
+
+
+@router.delete(
+    "/system-templates/remotes/{template_id}",
+    status_code=204,
+    dependencies=[Depends(get_current_admin)],
+)
+def delete_remote_template_endpoint(
+    template_id: UUID,
+    db: Session = Depends(get_db),
+):
+    deleted = delete_remote_template(db, template_id)
+    if not deleted:
+        raise HTTPException(404, "Remote template not found")
+    return
 
 # -----------------------------------------------------------------------------
 # SYSTEM PHOTO - GET (bayi + admin), POST/DELETE admin-only
