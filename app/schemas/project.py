@@ -2,7 +2,9 @@ from pydantic import BaseModel, Field
 from uuid import UUID
 from typing import List, Optional
 from datetime import date, datetime
+
 from app.schemas.customer import CustomerOut
+from app.schemas.catalog import RemoteOut  # 🆕 kumanda detayını göstermek için
 
 # ----------------------------------------
 # Sub-models for project system contents
@@ -28,6 +30,13 @@ class MaterialInProject(BaseModel):
     cut_length_mm: Optional[float] = None
     order_index: Optional[int] = None
 
+# 🆕 Kumanda (Remote) — System içinde
+class RemoteInProject(BaseModel):
+    remote_id: UUID
+    count: int
+    order_index: Optional[int] = None
+    unit_price: Optional[float] = None  # proje anındaki birim fiyat snapshotu (opsiyonel)
+
 # ----------------------------------------
 # SystemRequirement and ExtraRequirement
 # ----------------------------------------
@@ -39,6 +48,7 @@ class SystemRequirement(BaseModel):
     profiles: List[ProfileInProject] = Field(default_factory=list)
     glasses: List[GlassInProject] = Field(default_factory=list)
     materials: List[MaterialInProject] = Field(default_factory=list)
+    remotes: List[RemoteInProject] = Field(default_factory=list)  # 🆕
 
 class ExtraRequirement(BaseModel):
     material_id: UUID
@@ -50,13 +60,17 @@ class ExtraProfileIn(BaseModel):
     cut_length_mm: float
     cut_count: int
 
-
 class ExtraGlassIn(BaseModel):
     glass_type_id: UUID
     width_mm: float
     height_mm: float
     count: int
 
+# 🆕 Proje geneli ekstra kumanda
+class ExtraRemoteIn(BaseModel):
+    remote_id: UUID
+    count: int
+    unit_price: Optional[float] = None
 
 # ----------------------------------------
 # Main ProjectSystemsUpdate schema
@@ -80,7 +94,7 @@ class ProjectExtraRequirementIn(BaseModel):
     extra_requirements: List[ExtraRequirement] = Field(default_factory=list)
     extra_profiles: List[ExtraProfileIn] = Field(default_factory=list)
     extra_glasses: List[ExtraGlassIn] = Field(default_factory=list)
-
+    extra_remotes: List[ExtraRemoteIn] = Field(default_factory=list)  # 🆕
 
 # ----------------------------------------
 # Project Creation and Output
@@ -173,6 +187,7 @@ class OtherMaterialOut(BaseModel):
 
     class Config:
         orm_mode = True
+
 # ----------------------------------------
 # Detailed “extra” modeller
 # ----------------------------------------
@@ -185,7 +200,6 @@ class ExtraProfileDetailed(BaseModel):
     class Config:
         orm_mode = True
 
-
 class ExtraGlassDetailed(BaseModel):
     glass_type_id: UUID
     width_mm: float
@@ -195,6 +209,17 @@ class ExtraGlassDetailed(BaseModel):
 
     class Config:
         orm_mode = True
+
+# 🆕 Extra Remote (detay)
+class ExtraRemoteDetailed(BaseModel):
+    remote_id: UUID
+    count: int
+    unit_price: Optional[float] = None
+    remote: RemoteOut
+
+    class Config:
+        orm_mode = True
+
 #-------------------------------------------
 class SystemBasicOut(BaseModel):
     id: UUID
@@ -224,6 +249,13 @@ class MaterialInProjectOut(MaterialInProject):
     class Config:
         orm_mode = True
 
+# 🆕 Remote in System (detaylı)
+class RemoteInProjectOut(RemoteInProject):
+    remote: RemoteOut
+
+    class Config:
+        orm_mode = True
+
 class SystemInProjectOut(BaseModel):
     project_system_id: UUID
     system_variant_id: UUID
@@ -235,6 +267,7 @@ class SystemInProjectOut(BaseModel):
     profiles: List[ProfileInProjectOut]
     glasses: List[GlassInProjectOut]
     materials: List[MaterialInProjectOut]
+    remotes: List[RemoteInProjectOut]  # 🆕
 
     class Config:
         orm_mode = True
@@ -252,7 +285,6 @@ class ProjectColorUpdate(BaseModel):
     profile_color_id: Optional[UUID] = None
     glass_color_id: Optional[UUID] = None
 
-
 class ProjectRequirementsDetailedOut(BaseModel):
     id: UUID
     customer: CustomerOut
@@ -261,7 +293,8 @@ class ProjectRequirementsDetailedOut(BaseModel):
     systems: List[SystemInProjectOut]
     extra_requirements: List[MaterialInProjectOut] = Field(default_factory=list)
     extra_profiles: List[ExtraProfileDetailed] = Field(default_factory=list)
-    extra_glasses:  List[ExtraGlassDetailed] = Field(default_factory=list)      
+    extra_glasses:  List[ExtraGlassDetailed] = Field(default_factory=list)
+    extra_remotes:  List[ExtraRemoteDetailed] = Field(default_factory=list)  # 🆕
     class Config:
         orm_mode = True
 
@@ -272,6 +305,7 @@ class ProjectCodeUpdate(BaseModel):
         max_length=50,
         description="Yeni proje kodu, örn: TALU-12345"
     )
+
 #  EKSTRA PROFİL EKLE ÇIKART DÜZENLE  ------------------------
 class ProjectExtraProfileCreate(BaseModel):
     project_id: UUID
@@ -295,7 +329,6 @@ class ProjectExtraProfileOut(BaseModel):
         orm_mode = True
 
 #  CAM EKLE ÇIKART SİL ---------------------------------------
-
 class ProjectExtraGlassCreate(BaseModel):
     project_id: UUID
     glass_type_id: UUID
@@ -322,7 +355,6 @@ class ProjectExtraGlassOut(BaseModel):
         orm_mode = True
 
 #  metaryal EKLE ÇIKART SİL ---------------------------------------
-
 class ProjectExtraMaterialCreate(BaseModel):
     project_id: UUID
     material_id: UUID
@@ -339,6 +371,28 @@ class ProjectExtraMaterialOut(BaseModel):
     material_id: UUID
     count: int
     cut_length_mm: Optional[float]
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+# 🆕 KUMANDA EKSTRA EKLE/ÇIKART/SİL --------------------------------
+class ProjectExtraRemoteCreate(BaseModel):
+    project_id: UUID
+    remote_id: UUID
+    count: int
+    unit_price: Optional[float] = None
+
+class ProjectExtraRemoteUpdate(BaseModel):
+    count: Optional[int] = None
+    unit_price: Optional[float] = None
+
+class ProjectExtraRemoteOut(BaseModel):
+    id: UUID
+    project_id: UUID
+    remote_id: UUID
+    count: int
+    unit_price: Optional[float] = None
     created_at: datetime
 
     class Config:

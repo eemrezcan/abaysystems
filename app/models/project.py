@@ -38,6 +38,7 @@ class Project(Base):
     creator         = relationship("AppUser", back_populates="projects")
     systems         = relationship("ProjectSystem", back_populates="project", cascade="all, delete-orphan")
     extra_materials = relationship("ProjectExtraMaterial", back_populates="project", cascade="all, delete-orphan")
+    extra_remotes   = relationship("ProjectExtraRemote", back_populates="project", cascade="all, delete-orphan")
 
 
 # 🔹 customer_id üzerinde doğrudan index (FK erişimleri için)
@@ -58,6 +59,7 @@ class ProjectSystem(Base):
     profiles  = relationship("ProjectSystemProfile", back_populates="project_system", cascade="all, delete-orphan")
     glasses   = relationship("ProjectSystemGlass", back_populates="project_system", cascade="all, delete-orphan")
     materials = relationship("ProjectSystemMaterial", back_populates="project_system", cascade="all, delete-orphan")
+    remotes   = relationship("ProjectSystemRemote", back_populates="project_system", cascade="all, delete-orphan")
 
 
 class ProjectSystemProfile(Base):
@@ -105,6 +107,20 @@ class ProjectSystemMaterial(Base):
     project_system = relationship("ProjectSystem", back_populates="materials")
     material       = relationship("OtherMaterial")
 
+class ProjectSystemRemote(Base):
+    __tablename__ = "project_system_remote"
+
+    id                = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_system_id = Column(PGUUID(as_uuid=True), ForeignKey("project_system.id", ondelete="CASCADE"), nullable=False)
+    remote_id         = Column(PGUUID(as_uuid=True), ForeignKey("remote.id"), nullable=False)
+    count             = Column(Integer, nullable=False)          # kaç adet kumanda
+    unit_price        = Column(Numeric, nullable=True)           # opsiyonel: proje anındaki birim fiyatı snapshot
+    order_index       = Column(Integer, nullable=True)           # şablondaki sırayı korumak için
+
+    project_system = relationship("ProjectSystem", back_populates="remotes")
+    remote         = relationship("Remote")
+
+
 
 class ProjectExtraMaterial(Base):
     __tablename__ = "project_extra_material"
@@ -148,4 +164,17 @@ class ProjectExtraGlass(Base):
 
     project = relationship("Project", backref="extra_glasses")
     glass_type = relationship("GlassType")
+
+class ProjectExtraRemote(Base):
+    __tablename__ = "project_extra_remote"
+
+    id         = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(PGUUID(as_uuid=True), ForeignKey("project.id", ondelete="CASCADE"), nullable=False)
+    remote_id  = Column(PGUUID(as_uuid=True), ForeignKey("remote.id"), nullable=False)
+    count      = Column(Integer, nullable=False)
+    unit_price = Column(Numeric, nullable=True)                  # opsiyonel snapshot
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    project = relationship("Project", back_populates="extra_remotes")
+    remote  = relationship("Remote")
 

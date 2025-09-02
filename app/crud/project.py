@@ -10,6 +10,7 @@ from app.models.system import SystemVariant, System
 from app.models.profile import Profile
 from app.models.glass_type import GlassType
 from app.models.other_material import OtherMaterial
+from app.models.remote import Remote  # 🆕
 
 from app.models.project import (
     Project,
@@ -19,12 +20,15 @@ from app.models.project import (
     ProjectSystemMaterial,
     ProjectExtraMaterial,
     ProjectExtraProfile,
-    ProjectExtraGlass
+    ProjectExtraGlass,
+    ProjectSystemRemote,
+    ProjectExtraRemote
 )
 from app.models.customer import Customer
 from app.models.system_profile_template import SystemProfileTemplate
 from app.models.system_glass_template   import SystemGlassTemplate
 from app.models.system_material_template import SystemMaterialTemplate
+from app.models.system_remote_template import SystemRemoteTemplate 
 
 from app.schemas.project import (
     ProjectCreate,
@@ -41,6 +45,9 @@ from app.schemas.project import (
     ProfileInProjectOut,
     GlassInProjectOut,
     MaterialInProjectOut,
+    ExtraRemoteIn,           # 🆕
+    ExtraRemoteDetailed,     # 🆕
+    RemoteInProjectOut,
 )
 
 # ------------------------------------------------------------
@@ -178,7 +185,7 @@ def update_project(db: Session, project_id: UUID, payload: ProjectUpdate) -> Opt
 def update_project_all(
     db: Session,
     project_id: UUID,
-    payload,              # ProjectUpdate
+    payload: ProjectUpdate,              # ProjectUpdate
     owner_id: UUID,
 ) -> Optional[Project]:
     # Proje sahibine ait mi?
@@ -360,6 +367,31 @@ def add_systems_to_project(
                 order_index=tpl_materials.get(m.material_id),
             ))
 
+        # 🔌 Kumandalar (SystemRemoteTemplate sırasına göre)
+        tpl_remotes = {
+            t.remote_id: t.order_index
+            for t in db.query(SystemRemoteTemplate)
+                       .filter(SystemRemoteTemplate.system_variant_id == sys_req.system_variant_id)
+                       .all()
+        }
+
+        for r in getattr(sys_req, "remotes", []) or []:
+            # unit_price girilmemişse katalogdaki fiyattan snapshot al
+            unit_price = r.unit_price
+            if unit_price is None:
+                rem = db.query(Remote).filter(Remote.id == r.remote_id).first()
+                unit_price = float(rem.price) if rem and rem.price is not None else None
+
+            db.add(ProjectSystemRemote(
+                id=uuid4(),
+                project_system_id=ps.id,
+                remote_id=r.remote_id,
+                count=r.count,
+                unit_price=unit_price,
+                order_index=tpl_remotes.get(r.remote_id),
+            ))
+
+
     # --- Proje seviyesi ekstra malzemeler (DÖNGÜ DIŞI) 🔧
     for extra in payload.extra_requirements:
         db.add(ProjectExtraMaterial(
@@ -384,6 +416,7 @@ def update_systems_for_project(
     db.query(ProjectSystemProfile).join(ProjectSystem).filter(ProjectSystem.project_id == project_id).delete(synchronize_session=False)
     db.query(ProjectSystemGlass).join(ProjectSystem).filter(ProjectSystem.project_id == project_id).delete(synchronize_session=False)
     db.query(ProjectSystemMaterial).join(ProjectSystem).filter(ProjectSystem.project_id == project_id).delete(synchronize_session=False)
+    db.query(ProjectSystemRemote).join(ProjectSystem).filter(ProjectSystem.project_id == project_id).delete(synchronize_session=False)  # 🆕
     db.query(ProjectSystem).filter(ProjectSystem.project_id == project_id).delete(synchronize_session=False)
     db.query(ProjectExtraMaterial).filter(ProjectExtraMaterial.project_id == project_id).delete(synchronize_session=False)
     db.commit()
@@ -484,6 +517,30 @@ def add_only_systems_to_project(
                 order_index=tpl_materials.get(m.material_id),
             ))
 
+        # 🔌 Kumandalar
+        tpl_remotes = {
+            t.remote_id: t.order_index
+            for t in db.query(SystemRemoteTemplate)
+                       .filter(SystemRemoteTemplate.system_variant_id == sys_req.system_variant_id)
+                       .all()
+        }
+
+        for r in getattr(sys_req, "remotes", []) or []:
+            unit_price = r.unit_price
+            if unit_price is None:
+                rem = db.query(Remote).filter(Remote.id == r.remote_id).first()
+                unit_price = float(rem.price) if rem and rem.price is not None else None
+
+            db.add(ProjectSystemRemote(
+                id=uuid4(),
+                project_system_id=ps.id,
+                remote_id=r.remote_id,
+                count=r.count,
+                unit_price=unit_price,
+                order_index=tpl_remotes.get(r.remote_id),
+            ))
+
+
     db.commit()
     db.refresh(project)
     return project
@@ -494,7 +551,8 @@ def add_only_extras_to_project(
     project_id: UUID,
     extras: List[ExtraRequirement],
     extra_profiles: List[ExtraProfileIn],
-    extra_glasses: List[ExtraGlassIn]
+    extra_glasses: List[ExtraGlassIn],
+    extra_remotes: Optional[List[ExtraRemoteIn]] = None,
 ) -> Project:
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
@@ -532,6 +590,22 @@ def add_only_extras_to_project(
             count=glass.count,
             area_m2=area_m2,
         ))
+
+    # Kumandalar (extra)
+    for r in extra_remotes or []:
+        unit_price = r.unit_price
+        if unit_price is None:
+            rem = db.query(Remote).filter(Remote.id == r.remote_id).first()
+            unit_price = float(rem.price) if rem and rem.price is not None else None
+
+        db.add(ProjectExtraRemote(
+            id=uuid4(),
+            project_id=project.id,
+            remote_id=r.remote_id,
+            count=r.count,
+            unit_price=unit_price,
+        ))
+
 
     db.commit()
     db.refresh(project)
@@ -610,6 +684,25 @@ def get_project_requirements_detailed(
             for m in materials_raw
         ]
 
+        remotes_raw = (
+            db.query(ProjectSystemRemote)
+            .filter(ProjectSystemRemote.project_system_id == ps.id)
+            .all()
+        )
+        remotes = []
+        for r in remotes_raw:
+            remote_obj = db.query(Remote).filter(Remote.id == r.remote_id).first()
+            remotes.append(
+                RemoteInProjectOut(
+                    remote_id=r.remote_id,
+                    count=r.count,
+                    order_index=r.order_index,
+                    unit_price=float(r.unit_price) if r.unit_price is not None else None,
+                    remote=remote_obj,
+                )
+            )
+
+
         result_systems.append(
             SystemInProjectOut(
                 project_system_id=ps.id,
@@ -622,6 +715,7 @@ def get_project_requirements_detailed(
                 profiles=profiles,
                 glasses=glasses,
                 materials=materials,
+                remotes=remotes,
             )
         )
 
@@ -663,6 +757,20 @@ def get_project_requirements_detailed(
             )
         )
 
+    # ekstra kumandalar (detaylı)
+    extra_remotes = []
+    for r in db.query(ProjectExtraRemote).filter(ProjectExtraRemote.project_id == project_id).all():
+        remote_obj = db.query(Remote).filter(Remote.id == r.remote_id).first()
+        extra_remotes.append(
+            ExtraRemoteDetailed(
+                remote_id=r.remote_id,
+                count=r.count,
+                unit_price=float(r.unit_price) if r.unit_price is not None else None,
+                remote=remote_obj,
+            )
+        )
+
+
     return ProjectRequirementsDetailedOut(
         id=project.id,
         customer=customer,
@@ -672,6 +780,7 @@ def get_project_requirements_detailed(
         extra_requirements=extra_requirements,
         extra_profiles=extra_profiles,
         extra_glasses=extra_glasses,
+        extra_remotes=extra_remotes,
     )
 
 # ------------------------------------------------------------
@@ -861,6 +970,63 @@ def delete_project_extra_material(
     return bool(deleted)
 
 # ------------------------------------------------------------
+# Extra Remote CRUD
+# ------------------------------------------------------------
+def create_project_extra_remote(
+    db: Session,
+    project_id: UUID,
+    remote_id: UUID,
+    count: int,
+    unit_price: Optional[float] = None,
+) -> ProjectExtraRemote:
+    extra = ProjectExtraRemote(
+        id=uuid4(),
+        project_id=project_id,
+        remote_id=remote_id,
+        count=count,
+        unit_price=unit_price,
+    )
+    db.add(extra)
+    db.commit()
+    db.refresh(extra)
+    return extra
+
+
+def update_project_extra_remote(
+    db: Session,
+    extra_id: UUID,
+    count: Optional[int] = None,
+    unit_price: Optional[float] = None,
+) -> Optional[ProjectExtraRemote]:
+    extra = db.query(ProjectExtraRemote).filter(ProjectExtraRemote.id == extra_id).first()
+    if not extra:
+        return None
+    if count is not None:
+        extra.count = count
+    if unit_price is not None:
+        extra.unit_price = unit_price
+    db.commit()
+    db.refresh(extra)
+    return extra
+
+
+def delete_project_extra_remote(
+    db: Session,
+    extra_id: UUID
+) -> bool:
+    deleted = db.query(ProjectExtraRemote).filter(ProjectExtraRemote.id == extra_id).delete()
+    db.commit()
+    return bool(deleted)
+
+
+def list_project_extra_remotes(db: Session, project_id: UUID) -> List[ProjectExtraRemote]:
+    return (
+        db.query(ProjectExtraRemote)
+          .filter(ProjectExtraRemote.project_id == project_id)
+          .all()
+    )
+
+# ------------------------------------------------------------
 # Listeler
 # ------------------------------------------------------------
 
@@ -930,6 +1096,13 @@ def update_project_system(
                    .all()
     }
 
+    tpl_remotes = {
+        t.remote_id: t.order_index
+        for t in db.query(SystemRemoteTemplate)
+                   .filter_by(system_variant_id=variant_id)
+                   .all()
+    }
+
     # Temel alanlar
     ps.width_mm  = payload.width_mm
     ps.height_mm = payload.height_mm
@@ -939,6 +1112,7 @@ def update_project_system(
     db.query(ProjectSystemProfile).filter(ProjectSystemProfile.project_system_id == project_system_id).delete(synchronize_session=False)
     db.query(ProjectSystemGlass).filter(ProjectSystemGlass.project_system_id == project_system_id).delete(synchronize_session=False)
     db.query(ProjectSystemMaterial).filter(ProjectSystemMaterial.project_system_id == project_system_id).delete(synchronize_session=False)
+    db.query(ProjectSystemRemote).filter(ProjectSystemRemote.project_system_id == project_system_id).delete(synchronize_session=False)  # 🆕
 
     # Yeniden ekle
     for p in payload.profiles:
@@ -974,6 +1148,23 @@ def update_project_system(
             order_index=tpl_materials.get(m.material_id),
         ))
 
+    # Kumandalar
+    for r in getattr(payload, "remotes", []) or []:
+        unit_price = r.unit_price
+        if unit_price is None:
+            rem = db.query(Remote).filter(Remote.id == r.remote_id).first()
+            unit_price = float(rem.price) if rem and rem.price is not None else None
+
+        db.add(ProjectSystemRemote(
+            id=uuid4(),
+            project_system_id=ps.id,
+            remote_id=r.remote_id,
+            count=r.count,
+            unit_price=unit_price,
+            order_index=tpl_remotes.get(r.remote_id),
+        ))
+
+
     db.commit()
     db.refresh(ps)
     return ps
@@ -991,6 +1182,8 @@ def delete_project_system(
     db.query(ProjectSystemProfile).filter(ProjectSystemProfile.project_system_id == project_system_id).delete(synchronize_session=False)
     db.query(ProjectSystemGlass).filter(ProjectSystemGlass.project_system_id == project_system_id).delete(synchronize_session=False)
     db.query(ProjectSystemMaterial).filter(ProjectSystemMaterial.project_system_id == project_system_id).delete(synchronize_session=False)
+    db.query(ProjectSystemRemote).filter(ProjectSystemRemote.project_system_id == project_system_id).delete(synchronize_session=False)  # 🆕
+
 
     # ProjectSystem kaydını sil
     deleted = (

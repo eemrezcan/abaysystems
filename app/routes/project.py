@@ -41,7 +41,10 @@ from app.crud.project import (
     update_project_system,
     delete_project_system,
     update_project_all,
-    get_projects_page, 
+    get_projects_page,
+    create_project_extra_remote,   # 🆕
+    update_project_extra_remote,   # 🆕
+    delete_project_extra_remote,   # 🆕
 )
 
 from app.schemas.project import (
@@ -70,10 +73,14 @@ from app.schemas.project import (
     ProjectExtraMaterialUpdate,
     ProjectExtraMaterialOut,
     ProjectPageOut,
+    RemoteInProject,               # 🆕 requirements GET için
+    ProjectExtraRemoteCreate,      # 🆕
+    ProjectExtraRemoteUpdate,      # 🆕
+    ProjectExtraRemoteOut,         # 🆕
 )
 
 # Ek: Extra* sahiplik kontrolünde projeye join için Project ve Extra modellerine ihtiyacımız var
-from app.models.project import Project, ProjectExtraProfile, ProjectExtraGlass, ProjectExtraMaterial
+from app.models.project import Project, ProjectExtraProfile, ProjectExtraGlass, ProjectExtraMaterial, ProjectExtraRemote, ProjectSystemRemote
 
 router = APIRouter(prefix="/api/projects", tags=["Projects"])
 
@@ -314,6 +321,18 @@ def list_requirements_endpoint(
             )
             for m in sys.materials
         ]
+
+        # 🆕 Kumandalar
+        remotes: List[RemoteInProject] = [
+            RemoteInProject(
+                remote_id=r.remote_id,
+                count=r.count,
+                order_index=r.order_index,
+                unit_price=float(r.unit_price) if r.unit_price is not None else None,
+            )
+            for r in sys.remotes  # relationship
+        ]
+
         systems_out.append(
             SystemRequirement(
                 system_variant_id=sys.system_variant_id,
@@ -323,6 +342,7 @@ def list_requirements_endpoint(
                 profiles=profiles,
                 glasses=glasses,
                 materials=materials,
+                remotes=remotes,
             )
         )
 
@@ -375,6 +395,7 @@ def add_only_extras_endpoint(
             extras=payload.extra_requirements,
             extra_profiles=payload.extra_profiles,
             extra_glasses=payload.extra_glasses,
+            extra_remotes=payload.extra_remotes,   # 🆕
         )
     except ValueError:
         raise HTTPException(404, "Project not found")
@@ -621,6 +642,77 @@ def delete_extra_material_endpoint(
     success = delete_project_extra_material(db, extra_id)
     if not success:
         raise HTTPException(status_code=404, detail="Extra material not found")
+    return
+
+# ───────── Extra Remote ─────────
+
+@router.post("/extra-remotes", response_model=ProjectExtraRemoteOut, status_code=201)
+def add_extra_remote_endpoint(
+    payload: ProjectExtraRemoteCreate,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    """Ekstra kumanda ekler."""
+    proj = get_project(db, payload.project_id)
+    ensure_owner_or_404(proj, current_user.id, "created_by")
+
+    try:
+        return create_project_extra_remote(
+            db,
+            project_id=payload.project_id,
+            remote_id=payload.remote_id,
+            count=payload.count,
+            unit_price=payload.unit_price,
+        )
+    except ValueError:
+        raise HTTPException(404, "Project not found")
+
+
+@router.put("/extra-remotes/{extra_id}", response_model=ProjectExtraRemoteOut)
+def update_extra_remote_endpoint(
+    extra_id: UUID,
+    payload: ProjectExtraRemoteUpdate,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    """Ekstra kumanda günceller."""
+    proj = (
+        db.query(Project)
+        .join(ProjectExtraRemote, ProjectExtraRemote.project_id == Project.id)
+        .filter(ProjectExtraRemote.id == extra_id)
+        .first()
+    )
+    ensure_owner_or_404(proj, current_user.id, "created_by")
+
+    updated = update_project_extra_remote(
+        db,
+        extra_id,
+        count=payload.count,
+        unit_price=payload.unit_price,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Extra remote not found")
+    return updated
+
+
+@router.delete("/extra-remotes/{extra_id}", status_code=204)
+def delete_extra_remote_endpoint(
+    extra_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    """Ekstra kumanda siler."""
+    proj = (
+        db.query(Project)
+        .join(ProjectExtraRemote, ProjectExtraRemote.project_id == Project.id)
+        .filter(ProjectExtraRemote.id == extra_id)
+        .first()
+    )
+    ensure_owner_or_404(proj, current_user.id, "created_by")
+
+    success = delete_project_extra_remote(db, extra_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Extra remote not found")
     return
 
 
