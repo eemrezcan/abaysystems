@@ -25,10 +25,11 @@ from app.crud import catalog as crud
 from app.schemas.catalog import (                  # 🟢
     ProfileCreate, ProfileOut, ProfilePageOut,
     GlassTypeCreate, GlassTypeOut, GlassTypePageOut,
-    OtherMaterialCreate, OtherMaterialOut, OtherMaterialPageOut
+    OtherMaterialCreate, OtherMaterialOut, OtherMaterialPageOut,
+    RemoteCreate, RemoteOut, RemotePageOut
 )
 from app.crud.catalog import (                     # 🟢
-    get_profiles_page, get_glass_types_page, get_other_materials_page
+    get_profiles_page, get_glass_types_page, get_other_materials_page, get_remotes_page
 )
 
 router = APIRouter(prefix="/api/catalog", tags=["Catalog"])
@@ -299,4 +300,73 @@ def delete_other_material(material_id: UUID, db: Session = Depends(get_db)):
     deleted = crud.delete_other_material(db, material_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Material not found")
+    return
+
+
+# ----- REMOTE (KUMANDA) CRUD -----
+
+@router.post("/remotes", response_model=RemoteOut, status_code=201, dependencies=[Depends(get_current_admin)])
+def create_remote(payload: RemoteCreate, db: Session = Depends(get_db)):
+    return crud.create_remote(db, payload)
+
+@router.get("/remotes", response_model=RemotePageOut)
+def list_remotes(
+    q: str | None = Query(None, description="Kumanda adına göre filtre (contains, case-insensitive)"),
+    limit: int = Query(50, ge=1, le=200, description="Sayfa başına kayıt (page size)"),
+    page: int = Query(1, ge=1, description="1'den başlayan sayfa numarası"),
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    is_admin = (current_user.role == "admin")
+    offset = (page - 1) * limit
+
+    items, total = get_remotes_page(
+        db=db,
+        is_admin=is_admin,
+        q=q,
+        limit=limit,
+        offset=offset,
+    )
+
+    total_pages = ceil(total / limit) if limit > 0 else 0
+
+    return RemotePageOut(
+        items=items,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=total_pages,
+        has_next=(page < total_pages) if total_pages > 0 else False,
+        has_prev=(page > 1) and (total_pages > 0),
+    )
+
+
+@router.get("/remotes/{remote_id}", response_model=RemoteOut)
+def get_remote(
+    remote_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    obj = crud.get_remote(db, remote_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Remote not found")
+    # admin değilse silinmiş/inaktif kayıt görülmesin
+    if current_user.role != "admin" and (obj.is_deleted or not obj.is_active):
+        raise HTTPException(status_code=404, detail="Remote not found")
+    return obj
+
+
+@router.put("/remotes/{remote_id}", response_model=RemoteOut, dependencies=[Depends(get_current_admin)])
+def update_remote(remote_id: UUID, payload: RemoteCreate, db: Session = Depends(get_db)):
+    obj = crud.update_remote(db, remote_id, payload)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Remote not found")
+    return obj
+
+
+@router.delete("/remotes/{remote_id}", status_code=204, dependencies=[Depends(get_current_admin)])
+def delete_remote(remote_id: UUID, db: Session = Depends(get_db)):
+    deleted = crud.delete_remote(db, remote_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Remote not found")
     return

@@ -14,6 +14,9 @@ from app.schemas.catalog       import (
     OtherMaterialCreate
 )
 
+from app.models.remote import Remote
+from app.schemas.catalog import RemoteCreate
+
 # ----- PROFILE CRUD (unchanged) -----
 def get_profile_by_code(db: Session, code: str) -> Optional[Profile]:
     return db.query(Profile).filter(Profile.profil_kodu == code).first()
@@ -216,3 +219,88 @@ def get_other_materials_page(
               .all()
     )
     return items, total
+
+
+
+# ---------------------------
+# REMOTE (Kumanda) - CRUD
+# ---------------------------
+
+def create_remote(db: Session, payload: RemoteCreate) -> Remote:
+    obj = Remote(
+        kumanda_isim = payload.kumanda_isim,
+        price        = payload.price,
+        kapasite     = payload.kapasite,
+    )
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+def get_remotes_page(
+    db: Session,
+    is_admin: bool,
+    q: Optional[str],
+    limit: int,
+    offset: int,
+) -> Tuple[List[Remote], int]:
+    """
+    Sayfalı liste:
+    - is_deleted = False
+    - admin değilse: is_active=True
+    - q varsa: kumanda_isim ILIKE %q%
+    """
+    base_q = db.query(Remote).filter(Remote.is_deleted == False)
+
+    if not is_admin:
+        base_q = base_q.filter(Remote.is_active == True)
+
+    if q:
+        like = f"%{q}%"
+        base_q = base_q.filter(Remote.kumanda_isim.ilike(like))
+
+    total = base_q.order_by(None).count()
+
+    items = (
+        base_q
+        .order_by(Remote.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    return items, total
+
+
+def get_remote(db: Session, remote_id: UUID) -> Optional[Remote]:
+    return db.query(Remote).filter(Remote.id == remote_id).first()
+
+
+def update_remote(db: Session, remote_id: UUID, payload: RemoteCreate) -> Optional[Remote]:
+    obj = db.query(Remote).filter(Remote.id == remote_id, Remote.is_deleted == False).first()
+    if not obj:
+        return None
+
+    obj.kumanda_isim = payload.kumanda_isim
+    obj.price        = payload.price
+    obj.kapasite     = payload.kapasite
+
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+def delete_remote(db: Session, remote_id: UUID) -> bool:
+    """
+    Soft delete: is_deleted=True, is_active=False
+    """
+    obj = db.query(Remote).filter(Remote.id == remote_id, Remote.is_deleted == False).first()
+    if not obj:
+        return False
+
+    obj.is_deleted = True
+    obj.is_active  = False
+
+    db.commit()
+    return True

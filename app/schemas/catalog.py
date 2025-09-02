@@ -84,3 +84,30 @@ class OtherMaterialPageOut(BaseModel):
     total_pages: int
     has_next: bool
     has_prev: bool
+
+# ------- Remote (Kumanda)
+
+class RemoteBase(BaseModel):
+    kumanda_isim: str = Field(..., min_length=1)
+    price: float
+    kapasite: int
+
+class RemoteCreate(RemoteBase):
+    pass
+
+class RemoteOut(RemoteBase):
+    id: UUID
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+
+    class Config:
+        orm_mode = True
+
+class RemotePageOut(BaseModel):
+    items: List[RemoteOut]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
