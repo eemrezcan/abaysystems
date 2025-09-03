@@ -407,8 +407,12 @@ def create_system_variant_with_templates(
             material_id=mt.material_id,
             formula_quantity=mt.formula_quantity,
             formula_cut_length=mt.formula_cut_length,
-            order_index=mt.order_index if mt.order_index is not None else i   # 🆕
+            # ✅ YENİ ALANLAR:
+            type=mt.type,
+            piece_length_mm=mt.piece_length_mm,
+            order_index=mt.order_index if mt.order_index is not None else i
         ))
+
     
     # 4.5) Remote (kumanda) şablonları  🆕
     rts: List[RemoteTemplateIn] = payload.remote_templates
@@ -480,8 +484,12 @@ def update_system_variant_with_templates(
             material_id=mt.material_id,
             formula_quantity=mt.formula_quantity,
             formula_cut_length=mt.formula_cut_length,
-            order_index=mt.order_index if mt.order_index is not None else i   # 🆕
+            # ✅ YENİ ALANLAR:
+            type=mt.type,
+            piece_length_mm=mt.piece_length_mm,
+            order_index=mt.order_index if mt.order_index is not None else i
         ))
+
 
     # REMOTE (kumanda)  🆕
     rts: List[RemoteTemplateIn] = payload.remote_templates

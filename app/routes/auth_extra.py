@@ -15,7 +15,7 @@ from app.schemas.user import AcceptInviteIn, ForgotPasswordIn, ResetPasswordIn, 
 from app.core.security import verify_password, get_password_hash
 from app.api.deps import get_current_dealer # ya da get_current_user
 
-router = APIRouter(prefix="/auth", tags=["Auth"])
+router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
 @router.post("/accept-invite", status_code=200)
 def accept_invite(payload: AcceptInviteIn, db: Session = Depends(get_db)):

@@ -234,22 +234,22 @@ def fetch_system_templates(
                 material_id=tpl.material_id,
                 formula_quantity=tpl.formula_quantity,
                 formula_cut_length=tpl.formula_cut_length,
+                type=tpl.type,
+                piece_length_mm=tpl.piece_length_mm,
                 order_index=tpl.order_index,
                 material=tpl.material
             )
             for tpl in materials
         ],
-        remote_templates=[  # 🆕 Şeman şu an snake_case, ona uygun yazıyorum
+        remoteTemplates=[
             RemoteTemplateOut(
-                id=tpl.id,
-                system_variant_id=tpl.system_variant_id,
                 remote_id=tpl.remote_id,
                 order_index=tpl.order_index,
                 created_at=tpl.created_at,
-                remote=tpl.remote,   # ilişki objesi (RemoteOut)
+                remote=tpl.remote,
             )
-        for tpl in remotes
-        ]
+            for tpl in remotes
+        ],
     )
 
 

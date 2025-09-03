@@ -25,7 +25,7 @@ from app.crud.refresh_token import (
     revoke_all_for_user,
 )
 
-router = APIRouter(prefix="/auth", tags=["Authentication"])
+router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 
 # ----- Cookie yardımcıları -----

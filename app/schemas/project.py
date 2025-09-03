@@ -28,6 +28,9 @@ class MaterialInProject(BaseModel):
     material_id: UUID
     count: int
     cut_length_mm: Optional[float] = None
+    # ✅ YENİ ALANLAR:
+    type: Optional[str] = None           # DB: String(50), nullable=True
+    piece_length_mm: Optional[int] = None
     order_index: Optional[int] = None
 
 # 🆕 Kumanda (Remote) — System içinde

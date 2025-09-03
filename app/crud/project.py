@@ -325,10 +325,10 @@ def add_systems_to_project(
                        .all()
         }
         tpl_materials = {
-            t.material_id: t.order_index
+            t.material_id: t
             for t in db.query(SystemMaterialTemplate)
-                       .filter(SystemMaterialTemplate.system_variant_id == sys_req.system_variant_id)
-                       .all()
+                    .filter(SystemMaterialTemplate.system_variant_id == sys_req.system_variant_id)
+                    .all()
         }
 
         # Profiller
@@ -358,13 +358,25 @@ def add_systems_to_project(
 
         # Malzemeler
         for m in sys_req.materials:
+            tpl = tpl_materials.get(m.material_id)  # SystemMaterialTemplate objesi (veya None)
+
+            typ = m.type
+            if typ is None and tpl is not None:
+                typ = tpl.type
+
+            piece_len = m.piece_length_mm
+            if piece_len is None and tpl is not None:
+                piece_len = tpl.piece_length_mm
+
             db.add(ProjectSystemMaterial(
                 id=uuid4(),
                 project_system_id=ps.id,
                 material_id=m.material_id,
                 cut_length_mm=m.cut_length_mm,
                 count=m.count,
-                order_index=tpl_materials.get(m.material_id),
+                type=typ,                         # ✅ yeni
+                piece_length_mm=piece_len,        # ✅ yeni
+                order_index=(tpl.order_index if tpl is not None else None),
             ))
 
         # 🔌 Kumandalar (SystemRemoteTemplate sırasına göre)
@@ -475,11 +487,12 @@ def add_only_systems_to_project(
                        .all()
         }
         tpl_materials = {
-            t.material_id: t.order_index
+            t.material_id: t
             for t in db.query(SystemMaterialTemplate)
-                       .filter(SystemMaterialTemplate.system_variant_id == sys_req.system_variant_id)
-                       .all()
+                    .filter(SystemMaterialTemplate.system_variant_id == sys_req.system_variant_id)
+                    .all()
         }
+
 
         # Profiller
         for p in sys_req.profiles:
@@ -506,16 +519,23 @@ def add_only_systems_to_project(
                 order_index=tpl_glasses.get(g.glass_type_id),
             ))
 
-        # Malzemeler
         for m in sys_req.materials:
+            tpl = tpl_materials.get(m.material_id)
+
+            typ = m.type if m.type is not None else (tpl.type if tpl else None)
+            piece_len = m.piece_length_mm if m.piece_length_mm is not None else (tpl.piece_length_mm if tpl else None)
+
             db.add(ProjectSystemMaterial(
                 id=uuid4(),
                 project_system_id=ps.id,
                 material_id=m.material_id,
                 cut_length_mm=m.cut_length_mm,
                 count=m.count,
-                order_index=tpl_materials.get(m.material_id),
+                type=typ,                       # ✅
+                piece_length_mm=piece_len,      # ✅
+                order_index=(tpl.order_index if tpl else None),
             ))
+
 
         # 🔌 Kumandalar
         tpl_remotes = {
@@ -678,6 +698,8 @@ def get_project_requirements_detailed(
                 material_id=m.material_id,
                 cut_length_mm=m.cut_length_mm,
                 count=m.count,
+                type=m.type,                           # ✅ yeni
+                piece_length_mm=m.piece_length_mm,     # ✅ yeni
                 order_index=m.order_index,
                 material=db.query(OtherMaterial).filter(OtherMaterial.id == m.material_id).first(),
             )
@@ -1090,10 +1112,10 @@ def update_project_system(
                    .all()
     }
     tpl_materials = {
-        t.material_id: t.order_index
+        t.material_id: t
         for t in db.query(SystemMaterialTemplate)
-                   .filter_by(system_variant_id=variant_id)
-                   .all()
+                .filter_by(system_variant_id=variant_id)
+                .all()
     }
 
     tpl_remotes = {
@@ -1139,13 +1161,19 @@ def update_project_system(
         ))
 
     for m in payload.materials:
+        tpl = tpl_materials.get(m.material_id)
+        typ = m.type if m.type is not None else (tpl.type if tpl else None)
+        piece_len = m.piece_length_mm if m.piece_length_mm is not None else (tpl.piece_length_mm if tpl else None)
+
         db.add(ProjectSystemMaterial(
             id=uuid4(),
             project_system_id=ps.id,
             material_id=m.material_id,
             cut_length_mm=m.cut_length_mm,
             count=m.count,
-            order_index=tpl_materials.get(m.material_id),
+            type=typ,                       # ✅
+            piece_length_mm=piece_len,      # ✅
+            order_index=(tpl.order_index if tpl else None),
         ))
 
     # Kumandalar

@@ -213,12 +213,20 @@ class SystemMaterialTemplateBase(BaseModel):
     formula_quantity: str = Field(..., min_length=1)
     formula_cut_length: Optional[str] = None
 
+    # ✅ YENİ
+    type: Optional[str] = Field(default=None, max_length=50)
+    piece_length_mm: Optional[int] = None
+
 class SystemMaterialTemplateCreate(SystemMaterialTemplateBase):
     order_index: Optional[int] = None
 
 class SystemMaterialTemplateUpdate(BaseModel):
     formula_quantity: str = Field(..., min_length=1)
     formula_cut_length: Optional[str] = None
+    # ✅ YENİ
+    type: Optional[str] = Field(default=None, max_length=50)
+    piece_length_mm: Optional[int] = None
+
     order_index: Optional[int] = None
 
 class SystemMaterialTemplateOut(SystemMaterialTemplateBase):
@@ -227,6 +235,7 @@ class SystemMaterialTemplateOut(SystemMaterialTemplateBase):
 
     class Config:
         orm_mode = True
+
 
 # — SystemRemoteTemplate —
 
@@ -290,12 +299,18 @@ class GlassTemplateOut(BaseModel):
 class MaterialTemplateOut(BaseModel):
     material_id: UUID
     formula_quantity: str
-    formula_cut_length: str
+    # ✅ DB nullable olduğu için Optional yapıyoruz
+    formula_cut_length: Optional[str] = None
+    # ✅ YENİ
+    type: Optional[str] = None
+    piece_length_mm: Optional[int] = None
+
     order_index: Optional[int] = None
     material: OtherMaterialOut  # EKLENDİ
 
     class Config:
         orm_mode = True
+
 
 class SystemTemplatesOut(BaseModel):
     profileTemplates: List[ProfileTemplateOut]
@@ -340,7 +355,12 @@ class MaterialTemplateIn(BaseModel):
     material_id: UUID
     formula_quantity: str = Field(..., min_length=1)
     formula_cut_length: Optional[str] = None
+    # ✅ YENİ
+    type: Optional[str] = Field(default=None, max_length=50)
+    piece_length_mm: Optional[int] = None
+
     order_index: Optional[int] = None
+
 
 class RemoteTemplateIn(BaseModel):
     remote_id: UUID

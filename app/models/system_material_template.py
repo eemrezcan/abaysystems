@@ -16,6 +16,13 @@ class SystemMaterialTemplate(Base):
     material_id       = Column(UUID(as_uuid=True), ForeignKey("other_material.id"), nullable=False)
     formula_quantity  = Column(String, nullable=False)
     formula_cut_length = Column(String, nullable=True)
+    
+    # ✅ İSTENEN GÜNCEL: Serbest metin, 50 karakter, nullable
+    type = Column(String(50), nullable=True)
+
+    # Zaten nullable; adetli hesaplar vb. için parça boyu (mm)
+    piece_length_mm = Column(Integer, nullable=True)
+    
     order_index = Column(Integer, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
