@@ -16,7 +16,7 @@ from app.db.session import get_db
 # Şifre hash'leme
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
