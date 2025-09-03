@@ -3,7 +3,7 @@
 from uuid import uuid4
 from datetime import datetime
 from uuid import UUID
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.models.system import SystemVariant, System
@@ -49,6 +49,45 @@ from app.schemas.project import (
     ExtraRemoteDetailed,     # 🆕
     RemoteInProjectOut,
 )
+
+# ------------------------------------------------------------
+# PDF yardımcıları
+# ------------------------------------------------------------
+
+PDF_MAP_IN = {
+    "camCiktisi": "cam_ciktisi",
+    "profilAksesuarCiktisi": "profil_aksesuar_ciktisi",
+    "boyaCiktisi": "boya_ciktisi",
+    "siparisCiktisi": "siparis_ciktisi",
+    "optimizasyonDetayliCiktisi": "optimizasyon_detayli_ciktisi",
+    "optimizasyonDetaysizCiktisi": "optimizasyon_detaysiz_ciktisi",
+}
+
+def _apply_pdf(obj: Any, pdf_model_or_dict: Any) -> None:
+    """CREATE/UPDATE sırasında payload.pdf geldiyse ORM kolonlarına uygular."""
+    if not pdf_model_or_dict:
+        return
+    if hasattr(pdf_model_or_dict, "dict"):
+        data = pdf_model_or_dict.dict(exclude_unset=True)
+    elif isinstance(pdf_model_or_dict, dict):
+        data = pdf_model_or_dict
+    else:
+        return
+    for k, v in data.items():
+        col = PDF_MAP_IN.get(k)
+        if col is not None and v is not None:
+            setattr(obj, col, bool(v))
+
+def _pdf_from_obj(obj: Any) -> dict:
+    """GET tarafında ORM objesinden camelCase pdf sözlüğü üret."""
+    return {
+        "camCiktisi":                  bool(getattr(obj, "cam_ciktisi", True)),
+        "profilAksesuarCiktisi":      bool(getattr(obj, "profil_aksesuar_ciktisi", True)),
+        "boyaCiktisi":                bool(getattr(obj, "boya_ciktisi", True)),
+        "siparisCiktisi":             bool(getattr(obj, "siparis_ciktisi", True)),
+        "optimizasyonDetayliCiktisi": bool(getattr(obj, "optimizasyon_detayli_ciktisi", True)),
+        "optimizasyonDetaysizCiktisi":bool(getattr(obj, "optimizasyon_detaysiz_ciktisi", True)),
+    }
 
 # ------------------------------------------------------------
 # Yardımcılar
@@ -333,7 +372,7 @@ def add_systems_to_project(
 
         # Profiller
         for p in sys_req.profiles:
-            db.add(ProjectSystemProfile(
+            obj = ProjectSystemProfile(
                 id=uuid4(),
                 project_system_id=ps.id,
                 profile_id=p.profile_id,
@@ -341,11 +380,13 @@ def add_systems_to_project(
                 cut_count=p.cut_count,
                 total_weight_kg=p.total_weight_kg,
                 order_index=tpl_profiles.get(p.profile_id),
-            ))
+            )
+            _apply_pdf(obj, getattr(p, "pdf", None))
+            db.add(obj)
 
         # Camlar
         for g in sys_req.glasses:
-            db.add(ProjectSystemGlass(
+            obj = ProjectSystemGlass(
                 id=uuid4(),
                 project_system_id=ps.id,
                 glass_type_id=g.glass_type_id,
@@ -354,7 +395,9 @@ def add_systems_to_project(
                 count=g.count,
                 area_m2=g.area_m2,
                 order_index=tpl_glasses.get(g.glass_type_id),
-            ))
+            )
+            _apply_pdf(obj, getattr(g, "pdf", None))
+            db.add(obj)
 
         # Malzemeler
         for m in sys_req.materials:
@@ -368,7 +411,7 @@ def add_systems_to_project(
             if piece_len is None and tpl is not None:
                 piece_len = tpl.piece_length_mm
 
-            db.add(ProjectSystemMaterial(
+            obj = ProjectSystemMaterial(
                 id=uuid4(),
                 project_system_id=ps.id,
                 material_id=m.material_id,
@@ -377,7 +420,9 @@ def add_systems_to_project(
                 type=typ,                         # ✅ yeni
                 piece_length_mm=piece_len,        # ✅ yeni
                 order_index=(tpl.order_index if tpl is not None else None),
-            ))
+            )
+            _apply_pdf(obj, getattr(m, "pdf", None))
+            db.add(obj)
 
         # 🔌 Kumandalar (SystemRemoteTemplate sırasına göre)
         tpl_remotes = {
@@ -394,25 +439,28 @@ def add_systems_to_project(
                 rem = db.query(Remote).filter(Remote.id == r.remote_id).first()
                 unit_price = float(rem.price) if rem and rem.price is not None else None
 
-            db.add(ProjectSystemRemote(
+            obj = ProjectSystemRemote(
                 id=uuid4(),
                 project_system_id=ps.id,
                 remote_id=r.remote_id,
                 count=r.count,
                 unit_price=unit_price,
                 order_index=tpl_remotes.get(r.remote_id),
-            ))
-
+            )
+            _apply_pdf(obj, getattr(r, "pdf", None))
+            db.add(obj)
 
     # --- Proje seviyesi ekstra malzemeler (DÖNGÜ DIŞI) 🔧
     for extra in payload.extra_requirements:
-        db.add(ProjectExtraMaterial(
+        obj = ProjectExtraMaterial(
             id=uuid4(),
             project_id=project.id,
             material_id=extra.material_id,
             count=extra.count,
             cut_length_mm=extra.cut_length_mm,
-        ))
+        )
+        _apply_pdf(obj, getattr(extra, "pdf", None))
+        db.add(obj)
 
     db.commit()
     db.refresh(project)
@@ -493,10 +541,9 @@ def add_only_systems_to_project(
                     .all()
         }
 
-
         # Profiller
         for p in sys_req.profiles:
-            db.add(ProjectSystemProfile(
+            obj = ProjectSystemProfile(
                 id=uuid4(),
                 project_system_id=ps.id,
                 profile_id=p.profile_id,
@@ -504,11 +551,13 @@ def add_only_systems_to_project(
                 cut_count=p.cut_count,
                 total_weight_kg=p.total_weight_kg,
                 order_index=tpl_profiles.get(p.profile_id),
-            ))
+            )
+            _apply_pdf(obj, getattr(p, "pdf", None))
+            db.add(obj)
 
         # Camlar
         for g in sys_req.glasses:
-            db.add(ProjectSystemGlass(
+            obj = ProjectSystemGlass(
                 id=uuid4(),
                 project_system_id=ps.id,
                 glass_type_id=g.glass_type_id,
@@ -517,7 +566,9 @@ def add_only_systems_to_project(
                 count=g.count,
                 area_m2=g.area_m2,
                 order_index=tpl_glasses.get(g.glass_type_id),
-            ))
+            )
+            _apply_pdf(obj, getattr(g, "pdf", None))
+            db.add(obj)
 
         for m in sys_req.materials:
             tpl = tpl_materials.get(m.material_id)
@@ -525,7 +576,7 @@ def add_only_systems_to_project(
             typ = m.type if m.type is not None else (tpl.type if tpl else None)
             piece_len = m.piece_length_mm if m.piece_length_mm is not None else (tpl.piece_length_mm if tpl else None)
 
-            db.add(ProjectSystemMaterial(
+            obj = ProjectSystemMaterial(
                 id=uuid4(),
                 project_system_id=ps.id,
                 material_id=m.material_id,
@@ -534,8 +585,9 @@ def add_only_systems_to_project(
                 type=typ,                       # ✅
                 piece_length_mm=piece_len,      # ✅
                 order_index=(tpl.order_index if tpl else None),
-            ))
-
+            )
+            _apply_pdf(obj, getattr(m, "pdf", None))
+            db.add(obj)
 
         # 🔌 Kumandalar
         tpl_remotes = {
@@ -551,15 +603,16 @@ def add_only_systems_to_project(
                 rem = db.query(Remote).filter(Remote.id == r.remote_id).first()
                 unit_price = float(rem.price) if rem and rem.price is not None else None
 
-            db.add(ProjectSystemRemote(
+            obj = ProjectSystemRemote(
                 id=uuid4(),
                 project_system_id=ps.id,
                 remote_id=r.remote_id,
                 count=r.count,
                 unit_price=unit_price,
                 order_index=tpl_remotes.get(r.remote_id),
-            ))
-
+            )
+            _apply_pdf(obj, getattr(r, "pdf", None))
+            db.add(obj)
 
     db.commit()
     db.refresh(project)
@@ -580,28 +633,32 @@ def add_only_extras_to_project(
 
     # Malzemeler
     for extra in extras:
-        db.add(ProjectExtraMaterial(
+        obj = ProjectExtraMaterial(
             id=uuid4(),
             project_id=project.id,
             material_id=extra.material_id,
             count=extra.count,
             cut_length_mm=extra.cut_length_mm,
-        ))
+        )
+        _apply_pdf(obj, getattr(extra, "pdf", None))
+        db.add(obj)
 
     # Profiller
     for profile in extra_profiles:
-        db.add(ProjectExtraProfile(
+        obj = ProjectExtraProfile(
             id=uuid4(),
             project_id=project.id,
             profile_id=profile.profile_id,
             cut_length_mm=profile.cut_length_mm,
             cut_count=profile.cut_count,
-        ))
+        )
+        _apply_pdf(obj, getattr(profile, "pdf", None))
+        db.add(obj)
 
     # Camlar
     for glass in extra_glasses:
         area_m2 = (glass.width_mm / 1000) * (glass.height_mm / 1000)
-        db.add(ProjectExtraGlass(
+        obj = ProjectExtraGlass(
             id=uuid4(),
             project_id=project.id,
             glass_type_id=glass.glass_type_id,
@@ -609,7 +666,9 @@ def add_only_extras_to_project(
             height_mm=glass.height_mm,
             count=glass.count,
             area_m2=area_m2,
-        ))
+        )
+        _apply_pdf(obj, getattr(glass, "pdf", None))
+        db.add(obj)
 
     # Kumandalar (extra)
     for r in extra_remotes or []:
@@ -618,14 +677,15 @@ def add_only_extras_to_project(
             rem = db.query(Remote).filter(Remote.id == r.remote_id).first()
             unit_price = float(rem.price) if rem and rem.price is not None else None
 
-        db.add(ProjectExtraRemote(
+        obj = ProjectExtraRemote(
             id=uuid4(),
             project_id=project.id,
             remote_id=r.remote_id,
             count=r.count,
             unit_price=unit_price,
-        ))
-
+        )
+        _apply_pdf(obj, getattr(r, "pdf", None))
+        db.add(obj)
 
     db.commit()
     db.refresh(project)
@@ -666,6 +726,7 @@ def get_project_requirements_detailed(
                 total_weight_kg=p.total_weight_kg,
                 order_index=p.order_index,
                 profile=db.query(Profile).filter(Profile.id == p.profile_id).first(),
+                pdf=_pdf_from_obj(p),
             )
             for p in profiles_raw
         ]
@@ -684,6 +745,7 @@ def get_project_requirements_detailed(
                 area_m2=g.area_m2,
                 order_index=g.order_index,
                 glass_type=db.query(GlassType).filter(GlassType.id == g.glass_type_id).first(),
+                pdf=_pdf_from_obj(g),
             )
             for g in glasses_raw
         ]
@@ -702,6 +764,7 @@ def get_project_requirements_detailed(
                 piece_length_mm=m.piece_length_mm,     # ✅ yeni
                 order_index=m.order_index,
                 material=db.query(OtherMaterial).filter(OtherMaterial.id == m.material_id).first(),
+                pdf=_pdf_from_obj(m),
             )
             for m in materials_raw
         ]
@@ -721,9 +784,9 @@ def get_project_requirements_detailed(
                     order_index=r.order_index,
                     unit_price=float(r.unit_price) if r.unit_price is not None else None,
                     remote=remote_obj,
+                    pdf=_pdf_from_obj(r),
                 )
             )
-
 
         result_systems.append(
             SystemInProjectOut(
@@ -748,6 +811,7 @@ def get_project_requirements_detailed(
             cut_length_mm=e.cut_length_mm,
             count=e.count,
             material=db.query(OtherMaterial).filter(OtherMaterial.id == e.material_id).first(),
+            pdf=_pdf_from_obj(e),
         )
         for e in extras_raw
     ]
@@ -762,6 +826,7 @@ def get_project_requirements_detailed(
                 cut_length_mm=float(p.cut_length_mm),
                 cut_count=p.cut_count,
                 profile=prof,
+                pdf=_pdf_from_obj(p),
             )
         )
 
@@ -776,6 +841,7 @@ def get_project_requirements_detailed(
                 height_mm=float(g.height_mm),
                 count=g.count,
                 glass_type=gt,
+                pdf=_pdf_from_obj(g),
             )
         )
 
@@ -789,9 +855,9 @@ def get_project_requirements_detailed(
                 count=r.count,
                 unit_price=float(r.unit_price) if r.unit_price is not None else None,
                 remote=remote_obj,
+                pdf=_pdf_from_obj(r),
             )
         )
-
 
     return ProjectRequirementsDetailedOut(
         id=project.id,
@@ -845,6 +911,7 @@ def create_project_extra_profile(
     db.add(extra)
     db.commit()
     db.refresh(extra)
+    extra.pdf = _pdf_from_obj(extra)
     return extra
 
 
@@ -865,6 +932,7 @@ def update_project_extra_profile(
 
     db.commit()
     db.refresh(extra)
+    extra.pdf = _pdf_from_obj(extra)
     return extra
 
 
@@ -901,6 +969,7 @@ def create_project_extra_glass(
     db.add(extra)
     db.commit()
     db.refresh(extra)
+    extra.pdf = _pdf_from_obj(extra)
     return extra
 
 
@@ -928,6 +997,7 @@ def update_project_extra_glass(
 
     db.commit()
     db.refresh(extra)
+    extra.pdf = _pdf_from_obj(extra)
     return extra
 
 
@@ -960,6 +1030,7 @@ def create_project_extra_material(
     db.add(extra)
     db.commit()
     db.refresh(extra)
+    extra.pdf = _pdf_from_obj(extra)
     return extra
 
 
@@ -980,6 +1051,7 @@ def update_project_extra_material(
 
     db.commit()
     db.refresh(extra)
+    extra.pdf = _pdf_from_obj(extra)
     return extra
 
 
@@ -1011,6 +1083,7 @@ def create_project_extra_remote(
     db.add(extra)
     db.commit()
     db.refresh(extra)
+    extra.pdf = _pdf_from_obj(extra)
     return extra
 
 
@@ -1029,6 +1102,7 @@ def update_project_extra_remote(
         extra.unit_price = unit_price
     db.commit()
     db.refresh(extra)
+    extra.pdf = _pdf_from_obj(extra)
     return extra
 
 
@@ -1138,7 +1212,7 @@ def update_project_system(
 
     # Yeniden ekle
     for p in payload.profiles:
-        db.add(ProjectSystemProfile(
+        obj = ProjectSystemProfile(
             id=uuid4(),
             project_system_id=ps.id,
             profile_id=p.profile_id,
@@ -1146,10 +1220,12 @@ def update_project_system(
             cut_count=p.cut_count,
             total_weight_kg=p.total_weight_kg,
             order_index=tpl_profiles.get(p.profile_id),
-        ))
+        )
+        _apply_pdf(obj, getattr(p, "pdf", None))
+        db.add(obj)
 
     for g in payload.glasses:
-        db.add(ProjectSystemGlass(
+        obj = ProjectSystemGlass(
             id=uuid4(),
             project_system_id=ps.id,
             glass_type_id=g.glass_type_id,
@@ -1158,14 +1234,16 @@ def update_project_system(
             count=g.count,
             area_m2=g.area_m2,
             order_index=tpl_glasses.get(g.glass_type_id),
-        ))
+        )
+        _apply_pdf(obj, getattr(g, "pdf", None))
+        db.add(obj)
 
     for m in payload.materials:
         tpl = tpl_materials.get(m.material_id)
         typ = m.type if m.type is not None else (tpl.type if tpl else None)
         piece_len = m.piece_length_mm if m.piece_length_mm is not None else (tpl.piece_length_mm if tpl else None)
 
-        db.add(ProjectSystemMaterial(
+        obj = ProjectSystemMaterial(
             id=uuid4(),
             project_system_id=ps.id,
             material_id=m.material_id,
@@ -1174,7 +1252,9 @@ def update_project_system(
             type=typ,                       # ✅
             piece_length_mm=piece_len,      # ✅
             order_index=(tpl.order_index if tpl else None),
-        ))
+        )
+        _apply_pdf(obj, getattr(m, "pdf", None))
+        db.add(obj)
 
     # Kumandalar
     for r in getattr(payload, "remotes", []) or []:
@@ -1183,15 +1263,16 @@ def update_project_system(
             rem = db.query(Remote).filter(Remote.id == r.remote_id).first()
             unit_price = float(rem.price) if rem and rem.price is not None else None
 
-        db.add(ProjectSystemRemote(
+        obj = ProjectSystemRemote(
             id=uuid4(),
             project_system_id=ps.id,
             remote_id=r.remote_id,
             count=r.count,
             unit_price=unit_price,
             order_index=tpl_remotes.get(r.remote_id),
-        ))
-
+        )
+        _apply_pdf(obj, getattr(r, "pdf", None))
+        db.add(obj)
 
     db.commit()
     db.refresh(ps)
@@ -1211,7 +1292,6 @@ def delete_project_system(
     db.query(ProjectSystemGlass).filter(ProjectSystemGlass.project_system_id == project_system_id).delete(synchronize_session=False)
     db.query(ProjectSystemMaterial).filter(ProjectSystemMaterial.project_system_id == project_system_id).delete(synchronize_session=False)
     db.query(ProjectSystemRemote).filter(ProjectSystemRemote.project_system_id == project_system_id).delete(synchronize_session=False)  # 🆕
-
 
     # ProjectSystem kaydını sil
     deleted = (

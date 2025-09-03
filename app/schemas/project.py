@@ -6,6 +6,15 @@ from datetime import date, datetime
 from app.schemas.customer import CustomerOut
 from app.schemas.catalog import RemoteOut  # 🆕 kumanda detayını göstermek için
 
+# --- Ortak PDF bayrakları şeması ---
+class PdfFlags(BaseModel):
+    camCiktisi: bool = True
+    profilAksesuarCiktisi: bool = True
+    boyaCiktisi: bool = True
+    siparisCiktisi: bool = True
+    optimizasyonDetayliCiktisi: bool = True
+    optimizasyonDetaysizCiktisi: bool = True
+
 # ----------------------------------------
 # Sub-models for project system contents
 # ----------------------------------------
@@ -15,6 +24,7 @@ class ProfileInProject(BaseModel):
     cut_count: int
     total_weight_kg: float
     order_index: Optional[int] = None
+    pdf: Optional[PdfFlags] = None
 
 class GlassInProject(BaseModel):
     glass_type_id: UUID
@@ -23,6 +33,7 @@ class GlassInProject(BaseModel):
     count: int
     area_m2: float
     order_index: Optional[int] = None
+    pdf: Optional[PdfFlags] = None
 
 class MaterialInProject(BaseModel):
     material_id: UUID
@@ -32,6 +43,7 @@ class MaterialInProject(BaseModel):
     type: Optional[str] = None           # DB: String(50), nullable=True
     piece_length_mm: Optional[int] = None
     order_index: Optional[int] = None
+    pdf: Optional[PdfFlags] = None
 
 # 🆕 Kumanda (Remote) — System içinde
 class RemoteInProject(BaseModel):
@@ -39,6 +51,7 @@ class RemoteInProject(BaseModel):
     count: int
     order_index: Optional[int] = None
     unit_price: Optional[float] = None  # proje anındaki birim fiyat snapshotu (opsiyonel)
+    pdf: Optional[PdfFlags] = None
 
 # ----------------------------------------
 # SystemRequirement and ExtraRequirement
@@ -53,27 +66,31 @@ class SystemRequirement(BaseModel):
     materials: List[MaterialInProject] = Field(default_factory=list)
     remotes: List[RemoteInProject] = Field(default_factory=list)  # 🆕
 
-class ExtraRequirement(BaseModel):
+class ExtraRequirement(BaseModel): #materyal extra kısmı class ProjectExtraMaterial(Base): kısmı
     material_id: UUID
     count: int
     cut_length_mm: Optional[float] = None
+    pdf: Optional[PdfFlags] = None
 
 class ExtraProfileIn(BaseModel):
     profile_id: UUID
     cut_length_mm: float
     cut_count: int
+    pdf: Optional[PdfFlags] = None
 
 class ExtraGlassIn(BaseModel):
     glass_type_id: UUID
     width_mm: float
     height_mm: float
     count: int
+    pdf: Optional[PdfFlags] = None
 
 # 🆕 Proje geneli ekstra kumanda
 class ExtraRemoteIn(BaseModel):
     remote_id: UUID
     count: int
     unit_price: Optional[float] = None
+    pdf: Optional[PdfFlags] = None
 
 # ----------------------------------------
 # Main ProjectSystemsUpdate schema
@@ -199,6 +216,7 @@ class ExtraProfileDetailed(BaseModel):
     cut_length_mm: float
     cut_count: int
     profile: ProfileOut
+    pdf: PdfFlags
 
     class Config:
         orm_mode = True
@@ -209,6 +227,7 @@ class ExtraGlassDetailed(BaseModel):
     height_mm: float
     count: int
     glass_type: GlassTypeOut
+    pdf: PdfFlags
 
     class Config:
         orm_mode = True
@@ -219,6 +238,7 @@ class ExtraRemoteDetailed(BaseModel):
     count: int
     unit_price: Optional[float] = None
     remote: RemoteOut
+    pdf: PdfFlags
 
     class Config:
         orm_mode = True
@@ -228,6 +248,7 @@ class SystemBasicOut(BaseModel):
     id: UUID
     name: str
     description: Optional[str]
+    photo_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -236,18 +257,22 @@ class SystemBasicOut(BaseModel):
 
 class ProfileInProjectOut(ProfileInProject):
     profile: ProfileOut
+    pdf: PdfFlags
+
 
     class Config:
         orm_mode = True
 
 class GlassInProjectOut(GlassInProject):
     glass_type: GlassTypeOut
+    pdf: PdfFlags
 
     class Config:
         orm_mode = True
 
 class MaterialInProjectOut(MaterialInProject):
     material: OtherMaterialOut
+    pdf: PdfFlags
 
     class Config:
         orm_mode = True
@@ -255,6 +280,7 @@ class MaterialInProjectOut(MaterialInProject):
 # 🆕 Remote in System (detaylı)
 class RemoteInProjectOut(RemoteInProject):
     remote: RemoteOut
+    pdf: PdfFlags
 
     class Config:
         orm_mode = True
@@ -315,10 +341,12 @@ class ProjectExtraProfileCreate(BaseModel):
     profile_id: UUID
     cut_length_mm: float
     cut_count: int
+    pdf: Optional[PdfFlags] = None
 
 class ProjectExtraProfileUpdate(BaseModel):
     cut_length_mm: Optional[float] = None
     cut_count: Optional[int] = None
+    pdf: Optional[PdfFlags] = None
 
 class ProjectExtraProfileOut(BaseModel):
     id: UUID
@@ -327,6 +355,7 @@ class ProjectExtraProfileOut(BaseModel):
     cut_length_mm: float
     cut_count: int
     created_at: datetime
+    pdf: PdfFlags
 
     class Config:
         orm_mode = True
@@ -338,11 +367,13 @@ class ProjectExtraGlassCreate(BaseModel):
     width_mm: float
     height_mm: float
     count: int
+    pdf: Optional[PdfFlags] = None
 
 class ProjectExtraGlassUpdate(BaseModel):
     width_mm: Optional[float] = None
     height_mm: Optional[float] = None
     count: Optional[int] = None
+    pdf: Optional[PdfFlags] = None
 
 class ProjectExtraGlassOut(BaseModel):
     id: UUID
@@ -353,6 +384,7 @@ class ProjectExtraGlassOut(BaseModel):
     count: int
     area_m2: Optional[float]
     created_at: datetime
+    pdf: PdfFlags
 
     class Config:
         orm_mode = True
@@ -363,10 +395,12 @@ class ProjectExtraMaterialCreate(BaseModel):
     material_id: UUID
     count: int
     cut_length_mm: Optional[float] = None
+    pdf: Optional[PdfFlags] = None
 
 class ProjectExtraMaterialUpdate(BaseModel):
     count: Optional[int] = None
     cut_length_mm: Optional[float] = None
+    pdf: Optional[PdfFlags] = None
 
 class ProjectExtraMaterialOut(BaseModel):
     id: UUID
@@ -375,6 +409,7 @@ class ProjectExtraMaterialOut(BaseModel):
     count: int
     cut_length_mm: Optional[float]
     created_at: datetime
+    pdf: PdfFlags
 
     class Config:
         orm_mode = True
@@ -385,10 +420,12 @@ class ProjectExtraRemoteCreate(BaseModel):
     remote_id: UUID
     count: int
     unit_price: Optional[float] = None
+    pdf: Optional[PdfFlags] = None
 
 class ProjectExtraRemoteUpdate(BaseModel):
     count: Optional[int] = None
     unit_price: Optional[float] = None
+    pdf: Optional[PdfFlags] = None
 
 class ProjectExtraRemoteOut(BaseModel):
     id: UUID
@@ -397,6 +434,7 @@ class ProjectExtraRemoteOut(BaseModel):
     count: int
     unit_price: Optional[float] = None
     created_at: datetime
+    pdf: PdfFlags
 
     class Config:
         orm_mode = True

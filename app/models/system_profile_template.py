@@ -1,7 +1,7 @@
 # app/models/system_profile_template.py
 
 import uuid
-from sqlalchemy import Column, String, ForeignKey, Integer
+from sqlalchemy import Column, String, ForeignKey, Integer,Boolean
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -18,6 +18,14 @@ class SystemProfileTemplate(Base):
     formula_cut_count  = Column(String, nullable=False)
     order_index        = Column(Integer, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    # --- PDF Flags ---
+    cam_ciktisi                   = Column(Boolean, nullable=False, default=True)
+    profil_aksesuar_ciktisi       = Column(Boolean, nullable=False, default=True)
+    boya_ciktisi                  = Column(Boolean, nullable=False, default=True)
+    siparis_ciktisi               = Column(Boolean, nullable=False, default=True)
+    optimizasyon_detayli_ciktisi  = Column(Boolean, nullable=False, default=True)
+    optimizasyon_detaysiz_ciktisi = Column(Boolean, nullable=False, default=True)
 
     # ilişki (opsiyonel, kullanmak isterseniz)
     variant = relationship("SystemVariant", back_populates="profile_templates")

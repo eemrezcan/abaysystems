@@ -214,7 +214,8 @@ def fetch_system_templates(
                 formula_cut_length=tpl.formula_cut_length,
                 formula_cut_count=tpl.formula_cut_count,
                 order_index=tpl.order_index,
-                profile=tpl.profile
+                profile=tpl.profile,
+                pdf=tpl.pdf
             )
             for tpl in profiles
         ],
@@ -225,7 +226,8 @@ def fetch_system_templates(
                 formula_height=tpl.formula_height,
                 formula_count=tpl.formula_count,
                 order_index=tpl.order_index,
-                glass_type=tpl.glass_type
+                glass_type=tpl.glass_type,
+                pdf=tpl.pdf
             )
             for tpl in glasses
         ],
@@ -237,7 +239,8 @@ def fetch_system_templates(
                 type=tpl.type,
                 piece_length_mm=tpl.piece_length_mm,
                 order_index=tpl.order_index,
-                material=tpl.material
+                material=tpl.material,
+                pdf=tpl.pdf
             )
             for tpl in materials
         ],
@@ -247,6 +250,7 @@ def fetch_system_templates(
                 order_index=tpl.order_index,
                 created_at=tpl.created_at,
                 remote=tpl.remote,
+                pdf=tpl.pdf
             )
             for tpl in remotes
         ],

@@ -1,7 +1,7 @@
 # app/models/system_remote_template.py
 
 import uuid
-from sqlalchemy import Column, ForeignKey, Integer
+from sqlalchemy import Column, ForeignKey, Integer, Boolean
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -29,6 +29,14 @@ class SystemRemoteTemplate(Base):
     order_index = Column(Integer, nullable=True)
 
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    # --- PDF Flags ---
+    cam_ciktisi                   = Column(Boolean, nullable=False, default=True)
+    profil_aksesuar_ciktisi       = Column(Boolean, nullable=False, default=True)
+    boya_ciktisi                  = Column(Boolean, nullable=False, default=True)
+    siparis_ciktisi               = Column(Boolean, nullable=False, default=True)
+    optimizasyon_detayli_ciktisi  = Column(Boolean, nullable=False, default=True)
+    optimizasyon_detaysiz_ciktisi = Column(Boolean, nullable=False, default=True)
 
     # ORM ilişkileri
     variant = relationship("SystemVariant", back_populates="remote_templates")

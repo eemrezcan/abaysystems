@@ -3,7 +3,7 @@
 from uuid import uuid4, UUID
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import joinedload
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Any
 from app.models.system import System, SystemVariant
 from app.models.system_profile_template import SystemProfileTemplate
 from app.models.system_glass_template import SystemGlassTemplate
@@ -27,6 +27,51 @@ from app.schemas.system import (
     SystemRemoteTemplateUpdate,
     RemoteTemplateIn,
 )
+
+# --- PDF helpers: request -> kolonlar, kolonlar -> response(pdf) ---
+PDF_MAP_IN = {
+    "camCiktisi": "cam_ciktisi",
+    "profilAksesuarCiktisi": "profil_aksesuar_ciktisi",
+    "boyaCiktisi": "boya_ciktisi",
+    "siparisCiktisi": "siparis_ciktisi",
+    "optimizasyonDetayliCiktisi": "optimizasyon_detayli_ciktisi",
+    "optimizasyonDetaysizCiktisi": "optimizasyon_detaysiz_ciktisi",
+}
+
+def _apply_pdf(obj: Any, pdf_model_or_dict: Any) -> None:
+    """CREATE/UPDATE sırasında payload.pdf geldiyse ORM kolonlarına uygular."""
+    if pdf_model_or_dict is None:
+        return
+    if hasattr(pdf_model_or_dict, "dict"):
+        pdf_data = pdf_model_or_dict.dict(exclude_unset=True)
+    elif isinstance(pdf_model_or_dict, dict):
+        pdf_data = pdf_model_or_dict
+    else:
+        return
+    for key, val in pdf_data.items():
+        col = PDF_MAP_IN.get(key)
+        if col is not None and val is not None:
+            setattr(obj, col, bool(val))
+
+def _attach_pdf(obj: Any) -> Any:
+    """OUT tarafında Pydantic'in görebileceği şekilde obj.pdf alanını set eder."""
+    try:
+        obj.pdf = {
+            "camCiktisi":                  bool(getattr(obj, "cam_ciktisi")),
+            "profilAksesuarCiktisi":      bool(getattr(obj, "profil_aksesuar_ciktisi")),
+            "boyaCiktisi":                bool(getattr(obj, "boya_ciktisi")),
+            "siparisCiktisi":             bool(getattr(obj, "siparis_ciktisi")),
+            "optimizasyonDetayliCiktisi": bool(getattr(obj, "optimizasyon_detayli_ciktisi")),
+            "optimizasyonDetaysizCiktisi":bool(getattr(obj, "optimizasyon_detaysiz_ciktisi")),
+        }
+    except Exception:
+        pass
+    return obj
+
+def _attach_pdf_many(seq):
+    for o in seq:
+        _attach_pdf(o)
+    return seq
 
 # ————— System CRUD —————
 
@@ -138,26 +183,36 @@ def delete_system_variant(db: Session, variant_id: UUID) -> bool:
 # ————— Template CRUD —————
 
 def create_profile_template(db: Session, payload: SystemProfileTemplateCreate) -> SystemProfileTemplate:
-    obj = SystemProfileTemplate(id=uuid4(), **payload.dict())
+    data = payload.dict(exclude_unset=True)
+    pdf = data.pop("pdf", None)
+    obj = SystemProfileTemplate(id=uuid4(), **data)
+    _apply_pdf(obj, pdf)
     db.add(obj)
     db.commit()
     db.refresh(obj)
-    return obj
-
+    return _attach_pdf(obj)
 
 def get_profile_templates(db: Session, variant_id: UUID) -> list[SystemProfileTemplate]:
-    return db.query(SystemProfileTemplate).filter_by(system_variant_id=variant_id).all()
-
+    items = (
+        db.query(SystemProfileTemplate)
+        .filter_by(system_variant_id=variant_id)
+        .all()
+    )
+    return _attach_pdf_many(items)
 
 def update_profile_template(db: Session, template_id: UUID, payload: SystemProfileTemplateUpdate) -> SystemProfileTemplate | None:
     obj = db.query(SystemProfileTemplate).filter_by(id=template_id).first()
     if not obj:
         return None
-    for k, v in payload.dict(exclude_unset=True).items():
+    data = payload.dict(exclude_unset=True)
+    pdf = data.pop("pdf", None)
+    for k, v in data.items():
         setattr(obj, k, v)
+    _apply_pdf(obj, pdf)
     db.commit()
     db.refresh(obj)
-    return obj
+    return _attach_pdf(obj)
+
 
 
 def delete_profile_template(db: Session, template_id: UUID) -> bool:
@@ -167,26 +222,35 @@ def delete_profile_template(db: Session, template_id: UUID) -> bool:
 
 
 def create_glass_template(db: Session, payload: SystemGlassTemplateCreate) -> SystemGlassTemplate:
-    obj = SystemGlassTemplate(id=uuid4(), **payload.dict())
+    data = payload.dict(exclude_unset=True)
+    pdf = data.pop("pdf", None)
+    obj = SystemGlassTemplate(id=uuid4(), **data)
+    _apply_pdf(obj, pdf)
     db.add(obj)
     db.commit()
     db.refresh(obj)
-    return obj
-
+    return _attach_pdf(obj)
 
 def get_glass_templates(db: Session, variant_id: UUID) -> list[SystemGlassTemplate]:
-    return db.query(SystemGlassTemplate).filter_by(system_variant_id=variant_id).all()
-
+    items = (
+        db.query(SystemGlassTemplate)
+        .filter_by(system_variant_id=variant_id)
+        .all()
+    )
+    return _attach_pdf_many(items)
 
 def update_glass_template(db: Session, template_id: UUID, payload: SystemGlassTemplateUpdate) -> SystemGlassTemplate | None:
     obj = db.query(SystemGlassTemplate).filter_by(id=template_id).first()
     if not obj:
         return None
-    for k, v in payload.dict(exclude_unset=True).items():
+    data = payload.dict(exclude_unset=True)
+    pdf = data.pop("pdf", None)
+    for k, v in data.items():
         setattr(obj, k, v)
+    _apply_pdf(obj, pdf)
     db.commit()
     db.refresh(obj)
-    return obj
+    return _attach_pdf(obj)
 
 
 def delete_glass_template(db: Session, template_id: UUID) -> bool:
@@ -196,26 +260,36 @@ def delete_glass_template(db: Session, template_id: UUID) -> bool:
 
 
 def create_material_template(db: Session, payload: SystemMaterialTemplateCreate) -> SystemMaterialTemplate:
-    obj = SystemMaterialTemplate(id=uuid4(), **payload.dict())
+    data = payload.dict(exclude_unset=True)
+    pdf = data.pop("pdf", None)
+    obj = SystemMaterialTemplate(id=uuid4(), **data)
+    _apply_pdf(obj, pdf)
     db.add(obj)
     db.commit()
     db.refresh(obj)
-    return obj
-
+    return _attach_pdf(obj)
 
 def get_material_templates(db: Session, variant_id: UUID) -> list[SystemMaterialTemplate]:
-    return db.query(SystemMaterialTemplate).filter_by(system_variant_id=variant_id).all()
-
+    items = (
+        db.query(SystemMaterialTemplate)
+        .filter_by(system_variant_id=variant_id)
+        .all()
+    )
+    return _attach_pdf_many(items)
 
 def update_material_template(db: Session, template_id: UUID, payload: SystemMaterialTemplateUpdate) -> SystemMaterialTemplate | None:
     obj = db.query(SystemMaterialTemplate).filter_by(id=template_id).first()
     if not obj:
         return None
-    for k, v in payload.dict(exclude_unset=True).items():
+    data = payload.dict(exclude_unset=True)
+    pdf = data.pop("pdf", None)
+    for k, v in data.items():
         setattr(obj, k, v)
+    _apply_pdf(obj, pdf)
     db.commit()
     db.refresh(obj)
-    return obj
+    return _attach_pdf(obj)
+
 
 
 def delete_material_template(db: Session, template_id: UUID) -> bool:
@@ -226,30 +300,39 @@ def delete_material_template(db: Session, template_id: UUID) -> bool:
 # ----- REMOTE TEMPLATE CRUD -----
 
 def create_remote_template(db: Session, payload: SystemRemoteTemplateCreate) -> SystemRemoteTemplate:
-    obj = SystemRemoteTemplate(id=uuid4(), **payload.dict())
+    data = payload.dict(exclude_unset=True)
+    pdf = data.pop("pdf", None)
+    obj = SystemRemoteTemplate(id=uuid4(), **data)
+    _apply_pdf(obj, pdf)
     db.add(obj)
     db.commit()
     db.refresh(obj)
-    return obj
+    return _attach_pdf(obj)
 
 def get_remote_templates(db: Session, variant_id: UUID) -> list[SystemRemoteTemplate]:
-    return (
+    items = (
         db.query(SystemRemoteTemplate)
+        .options(joinedload(SystemRemoteTemplate.remote))
         .filter_by(system_variant_id=variant_id)
         .order_by(SystemRemoteTemplate.order_index.asc().nulls_last(),
                   SystemRemoteTemplate.created_at.asc())
         .all()
     )
+    return _attach_pdf_many(items)
 
 def update_remote_template(db: Session, template_id: UUID, payload: SystemRemoteTemplateUpdate) -> SystemRemoteTemplate | None:
     obj = db.query(SystemRemoteTemplate).filter_by(id=template_id).first()
     if not obj:
         return None
-    for k, v in payload.dict(exclude_unset=True).items():
+    data = payload.dict(exclude_unset=True)
+    pdf = data.pop("pdf", None)
+    for k, v in data.items():
         setattr(obj, k, v)
+    _apply_pdf(obj, pdf)
     db.commit()
     db.refresh(obj)
-    return obj
+    return _attach_pdf(obj)
+
 
 def delete_remote_template(db: Session, template_id: UUID) -> bool:
     deleted = db.query(SystemRemoteTemplate).filter_by(id=template_id).delete()
@@ -268,6 +351,7 @@ def get_system_templates(db: Session, variant_id: UUID):
                   SystemProfileTemplate.created_at.asc())
         .all()
     )
+    _attach_pdf_many(profiles)
 
     glasses = (
         db.query(SystemGlassTemplate)
@@ -277,6 +361,7 @@ def get_system_templates(db: Session, variant_id: UUID):
                   SystemGlassTemplate.created_at.asc())
         .all()
     )
+    _attach_pdf_many(glasses)
 
     materials = (
         db.query(SystemMaterialTemplate)
@@ -286,6 +371,7 @@ def get_system_templates(db: Session, variant_id: UUID):
                   SystemMaterialTemplate.created_at.asc())
         .all()
     )
+    _attach_pdf_many(materials)
 
     remotes = (
         db.query(SystemRemoteTemplate)
@@ -295,8 +381,10 @@ def get_system_templates(db: Session, variant_id: UUID):
                   SystemRemoteTemplate.created_at.asc())
         .all()
     )
+    _attach_pdf_many(remotes)
 
-    return profiles, glasses, materials, remotes  # 🆕
+    return profiles, glasses, materials, remotes
+
 
 
 # ————— Combined full creation —————
@@ -346,7 +434,7 @@ def create_system_full(db: Session, payload: SystemFullCreate):
 
 
 def get_system_variant_detail(db: Session, variant_id: UUID) -> Optional[SystemVariant]:
-    return (
+    variant = (
         db.query(SystemVariant)
         .filter(SystemVariant.id == variant_id)
         .options(
@@ -358,16 +446,17 @@ def get_system_variant_detail(db: Session, variant_id: UUID) -> Optional[SystemV
         )
         .first()
     )
+    if variant:
+        _attach_pdf_many(variant.profile_templates)
+        _attach_pdf_many(variant.glass_templates)
+        _attach_pdf_many(variant.material_templates)
+        _attach_pdf_many(variant.remote_templates)
+    return variant
 
 
-def create_system_variant_with_templates(
-    db: Session,
-    payload: SystemVariantCreateWithTemplates
-) -> SystemVariant:
-    """
-    Bir SystemVariant kaydı ve ilişkili profil, cam, malzeme şablonlarını topluca oluşturur.
-    """
-    # 1) Variant oluştur
+
+def create_system_variant_with_templates(db: Session, payload: SystemVariantCreateWithTemplates) -> SystemVariant:
+    # 1) Variant
     variant = SystemVariant(
         id=uuid4(),
         system_id=payload.system_id,
@@ -376,133 +465,133 @@ def create_system_variant_with_templates(
     db.add(variant)
     db.flush()
 
-        # 2) Profile şablonları
+    # 2) Profile şablonları
     for i, pt in enumerate(payload.profile_templates):
-        db.add(SystemProfileTemplate(
+        obj = SystemProfileTemplate(
             id=uuid4(),
             system_variant_id=variant.id,
             profile_id=pt.profile_id,
             formula_cut_length=pt.formula_cut_length,
             formula_cut_count=pt.formula_cut_count,
-            order_index=pt.order_index if pt.order_index is not None else i   # 🆕
-        ))
+            order_index=pt.order_index if pt.order_index is not None else i
+        )
+        _apply_pdf(obj, getattr(pt, "pdf", None))
+        db.add(obj)
 
     # 3) Glass şablonları
     for i, gt in enumerate(payload.glass_templates):
-        db.add(SystemGlassTemplate(
+        obj = SystemGlassTemplate(
             id=uuid4(),
             system_variant_id=variant.id,
             glass_type_id=gt.glass_type_id,
             formula_width=gt.formula_width,
             formula_height=gt.formula_height,
             formula_count=gt.formula_count,
-            order_index=gt.order_index if gt.order_index is not None else i   # 🆕
-        ))
+            order_index=gt.order_index if gt.order_index is not None else i
+        )
+        _apply_pdf(obj, getattr(gt, "pdf", None))
+        db.add(obj)
 
     # 4) Material şablonları
     for i, mt in enumerate(payload.material_templates):
-        db.add(SystemMaterialTemplate(
+        obj = SystemMaterialTemplate(
             id=uuid4(),
             system_variant_id=variant.id,
             material_id=mt.material_id,
             formula_quantity=mt.formula_quantity,
             formula_cut_length=mt.formula_cut_length,
-            # ✅ YENİ ALANLAR:
             type=mt.type,
             piece_length_mm=mt.piece_length_mm,
             order_index=mt.order_index if mt.order_index is not None else i
-        ))
+        )
+        _apply_pdf(obj, getattr(mt, "pdf", None))
+        db.add(obj)
 
-    
-    # 4.5) Remote (kumanda) şablonları  🆕
-    rts: List[RemoteTemplateIn] = payload.remote_templates
-    for i, rt in enumerate(rts):
-        db.add(SystemRemoteTemplate(
+    # 4.5) Remote (kumanda) şablonları
+    for i, rt in enumerate(payload.remote_templates):
+        obj = SystemRemoteTemplate(
             id=uuid4(),
             system_variant_id=variant.id,
             remote_id=rt.remote_id,
             order_index=rt.order_index if rt.order_index is not None else i
-        ))
+        )
+        _apply_pdf(obj, getattr(rt, "pdf", None))
+        db.add(obj)
 
-
-
-    # 5) Commit ve refresh
     db.commit()
     db.refresh(variant)
     return variant
 
+
 # ————— Update SystemVariant + all its templates —————
-def update_system_variant_with_templates(
-    db: Session,
-    variant_id: UUID,
-    payload: SystemVariantUpdateWithTemplates
-) -> SystemVariant:
-    # 1) Var olan variant’ı al
+def update_system_variant_with_templates(db: Session, variant_id: UUID, payload: SystemVariantUpdateWithTemplates) -> SystemVariant:
     variant = get_system_variant(db, variant_id)
     if not variant:
         raise ValueError("Variant not found")
 
-    # 2) İsim güncelle (gelmişse)
     if payload.name is not None:
         variant.name = payload.name
 
-    # 3) Eski şablonları sil
+    # Eski şablonları temizle
     db.query(SystemProfileTemplate).filter_by(system_variant_id=variant_id).delete(synchronize_session=False)
     db.query(SystemGlassTemplate).filter_by(system_variant_id=variant_id).delete(synchronize_session=False)
     db.query(SystemMaterialTemplate).filter_by(system_variant_id=variant_id).delete(synchronize_session=False)
     db.query(SystemRemoteTemplate).filter_by(system_variant_id=variant_id).delete(synchronize_session=False)
     db.flush()
 
-    # 4) Yeni şablonları ekle – PROFİL
+    # PROFIL
     for i, pt in enumerate(payload.profile_templates):
-        db.add(SystemProfileTemplate(
+        obj = SystemProfileTemplate(
             id=uuid4(),
             system_variant_id=variant_id,
             profile_id=pt.profile_id,
             formula_cut_length=pt.formula_cut_length,
             formula_cut_count=pt.formula_cut_count,
-            order_index=pt.order_index if pt.order_index is not None else i   # 🆕
-        ))
+            order_index=pt.order_index if pt.order_index is not None else i
+        )
+        _apply_pdf(obj, getattr(pt, "pdf", None))
+        db.add(obj)
 
     # CAM
     for i, gt in enumerate(payload.glass_templates):
-        db.add(SystemGlassTemplate(
+        obj = SystemGlassTemplate(
             id=uuid4(),
             system_variant_id=variant_id,
             glass_type_id=gt.glass_type_id,
             formula_width=gt.formula_width,
             formula_height=gt.formula_height,
             formula_count=gt.formula_count,
-            order_index=gt.order_index if gt.order_index is not None else i   # 🆕
-        ))
+            order_index=gt.order_index if gt.order_index is not None else i
+        )
+        _apply_pdf(obj, getattr(gt, "pdf", None))
+        db.add(obj)
 
     # MALZEME
     for i, mt in enumerate(payload.material_templates):
-        db.add(SystemMaterialTemplate(
+        obj = SystemMaterialTemplate(
             id=uuid4(),
             system_variant_id=variant_id,
             material_id=mt.material_id,
             formula_quantity=mt.formula_quantity,
             formula_cut_length=mt.formula_cut_length,
-            # ✅ YENİ ALANLAR:
             type=mt.type,
             piece_length_mm=mt.piece_length_mm,
             order_index=mt.order_index if mt.order_index is not None else i
-        ))
+        )
+        _apply_pdf(obj, getattr(mt, "pdf", None))
+        db.add(obj)
 
-
-    # REMOTE (kumanda)  🆕
-    rts: List[RemoteTemplateIn] = payload.remote_templates
-    for i, rt in enumerate(rts):
-        db.add(SystemRemoteTemplate(
+    # REMOTE
+    for i, rt in enumerate(payload.remote_templates):
+        obj = SystemRemoteTemplate(
             id=uuid4(),
             system_variant_id=variant_id,
             remote_id=rt.remote_id,
             order_index=rt.order_index if rt.order_index is not None else i
-        ))
+        )
+        _apply_pdf(obj, getattr(rt, "pdf", None))
+        db.add(obj)
 
-
-    # 5) Commit ve refresh
     db.commit()
     db.refresh(variant)
     return variant

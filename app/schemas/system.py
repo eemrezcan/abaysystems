@@ -5,6 +5,17 @@ from typing import Optional, List
 
 from app.schemas.catalog import RemoteOut
 
+
+# --- Ortak PDF bayrakları şeması ---
+class PdfFlags(BaseModel):
+    camCiktisi: bool = True
+    profilAksesuarCiktisi: bool = True
+    boyaCiktisi: bool = True
+    siparisCiktisi: bool = True
+    optimizasyonDetayliCiktisi: bool = True
+    optimizasyonDetaysizCiktisi: bool = True
+
+
 # ——————————————————————
 # System CRUD Schemas
 # — System entity —
@@ -168,19 +179,23 @@ class SystemProfileTemplateBase(BaseModel):
 
 class SystemProfileTemplateCreate(SystemProfileTemplateBase):
     order_index: Optional[int] = None
+    pdf: Optional[PdfFlags] = None
 
 class SystemProfileTemplateUpdate(BaseModel):
     formula_cut_length: str = Field(..., min_length=1)
     formula_cut_count: str = Field(..., min_length=1)
     order_index: Optional[int] = None
+    pdf: Optional[PdfFlags] = None
 
 class SystemProfileTemplateOut(SystemProfileTemplateBase):
     id: UUID
     order_index: Optional[int]
     created_at: datetime
+    pdf: PdfFlags
 
     class Config:
         orm_mode = True
+
 
 # — SystemGlassTemplate —
 class SystemGlassTemplateBase(BaseModel):
@@ -192,19 +207,24 @@ class SystemGlassTemplateBase(BaseModel):
 
 class SystemGlassTemplateCreate(SystemGlassTemplateBase):
     order_index: Optional[int] = None
+    pdf: Optional[PdfFlags] = None
 
 class SystemGlassTemplateUpdate(BaseModel):
     formula_width: str = Field(..., min_length=1)
     formula_height: str = Field(..., min_length=1)
     formula_count: str = Field(..., min_length=1)
     order_index: Optional[int] = None
+    pdf: Optional[PdfFlags] = None
+
 
 class SystemGlassTemplateOut(SystemGlassTemplateBase):
     id: UUID
     created_at: datetime
+    pdf: PdfFlags
 
     class Config:
         orm_mode = True
+
 
 # — SystemMaterialTemplate —
 class SystemMaterialTemplateBase(BaseModel):
@@ -219,19 +239,21 @@ class SystemMaterialTemplateBase(BaseModel):
 
 class SystemMaterialTemplateCreate(SystemMaterialTemplateBase):
     order_index: Optional[int] = None
+    pdf: Optional[PdfFlags] = None
 
 class SystemMaterialTemplateUpdate(BaseModel):
     formula_quantity: str = Field(..., min_length=1)
     formula_cut_length: Optional[str] = None
-    # ✅ YENİ
     type: Optional[str] = Field(default=None, max_length=50)
     piece_length_mm: Optional[int] = None
-
     order_index: Optional[int] = None
+    pdf: Optional[PdfFlags] = None
+
 
 class SystemMaterialTemplateOut(SystemMaterialTemplateBase):
     id: UUID
     created_at: datetime
+    pdf: PdfFlags
 
     class Config:
         orm_mode = True
@@ -245,19 +267,23 @@ class SystemRemoteTemplateOut(BaseModel):
     remote_id: UUID
     order_index: Optional[int] = None
     created_at: datetime
+    pdf: PdfFlags
 
     class Config:
         orm_mode = True
+
 
 class SystemRemoteTemplateCreate(BaseModel):
     system_variant_id: UUID
     remote_id: UUID
     order_index: Optional[int] = None
-
+    pdf: Optional[PdfFlags] = None
 
 class SystemRemoteTemplateUpdate(BaseModel):
     remote_id: Optional[UUID] = None
     order_index: Optional[int] = None
+    pdf: Optional[PdfFlags] = None
+
 
 
 class RemoteTemplateOut(BaseModel):
@@ -280,10 +306,12 @@ class ProfileTemplateOut(BaseModel):
     formula_cut_length: str
     formula_cut_count: str
     order_index: Optional[int] = None
-    profile: ProfileOut  # EKLENDİ
+    profile: ProfileOut
+    pdf: PdfFlags
 
     class Config:
         orm_mode = True
+
 
 class GlassTemplateOut(BaseModel):
     glass_type_id: UUID
@@ -291,25 +319,26 @@ class GlassTemplateOut(BaseModel):
     formula_height: str
     formula_count: str
     order_index: Optional[int] = None
-    glass_type: GlassTypeOut  # EKLENDİ
+    glass_type: GlassTypeOut
+    pdf: PdfFlags
 
     class Config:
         orm_mode = True
+
 
 class MaterialTemplateOut(BaseModel):
     material_id: UUID
     formula_quantity: str
-    # ✅ DB nullable olduğu için Optional yapıyoruz
     formula_cut_length: Optional[str] = None
-    # ✅ YENİ
     type: Optional[str] = None
     piece_length_mm: Optional[int] = None
-
     order_index: Optional[int] = None
-    material: OtherMaterialOut  # EKLENDİ
+    material: OtherMaterialOut
+    pdf: PdfFlags
 
     class Config:
         orm_mode = True
+
 
 
 class SystemTemplatesOut(BaseModel):
@@ -343,6 +372,9 @@ class ProfileTemplateIn(BaseModel):
     formula_cut_length: str = Field(..., min_length=1)
     formula_cut_count: str = Field(..., min_length=1)
     order_index: Optional[int] = None
+    # +++
+    pdf: Optional[PdfFlags] = None
+
 
 class GlassTemplateIn(BaseModel):
     glass_type_id: UUID
@@ -350,21 +382,26 @@ class GlassTemplateIn(BaseModel):
     formula_height: str = Field(..., min_length=1)
     formula_count: str = Field(..., min_length=1)
     order_index: Optional[int] = None
+    # +++
+    pdf: Optional[PdfFlags] = None
 
 class MaterialTemplateIn(BaseModel):
     material_id: UUID
     formula_quantity: str = Field(..., min_length=1)
     formula_cut_length: Optional[str] = None
-    # ✅ YENİ
     type: Optional[str] = Field(default=None, max_length=50)
     piece_length_mm: Optional[int] = None
-
     order_index: Optional[int] = None
+    # +++
+    pdf: Optional[PdfFlags] = None
 
 
 class RemoteTemplateIn(BaseModel):
     remote_id: UUID
     order_index: Optional[int] = None
+    # +++
+    pdf: Optional[PdfFlags] = None
+
 
 
 class SystemVariantCreateWithTemplates(BaseModel):

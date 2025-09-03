@@ -1,7 +1,7 @@
 # app/models/project.py
 
 import uuid
-from sqlalchemy import Column, String, Numeric, Integer, ForeignKey, UniqueConstraint, Index
+from sqlalchemy import Column, String, Numeric, Integer, ForeignKey, UniqueConstraint, Index, Boolean
 from sqlalchemy.dialects.postgresql import UUID as PGUUID, TIMESTAMP
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -74,6 +74,14 @@ class ProjectSystemProfile(Base):
     unit_price         = Column(Numeric, nullable=True)
     order_index       = Column(Integer, nullable=True)
 
+    # --- PDF Flags ---
+    cam_ciktisi                   = Column(Boolean, nullable=False, default=True)
+    profil_aksesuar_ciktisi       = Column(Boolean, nullable=False, default=True)
+    boya_ciktisi                  = Column(Boolean, nullable=False, default=True)
+    siparis_ciktisi               = Column(Boolean, nullable=False, default=True)
+    optimizasyon_detayli_ciktisi  = Column(Boolean, nullable=False, default=True)
+    optimizasyon_detaysiz_ciktisi = Column(Boolean, nullable=False, default=True)
+
     project_system = relationship("ProjectSystem", back_populates="profiles")
     profile        = relationship("Profile")
 
@@ -89,6 +97,14 @@ class ProjectSystemGlass(Base):
     count              = Column(Integer, nullable=False)
     area_m2            = Column(Numeric, nullable=True)
     order_index       = Column(Integer, nullable=True)
+
+    # --- PDF Flags ---
+    cam_ciktisi                   = Column(Boolean, nullable=False, default=True)
+    profil_aksesuar_ciktisi       = Column(Boolean, nullable=False, default=True)
+    boya_ciktisi                  = Column(Boolean, nullable=False, default=True)
+    siparis_ciktisi               = Column(Boolean, nullable=False, default=True)
+    optimizasyon_detayli_ciktisi  = Column(Boolean, nullable=False, default=True)
+    optimizasyon_detaysiz_ciktisi = Column(Boolean, nullable=False, default=True)
 
     project_system = relationship("ProjectSystem", back_populates="glasses")
     glass_type     = relationship("GlassType")
@@ -106,6 +122,14 @@ class ProjectSystemMaterial(Base):
     count              = Column(Integer, nullable=False)
     order_index       = Column(Integer, nullable=True)
 
+    # --- PDF Flags ---
+    cam_ciktisi                   = Column(Boolean, nullable=False, default=True)
+    profil_aksesuar_ciktisi       = Column(Boolean, nullable=False, default=True)
+    boya_ciktisi                  = Column(Boolean, nullable=False, default=True)
+    siparis_ciktisi               = Column(Boolean, nullable=False, default=True)
+    optimizasyon_detayli_ciktisi  = Column(Boolean, nullable=False, default=True)
+    optimizasyon_detaysiz_ciktisi = Column(Boolean, nullable=False, default=True)
+
     project_system = relationship("ProjectSystem", back_populates="materials")
     material       = relationship("OtherMaterial")
 
@@ -118,6 +142,14 @@ class ProjectSystemRemote(Base):
     count             = Column(Integer, nullable=False)          # kaç adet kumanda
     unit_price        = Column(Numeric, nullable=True)           # opsiyonel: proje anındaki birim fiyatı snapshot
     order_index       = Column(Integer, nullable=True)           # şablondaki sırayı korumak için
+
+    # --- PDF Flags ---
+    cam_ciktisi                   = Column(Boolean, nullable=False, default=True)
+    profil_aksesuar_ciktisi       = Column(Boolean, nullable=False, default=True)
+    boya_ciktisi                  = Column(Boolean, nullable=False, default=True)
+    siparis_ciktisi               = Column(Boolean, nullable=False, default=True)
+    optimizasyon_detayli_ciktisi  = Column(Boolean, nullable=False, default=True)
+    optimizasyon_detaysiz_ciktisi = Column(Boolean, nullable=False, default=True)
 
     project_system = relationship("ProjectSystem", back_populates="remotes")
     remote         = relationship("Remote")
@@ -134,6 +166,14 @@ class ProjectExtraMaterial(Base):
     cut_length_mm = Column(Numeric, nullable=True)
     created_at    = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
+    # --- PDF Flags ---
+    cam_ciktisi                   = Column(Boolean, nullable=False, default=True)
+    profil_aksesuar_ciktisi       = Column(Boolean, nullable=False, default=True)
+    boya_ciktisi                  = Column(Boolean, nullable=False, default=True)
+    siparis_ciktisi               = Column(Boolean, nullable=False, default=True)
+    optimizasyon_detayli_ciktisi  = Column(Boolean, nullable=False, default=True)
+    optimizasyon_detaysiz_ciktisi = Column(Boolean, nullable=False, default=True)
+
     project       = relationship("Project", back_populates="extra_materials")
     material      = relationship("OtherMaterial")
 
@@ -147,6 +187,14 @@ class ProjectExtraProfile(Base):
     cut_count = Column(Integer, nullable=False)
     unit_price = Column(Numeric, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    # --- PDF Flags ---
+    cam_ciktisi                   = Column(Boolean, nullable=False, default=True)
+    profil_aksesuar_ciktisi       = Column(Boolean, nullable=False, default=True)
+    boya_ciktisi                  = Column(Boolean, nullable=False, default=True)
+    siparis_ciktisi               = Column(Boolean, nullable=False, default=True)
+    optimizasyon_detayli_ciktisi  = Column(Boolean, nullable=False, default=True)
+    optimizasyon_detaysiz_ciktisi = Column(Boolean, nullable=False, default=True)
 
     project = relationship("Project", backref="extra_profiles")
     profile = relationship("Profile")
@@ -164,6 +212,14 @@ class ProjectExtraGlass(Base):
     area_m2 = Column(Numeric, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
+    # --- PDF Flags ---
+    cam_ciktisi                   = Column(Boolean, nullable=False, default=True)
+    profil_aksesuar_ciktisi       = Column(Boolean, nullable=False, default=True)
+    boya_ciktisi                  = Column(Boolean, nullable=False, default=True)
+    siparis_ciktisi               = Column(Boolean, nullable=False, default=True)
+    optimizasyon_detayli_ciktisi  = Column(Boolean, nullable=False, default=True)
+    optimizasyon_detaysiz_ciktisi = Column(Boolean, nullable=False, default=True)
+
     project = relationship("Project", backref="extra_glasses")
     glass_type = relationship("GlassType")
 
@@ -176,6 +232,14 @@ class ProjectExtraRemote(Base):
     count      = Column(Integer, nullable=False)
     unit_price = Column(Numeric, nullable=True)                  # opsiyonel snapshot
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    # --- PDF Flags ---
+    cam_ciktisi                   = Column(Boolean, nullable=False, default=True)
+    profil_aksesuar_ciktisi       = Column(Boolean, nullable=False, default=True)
+    boya_ciktisi                  = Column(Boolean, nullable=False, default=True)
+    siparis_ciktisi               = Column(Boolean, nullable=False, default=True)
+    optimizasyon_detayli_ciktisi  = Column(Boolean, nullable=False, default=True)
+    optimizasyon_detaysiz_ciktisi = Column(Boolean, nullable=False, default=True)
 
     project = relationship("Project", back_populates="extra_remotes")
     remote  = relationship("Remote")

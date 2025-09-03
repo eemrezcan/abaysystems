@@ -296,7 +296,7 @@ def list_requirements_endpoint(
                 profile_id=p.profile_id,
                 cut_length_mm=float(p.cut_length_mm),
                 cut_count=p.cut_count,
-                total_weight_kg=float(p.total_weight_kg) if p.total_weight_kg is not None else None,
+                total_weight_kg=float(p.total_weight_kg) if p.total_weight_kg is not None else 0.0,  # ← None yerine 0.0
                 order_index=p.order_index,
             )
             for p in sys.profiles
@@ -307,7 +307,7 @@ def list_requirements_endpoint(
                 width_mm=float(g.width_mm),
                 height_mm=float(g.height_mm),
                 count=g.count,
-                area_m2=float(g.area_m2) if g.area_m2 is not None else None,
+                area_m2=float(g.area_m2) if g.area_m2 is not None else 0.0,  # ← None yerine 0.0
                 order_index=g.order_index,
             )
             for g in sys.glasses
@@ -356,6 +356,7 @@ def list_requirements_endpoint(
     ]
 
     return ProjectSystemsUpdate(systems=systems_out, extra_requirements=extras_out)
+
 
 
 @router.post("/{project_id}/add-requirements", response_model=ProjectOut)
@@ -727,14 +728,21 @@ def update_project_system_endpoint(
     current_user: AppUser = Depends(get_current_user),
 ):
     """Belirli bir proje içi sistemi günceller."""
-    # Sahiplik doğrulaması
+    # Sahiplik
     proj = get_project(db, project_id)
     ensure_owner_or_404(proj, current_user.id, "created_by")
 
     updated = update_project_system(db, project_id, project_system_id, payload)
     if not updated:
         raise HTTPException(status_code=404, detail="Project system not found")
-    return updated
+
+    # Güncel tek sistemi detaylı modelle döndür
+    details = get_project_requirements_detailed(db, project_id)
+    target = next((s for s in details.systems if s.project_system_id == project_system_id), None)
+    if not target:
+        raise HTTPException(status_code=404, detail="Project system not found")
+    return target
+
 
 
 @router.delete("/{project_id}/systems/{project_system_id}", status_code=204)
