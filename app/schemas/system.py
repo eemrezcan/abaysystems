@@ -296,6 +296,8 @@ class RemoteTemplateOut(BaseModel):
     # ilişki
     remote: RemoteOut
 
+    pdf: PdfFlags
+
     class Config:
         orm_mode = True
 

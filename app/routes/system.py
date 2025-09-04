@@ -63,12 +63,24 @@ from app.schemas.system import (
     RemoteTemplateOut,
     SystemRemoteTemplateCreate,
     SystemRemoteTemplateUpdate,
+    PdfFlags
 )
 
 router = APIRouter(prefix="/api", tags=["Systems"])
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 SYSTEM_PHOTO_DIR = os.path.join(BASE_DIR, "system_photos")
+
+def _pdf_flags_from_tpl(t) -> PdfFlags:
+    return PdfFlags(
+        camCiktisi=bool(getattr(t, "cam_ciktisi", True)),
+        profilAksesuarCiktisi=bool(getattr(t, "profil_aksesuar_ciktisi", True)),
+        boyaCiktisi=bool(getattr(t, "boya_ciktisi", True)),
+        siparisCiktisi=bool(getattr(t, "siparis_ciktisi", False)),
+        optimizasyonDetayliCiktisi=bool(getattr(t, "optimizasyon_detayli_ciktisi", True)),
+        optimizasyonDetaysizCiktisi=bool(getattr(t, "optimizasyon_detaysiz_ciktisi", True)),
+    )
+
 
 # -----------------------------------------------------------------------------
 # SYSTEM - GET (bayi + admin), diğerleri admin-only
@@ -246,14 +258,17 @@ def fetch_system_templates(
         ],
         remoteTemplates=[
             RemoteTemplateOut(
+                id=tpl.id,
+                system_variant_id=tpl.system_variant_id,
                 remote_id=tpl.remote_id,
                 order_index=tpl.order_index,
                 created_at=tpl.created_at,
                 remote=tpl.remote,
-                pdf=tpl.pdf
+                pdf=_pdf_flags_from_tpl(tpl),
             )
             for tpl in remotes
         ],
+
     )
 
 
@@ -273,14 +288,69 @@ def get_system_variant_detail_endpoint(
 
     # Bayi unpublished/silinmiş variant/sistem görmesin
     if current_user.role != "admin":
-        # variant.system ilişkisi dönüyorsa bunu kontrol ediyoruz
         if getattr(variant, "is_deleted", False) or not getattr(variant, "is_published", False):
             raise HTTPException(status_code=404, detail="System variant not found")
         sys = getattr(variant, "system", None)
         if not sys or getattr(sys, "is_deleted", False) or not getattr(sys, "is_published", False):
             raise HTTPException(status_code=404, detail="System variant not found")
 
-    return variant
+    return SystemVariantDetailOut(
+        id=variant.id,
+        name=variant.name,
+        photo_url=variant.photo_url,
+        created_at=variant.created_at,
+        updated_at=variant.updated_at,
+        system=variant.system,
+        profile_templates=[
+            ProfileTemplateOut(
+                profile_id=tpl.profile_id,
+                formula_cut_length=tpl.formula_cut_length,
+                formula_cut_count=tpl.formula_cut_count,
+                order_index=tpl.order_index,
+                profile=tpl.profile,
+                pdf=_pdf_flags_from_tpl(tpl),
+            )
+            for tpl in variant.profile_templates
+        ],
+        glass_templates=[
+            GlassTemplateOut(
+                glass_type_id=tpl.glass_type_id,
+                formula_width=tpl.formula_width,
+                formula_height=tpl.formula_height,
+                formula_count=tpl.formula_count,
+                order_index=tpl.order_index,
+                glass_type=tpl.glass_type,
+                pdf=_pdf_flags_from_tpl(tpl),
+            )
+            for tpl in variant.glass_templates
+        ],
+        material_templates=[
+            MaterialTemplateOut(
+                material_id=tpl.material_id,
+                formula_quantity=tpl.formula_quantity,
+                formula_cut_length=tpl.formula_cut_length,
+                type=tpl.type,
+                piece_length_mm=tpl.piece_length_mm,
+                order_index=tpl.order_index,
+                material=tpl.material,
+                pdf=_pdf_flags_from_tpl(tpl),
+            )
+            for tpl in variant.material_templates
+        ],
+        remote_templates=[
+            RemoteTemplateOut(
+                id=tpl.id,
+                system_variant_id=tpl.system_variant_id,
+                remote_id=tpl.remote_id,
+                order_index=tpl.order_index,
+                created_at=tpl.created_at,
+                remote=tpl.remote,
+                pdf=_pdf_flags_from_tpl(tpl),
+            )
+            for tpl in variant.remote_templates
+        ],
+    )
+
 
 # ----- PROFILE TEMPLATE CRUD (admin-only) -----
 @router.post("/system-templates/profiles", response_model=ProfileTemplateOut, status_code=201, dependencies=[Depends(get_current_admin)])
