@@ -45,6 +45,7 @@ from app.crud.project import (
     create_project_extra_remote,   # 🆕
     update_project_extra_remote,   # 🆕
     delete_project_extra_remote,   # 🆕
+    update_project_code_by_number
 )
 
 from app.schemas.project import (
@@ -77,6 +78,7 @@ from app.schemas.project import (
     ProjectExtraRemoteCreate,      # 🆕
     ProjectExtraRemoteUpdate,      # 🆕
     ProjectExtraRemoteOut,         # 🆕
+    ProjectCodeNumberUpdate,
 )
 
 # Ek: Extra* sahiplik kontrolünde projeye join için Project ve Extra modellerine ihtiyacımız var
@@ -216,22 +218,24 @@ def update_project_colors_endpoint(
 @router.put("/{project_id}/code", response_model=ProjectOut)
 def update_project_code_endpoint(
     project_id: UUID,
-    payload: ProjectCodeUpdate,
+    payload: ProjectCodeNumberUpdate,   # ⬅️ değişti
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    # Sahiplik doğrulaması
     proj = get_project(db, project_id)
     ensure_owner_or_404(proj, current_user.id, "created_by")
 
     try:
-        updated = update_project_code(db, project_id, payload.project_kodu)
+        updated = update_project_code_by_number(
+            db, project_id, owner_id=current_user.id, new_number=payload.number
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     if not updated:
         raise HTTPException(status_code=404, detail="Project not found")
     return updated
+
 
 
 # ───────── Requirements (Systems + Extras) ─────────

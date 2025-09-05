@@ -11,6 +11,9 @@ from app.models.profile import Profile
 from app.models.glass_type import GlassType
 from app.models.other_material import OtherMaterial
 from app.models.remote import Remote  # 🆕
+from app.crud.project_code import issue_next_code_in_tx
+from sqlalchemy.exc import IntegrityError
+from app.models.project_code_rule import ProjectCodeRule
 
 from app.models.project import (
     Project,
@@ -93,36 +96,46 @@ def _pdf_from_obj(obj: Any) -> dict:
 # Yardımcılar
 # ------------------------------------------------------------
 
-def _generate_project_code(db: Session, owner_id: UUID) -> str:
-    """
-    Kullanıcıya özel artan proje kodu üretir.
-    Son projeyi created_by=owner_id filtresiyle bulur; TALU-xxxxx formatındaki numarayı arttırır.
-    Bulunamazsa 10000'dan başlar.
-    """
-    last = (
-        db.query(Project)
-          .filter(Project.created_by == owner_id)
-          .order_by(Project.created_at.desc())
-          .first()
-    )
-    if last and isinstance(last.project_kodu, str) and last.project_kodu.startswith("TALU-"):
-        try:
-            n = int(last.project_kodu.split("-", 1)[1]) + 1
-        except (ValueError, IndexError):
-            n = 10000
-    else:
-        n = 10000
-    return f"TALU-{n}"
+# def _generate_project_code(db: Session, owner_id: UUID) -> str:
+#     """
+#     Kullanıcıya özel artan proje kodu üretir.
+#     Son projeyi created_by=owner_id filtresiyle bulur; TALU-xxxxx formatındaki numarayı arttırır.
+#     Bulunamazsa 10000'dan başlar.
+#     """
+#     last = (
+#         db.query(Project)
+#           .filter(Project.created_by == owner_id)
+#           .order_by(Project.created_at.desc())
+#           .first()
+#     )
+#     if last and isinstance(last.project_kodu, str) and last.project_kodu.startswith("TALU-"):
+#         try:
+#             n = int(last.project_kodu.split("-", 1)[1]) + 1
+#         except (ValueError, IndexError):
+#             n = 10000
+#     else:
+#         n = 10000
+#     return f"TALU-{n}"
+def _format_code_from_rule(rule: ProjectCodeRule, number: int) -> str:
+    if rule.padding and rule.padding > 0:
+        return f"{rule.prefix}{rule.separator}{number:0{rule.padding}d}"
+    return f"{rule.prefix}{rule.separator}{number}"
+
+def _get_owner_rule(db: Session, owner_id: UUID) -> ProjectCodeRule | None:
+    return db.query(ProjectCodeRule).filter(
+        ProjectCodeRule.owner_id == owner_id,
+        ProjectCodeRule.is_active == True
+    ).first()
 
 # ------------------------------------------------------------
 # Proje CRUD
 # ------------------------------------------------------------
 
 def create_project(db: Session, payload: ProjectCreate, created_by: UUID) -> Project:
-    """
-    Yeni Project oluşturur. Proje kodu kullanıcıya özel sıralı üretilir (TALU-xxxxx).
-    """
-    code = _generate_project_code(db, created_by)
+    # 1) Bir sonraki proje kodunu al (kilitli) - commit YOK
+    next_n, code = issue_next_code_in_tx(db, created_by)
+
+    # 2) Proje kaydını oluştur
     project = Project(
         id=uuid4(),
         customer_id=payload.customer_id,
@@ -132,7 +145,18 @@ def create_project(db: Session, payload: ProjectCreate, created_by: UUID) -> Pro
         created_at=datetime.utcnow(),
     )
     db.add(project)
-    db.commit()
+
+    # 3) Tek commit
+    try:
+        db.commit()
+    except IntegrityError:
+        # Uç senaryoda unique çakışma olursa bir kez daha dene
+        db.rollback()
+        next_n, code = issue_next_code_in_tx(db, created_by)
+        project.project_kodu = code
+        db.add(project)
+        db.commit()
+
     db.refresh(project)
     return project
 
@@ -221,6 +245,37 @@ def update_project(db: Session, project_id: UUID, payload: ProjectUpdate) -> Opt
     db.refresh(proj)
     return proj
 
+def update_project_code_by_number(
+    db: Session,
+    project_id: UUID,
+    owner_id: UUID,
+    new_number: int
+) -> Optional[Project]:
+    proj = get_project(db, project_id)
+    if not proj:
+        return None
+
+    rule = _get_owner_rule(db, owner_id)
+    if not rule:
+        raise ValueError("Önce proje kodu kuralınızı oluşturun.")
+
+    new_code = _format_code_from_rule(rule, new_number)
+
+    # ✅ SADECE TAM KODA GÖRE (prefix+sep+number) global benzersizlik
+    exists = (
+        db.query(Project)
+        .filter(Project.project_kodu == new_code, Project.id != project_id)
+        .first()
+    )
+    if exists:
+        # mesajı da global doğasına uygunlaştırdık
+        raise ValueError("Bu proje kodu (prefix+numara) zaten kullanılıyor.")
+
+    proj.project_kodu = new_code
+    db.commit()
+    db.refresh(proj)
+    return proj
+
 def update_project_all(
     db: Session,
     project_id: UUID,
@@ -250,20 +305,22 @@ def update_project_all(
         if not cust:
             raise ValueError("Customer not found or not owned by you.")
 
-    # Proje kodu değişiyorsa: aynı owner altında benzersiz olmalı
-    if payload.project_kodu is not None and payload.project_kodu != proj.project_kodu:
+    if payload.project_number is not None:
+        rule = _get_owner_rule(db, owner_id)
+        if not rule:
+            raise ValueError("Önce proje kodu kuralınızı oluşturun.")
+        new_code = _format_code_from_rule(rule, payload.project_number)
+
         exists = (
             db.query(Project)
-              .filter(
-                  Project.created_by == owner_id,
-                  Project.project_kodu == payload.project_kodu,
-                  Project.id != project_id,
-              )
-              .first()
+            .filter(Project.project_kodu == new_code, Project.id != project_id)
+            .first()
         )
         if exists:
-            raise ValueError("This project code is already used in your account.")
-        proj.project_kodu = payload.project_kodu
+            raise ValueError("Bu proje kodu (prefix+numara) zaten kullanılıyor.")
+
+        proj.project_kodu = new_code
+
 
     # Diğer alanlar (unset olanları dokunma; None gönderdiyse temizlemeye izin verelim)
     data = payload.dict(exclude_unset=True)

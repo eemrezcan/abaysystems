@@ -19,9 +19,18 @@ from app.routes.customer import router as customer_router
 from app.routes.dealers import router as dealers_router
 from app.routes.auth_extra import router as auth_extra_router
 from app.routes import color
-from fastapi.middleware.cors import CORSMiddleware
+from app.routes import me_profile_picture as me_pp_routes
+from app.routes import me_pdf_titles as me_pdf_titles_routes
+from app.routes import me_pdf_brands as me_pdf_brands_routes
+from app.routes import me_project_code as me_project_code_routes
 
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.staticfiles import StaticFiles
+from app.core.config import MEDIA_ROOT
 app = FastAPI()
+
+
+app.mount("/static", StaticFiles(directory=MEDIA_ROOT), name="static")
 
 origins = [
     "http://localhost:5173",
@@ -43,6 +52,10 @@ app.add_middleware(
 # Core resource routes
 app.include_router(auth_router)
 app.include_router(auth_extra_router)
+app.include_router(me_pp_routes.router)
+app.include_router(me_pdf_titles_routes.router)
+app.include_router(me_pdf_brands_routes.router)
+app.include_router(me_project_code_routes.router)
 app.include_router(dealers_router)
 app.include_router(customer_router)
 app.include_router(project_router)

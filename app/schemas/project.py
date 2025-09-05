@@ -130,11 +130,8 @@ class ProjectCreate(ProjectMeta):
 
 class ProjectUpdate(BaseModel):
     """Projeyi güncellemek için opsiyonel alanlar."""
-    project_kodu: Optional[str] = Field(
-        None,
-        min_length=6,
-        max_length=50,
-        description="Yeni proje kodu, örn: TALU-12345"
+    project_number: Optional[int] = Field(
+        None, ge=0, description="Proje kodunun SAYI kısmı (sadece rakam)."
     )
     customer_id: Optional[UUID]
     project_name: Optional[str]
@@ -148,6 +145,10 @@ class ProjectUpdate(BaseModel):
     
     class Config:
         orm_mode = True
+
+class ProjectCodeNumberUpdate(BaseModel):
+    number: int = Field(..., ge=0, description="Proje kodunun SAYI kısmı (sadece rakam).")
+
 
 class ProjectOut(ProjectMeta):
     id: UUID
