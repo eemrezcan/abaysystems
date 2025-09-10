@@ -14,6 +14,7 @@ from app.models.remote import Remote  # 🆕
 from app.crud.project_code import issue_next_code_in_tx
 from sqlalchemy.exc import IntegrityError
 from app.models.project_code_rule import ProjectCodeRule
+from sqlalchemy.exc import IntegrityError
 
 from app.models.project import (
     Project,
@@ -270,18 +271,25 @@ def update_project_code_by_number(
 
     new_code = _format_code_from_rule(rule, new_number)
 
-    # ✅ SADECE TAM KODA GÖRE (prefix+sep+number) global benzersizlik
+    # ✅ Global benzersizlik kontrolü (aynı kod başka projede var mı?)
     exists = (
         db.query(Project)
         .filter(Project.project_kodu == new_code, Project.id != project_id)
         .first()
     )
     if exists:
-        # mesajı da global doğasına uygunlaştırdık
+        # kontrollü uyarı → route 400'e çeviriyor
         raise ValueError("Bu proje kodu (prefix+numara) zaten kullanılıyor.")
 
     proj.project_kodu = new_code
-    db.commit()
+
+    # ✅ Ek güvenlik: muhtemel yarış/DB düzeyinde unique ihlallerinde 500 yerine 400 üretelim
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise ValueError("Bu proje kodu (prefix+numara) zaten kullanılıyor.")
+
     db.refresh(proj)
     return proj
 
