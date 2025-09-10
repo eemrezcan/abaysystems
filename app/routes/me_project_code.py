@@ -1,6 +1,7 @@
 # app/routes/me_project_code.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.db.session import get_db
 from app.core.security import get_current_user
@@ -31,15 +32,19 @@ def create_my_rule(
 ):
     if crud_pc.get_rule_by_owner(db, current_user.id):
         raise HTTPException(status_code=409, detail="Bu hesap için kural zaten var.")
-    # Prefix artık global unique değil; IntegrityError beklemiyoruz.
-    return crud_pc.create_rule(
-        db,
-        owner_id=current_user.id,
-        prefix=payload.prefix,
-        separator=payload.separator,
-        padding=payload.padding,
-        start_number=payload.start_number,
-    )
+    try:
+        return crud_pc.create_rule(
+            db,
+            owner_id=current_user.id,
+            prefix=payload.prefix,
+            separator=payload.separator,
+            padding=payload.padding,
+            start_number=payload.start_number,
+        )
+    except IntegrityError:
+        db.rollback()
+        # prefix artık global-unique değil ama yine de diğer hatalar için:
+        raise HTTPException(status_code=409, detail="Kural oluşturulurken bir hata oluştu.")
 
 @router.put("/rule", response_model=ProjectCodeRuleOut)
 def update_my_rule(
@@ -51,20 +56,19 @@ def update_my_rule(
     if not rule:
         raise HTTPException(status_code=404, detail="Kural bulunamadı.")
 
-    # Üretim başladıktan sonra da PREFIX değişebilir.
-    # Ancak start_number için önceki kısıt devam ediyor.
-    produced_any = rule.current_number >= max(rule.start_number - 1, 0)
-    if produced_any:
-        if payload.start_number is not None and payload.start_number != rule.start_number:
-            raise HTTPException(status_code=409, detail="Başlangıç sayısı üretim başladıktan sonra değiştirilemez.")
-
-    return crud_pc.update_rule(
-        db, rule,
-        prefix=payload.prefix,
-        separator=payload.separator,
-        padding=payload.padding,
-        start_number=payload.start_number,
-    )
+    # start_number’ı bu endpointten güncellemiyoruz; hiçbir kontrol yok
+    # prefix değişimine de izin veriyoruz (artık unique değil)
+    try:
+        return crud_pc.update_rule(
+            db, rule,
+            prefix=payload.prefix,
+            separator=payload.separator,
+            padding=payload.padding,
+            # start_number parametresi BİLEREK gönderilmiyor
+        )
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Kural güncellenirken bir hata oluştu.")
 
 @router.get("/next", response_model=NextProjectCodeOut)
 def preview_next_code(
