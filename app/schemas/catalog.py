@@ -64,6 +64,7 @@ class OtherMaterialBase(BaseModel):
     birim: str = Field(..., min_length=1)
     birim_agirlik: float
     hesaplama_turu: Optional[str]
+    unit_price: Optional[float] = None
 
 class OtherMaterialCreate(OtherMaterialBase):
     pass

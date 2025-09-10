@@ -15,6 +15,8 @@ class OtherMaterial(Base):
     birim               = Column(String(20), nullable=False)
     birim_agirlik       = Column(Numeric, nullable=False)
     hesaplama_turu      = Column(String(20), nullable=True)
+    # 💲 opsiyonel birim fiyat (Decimal döner)
+    unit_price          = Column(Numeric, nullable=True)
     created_at          = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
     updated_at          = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

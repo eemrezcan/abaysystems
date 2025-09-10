@@ -120,6 +120,7 @@ class ProjectSystemMaterial(Base):
     type               = Column(String(50), nullable=True)
     piece_length_mm    = Column(Integer, nullable=True)
     count              = Column(Integer, nullable=False)
+    unit_price         = Column(Numeric, nullable=True)   # 💲 opsiyonel: proje anındaki birim fiyat snapshot
     order_index       = Column(Integer, nullable=True)
 
     # --- PDF Flags ---
@@ -164,6 +165,7 @@ class ProjectExtraMaterial(Base):
     material_id   = Column(PGUUID(as_uuid=True), ForeignKey("other_material.id"), nullable=False)
     count         = Column(Integer, nullable=False)
     cut_length_mm = Column(Numeric, nullable=True)
+    unit_price    = Column(Numeric, nullable=True)        # 💲 opsiyonel snapshot
     created_at    = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
     # --- PDF Flags ---

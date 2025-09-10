@@ -105,12 +105,17 @@ def create_project_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/", response_model=ProjectPageOut)  # 🟢 değişti
+@router.get("/", response_model=ProjectPageOut)
 def list_projects(
     name: str | None = Query(
         default=None,
         min_length=1,
         description="Proje adına göre filtre (contains, case-insensitive)"
+    ),
+    code: str | None = Query(                     # 🆕
+        default=None,
+        min_length=1,
+        description="Proje koduna göre filtre (contains, case-insensitive)"
     ),
     limit: int = Query(
         default=50,
@@ -118,7 +123,7 @@ def list_projects(
         le=200,
         description="Sayfa başına kayıt (page size)"
     ),
-    page: int = Query(                # 🟢 yeni
+    page: int = Query(
         default=1,
         ge=1,
         description="1'den başlayan sayfa numarası"
@@ -126,13 +131,15 @@ def list_projects(
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    """Sadece oturumdaki kullanıcının projeleri; en yeni → en eski sırada."""
+    """Sadece oturumdaki kullanıcının projeleri; en yeni → en eski sırada.
+    İsteğe bağlı olarak proje adı ve/veya proje kodu ile filtrelenir."""
     offset = (page - 1) * limit
 
     items, total = get_projects_page(
         db=db,
         owner_id=current_user.id,
         name=name,
+        code=code,                 # 🆕
         limit=limit,
         offset=offset,
     )
@@ -147,6 +154,7 @@ def list_projects(
         has_next=(page < total_pages) if total_pages > 0 else False,
         has_prev=(page > 1) and (total_pages > 0),
     )
+
 
 @router.get("/{project_id}", response_model=ProjectOut)
 def get_project_endpoint(
@@ -300,7 +308,7 @@ def list_requirements_endpoint(
                 profile_id=p.profile_id,
                 cut_length_mm=float(p.cut_length_mm),
                 cut_count=p.cut_count,
-                total_weight_kg=float(p.total_weight_kg) if p.total_weight_kg is not None else 0.0,  # ← None yerine 0.0
+                total_weight_kg=float(p.total_weight_kg) if p.total_weight_kg is not None else 0.0,
                 order_index=p.order_index,
             )
             for p in sys.profiles
@@ -311,7 +319,7 @@ def list_requirements_endpoint(
                 width_mm=float(g.width_mm),
                 height_mm=float(g.height_mm),
                 count=g.count,
-                area_m2=float(g.area_m2) if g.area_m2 is not None else 0.0,  # ← None yerine 0.0
+                area_m2=float(g.area_m2) if g.area_m2 is not None else 0.0,
                 order_index=g.order_index,
             )
             for g in sys.glasses
@@ -321,6 +329,9 @@ def list_requirements_endpoint(
                 material_id=m.material_id,
                 count=m.count,
                 cut_length_mm=float(m.cut_length_mm) if m.cut_length_mm is not None else None,
+                type=m.type,
+                piece_length_mm=m.piece_length_mm,
+                unit_price=float(m.unit_price) if m.unit_price is not None else None,
                 order_index=m.order_index,
             )
             for m in sys.materials
@@ -334,7 +345,7 @@ def list_requirements_endpoint(
                 order_index=r.order_index,
                 unit_price=float(r.unit_price) if r.unit_price is not None else None,
             )
-            for r in sys.remotes  # relationship
+            for r in sys.remotes
         ]
 
         systems_out.append(
@@ -355,11 +366,13 @@ def list_requirements_endpoint(
             material_id=e.material_id,
             count=e.count,
             cut_length_mm=float(e.cut_length_mm) if e.cut_length_mm is not None else None,
+            unit_price=float(e.unit_price) if e.unit_price is not None else None,
         )
         for e in extras
     ]
 
     return ProjectSystemsUpdate(systems=systems_out, extra_requirements=extras_out)
+
 
 
 
@@ -595,6 +608,7 @@ def add_extra_material_endpoint(
             material_id=payload.material_id,
             count=payload.count,
             cut_length_mm=payload.cut_length_mm,
+            unit_price=payload.unit_price,  # 💲 eklendi
         )
     except ValueError:
         raise HTTPException(404, "Project not found")
@@ -622,10 +636,12 @@ def update_extra_material_endpoint(
         extra_id,
         count=payload.count,
         cut_length_mm=payload.cut_length_mm,
+        unit_price=payload.unit_price,  # 💲 eklendi
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Extra material not found")
     return updated
+
 
 
 @router.delete("/extra-materials/{extra_id}", status_code=204)

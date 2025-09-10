@@ -42,6 +42,7 @@ class MaterialInProject(BaseModel):
     # ✅ YENİ ALANLAR:
     type: Optional[str] = None           # DB: String(50), nullable=True
     piece_length_mm: Optional[int] = None
+    unit_price: Optional[float] = None   # 💲 proje sistemindeki malzeme birim fiyat snapshot
     order_index: Optional[int] = None
     pdf: Optional[PdfFlags] = None
 
@@ -70,6 +71,7 @@ class ExtraRequirement(BaseModel): #materyal extra kısmı class ProjectExtraMat
     material_id: UUID
     count: int
     cut_length_mm: Optional[float] = None
+    unit_price: Optional[float] = None   # 💲 proje geneli ekstra malzeme birim fiyat snapshot
     pdf: Optional[PdfFlags] = None
 
 class ExtraProfileIn(BaseModel):
@@ -203,6 +205,7 @@ class OtherMaterialOut(BaseModel):
     birim: str
     birim_agirlik: float
     hesaplama_turu: Optional[str]
+    unit_price: Optional[float] = None   # katalogdaki (default) birim fiyat
     created_at: datetime
     updated_at: datetime
 
@@ -396,11 +399,13 @@ class ProjectExtraMaterialCreate(BaseModel):
     material_id: UUID
     count: int
     cut_length_mm: Optional[float] = None
+    unit_price: Optional[float] = None
     pdf: Optional[PdfFlags] = None
 
 class ProjectExtraMaterialUpdate(BaseModel):
     count: Optional[int] = None
     cut_length_mm: Optional[float] = None
+    unit_price: Optional[float] = None
     pdf: Optional[PdfFlags] = None
 
 class ProjectExtraMaterialOut(BaseModel):
@@ -409,6 +414,7 @@ class ProjectExtraMaterialOut(BaseModel):
     material_id: UUID
     count: int
     cut_length_mm: Optional[float]
+    unit_price: Optional[float] = None
     created_at: datetime
     pdf: PdfFlags
 

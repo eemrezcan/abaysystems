@@ -196,17 +196,25 @@ def get_projects_page(
     db: Session,
     owner_id: UUID,
     name: Optional[str],
+    code: Optional[str],          # 🆕 proje kodu filtresi
     limit: int,
     offset: int,
 ) -> Tuple[List[Project], int]:
     """
     Filtrelenmiş toplam kayıt sayısı + sayfadaki kayıtları birlikte döndürür.
+    - name: project_name contains (case-insensitive)
+    - code: project_kodu contains (case-insensitive)
+    İki filtre birlikte gelirse AND uygulanır.
     """
     base_q = db.query(Project).filter(Project.created_by == owner_id)
 
     if name:
         like_val = f"%{name.lower()}%"
         base_q = base_q.filter(func.lower(Project.project_name).like(like_val))
+
+    if code:
+        code_like = f"%{code.lower()}%"
+        base_q = base_q.filter(func.lower(Project.project_kodu).like(code_like))
 
     # Toplam (limit/offset uygulanmadan)
     total = base_q.order_by(None).count()
@@ -219,6 +227,7 @@ def get_projects_page(
               .all()
     )
     return items, total
+
 
 
 def get_project(db: Session, project_id: UUID) -> Optional[Project]:
@@ -468,14 +477,24 @@ def add_systems_to_project(
             if piece_len is None and tpl is not None:
                 piece_len = tpl.piece_length_mm
 
+            # 💲 Fiyat snapshot önceliği: payload → template → katalog
+            unit_price = getattr(m, "unit_price", None)
+            if unit_price is None:
+                if tpl is not None and tpl.unit_price is not None:
+                    unit_price = float(tpl.unit_price)
+                else:
+                    mat = db.query(OtherMaterial).filter(OtherMaterial.id == m.material_id).first()
+                    unit_price = float(mat.unit_price) if mat and mat.unit_price is not None else None
+
             obj = ProjectSystemMaterial(
                 id=uuid4(),
                 project_system_id=ps.id,
                 material_id=m.material_id,
                 cut_length_mm=m.cut_length_mm,
                 count=m.count,
-                type=typ,                         # ✅ yeni
-                piece_length_mm=piece_len,        # ✅ yeni
+                type=typ,
+                piece_length_mm=piece_len,
+                unit_price=unit_price,  # 💲
                 order_index=(tpl.order_index if tpl is not None else None),
             )
             _apply_pdf(obj, getattr(m, "pdf", None))
@@ -507,14 +526,21 @@ def add_systems_to_project(
             _apply_pdf(obj, getattr(r, "pdf", None))
             db.add(obj)
 
-    # --- Proje seviyesi ekstra malzemeler (DÖNGÜ DIŞI) 🔧
+    # --- Proje seviyesi ekstra malzemeler (DÖNGÜ DIŞI)
     for extra in payload.extra_requirements:
+        # 💲 payload.unit_price → katalog fallback
+        unit_price = getattr(extra, "unit_price", None)
+        if unit_price is None:
+            mat = db.query(OtherMaterial).filter(OtherMaterial.id == extra.material_id).first()
+            unit_price = float(mat.unit_price) if mat and mat.unit_price is not None else None
+
         obj = ProjectExtraMaterial(
             id=uuid4(),
             project_id=project.id,
             material_id=extra.material_id,
             count=extra.count,
             cut_length_mm=extra.cut_length_mm,
+            unit_price=unit_price,  # 💲
         )
         _apply_pdf(obj, getattr(extra, "pdf", None))
         db.add(obj)
@@ -522,6 +548,7 @@ def add_systems_to_project(
     db.commit()
     db.refresh(project)
     return project
+
 
 
 def update_systems_for_project(
@@ -627,11 +654,21 @@ def add_only_systems_to_project(
             _apply_pdf(obj, getattr(g, "pdf", None))
             db.add(obj)
 
+        # Malzemeler
         for m in sys_req.materials:
             tpl = tpl_materials.get(m.material_id)
 
             typ = m.type if m.type is not None else (tpl.type if tpl else None)
             piece_len = m.piece_length_mm if m.piece_length_mm is not None else (tpl.piece_length_mm if tpl else None)
+
+            # 💲 payload → template → katalog
+            unit_price = getattr(m, "unit_price", None)
+            if unit_price is None:
+                if tpl is not None and tpl.unit_price is not None:
+                    unit_price = float(tpl.unit_price)
+                else:
+                    mat = db.query(OtherMaterial).filter(OtherMaterial.id == m.material_id).first()
+                    unit_price = float(mat.unit_price) if mat and mat.unit_price is not None else None
 
             obj = ProjectSystemMaterial(
                 id=uuid4(),
@@ -639,8 +676,9 @@ def add_only_systems_to_project(
                 material_id=m.material_id,
                 cut_length_mm=m.cut_length_mm,
                 count=m.count,
-                type=typ,                       # ✅
-                piece_length_mm=piece_len,      # ✅
+                type=typ,
+                piece_length_mm=piece_len,
+                unit_price=unit_price,  # 💲
                 order_index=(tpl.order_index if tpl else None),
             )
             _apply_pdf(obj, getattr(m, "pdf", None))
@@ -676,6 +714,7 @@ def add_only_systems_to_project(
     return project
 
 
+
 def add_only_extras_to_project(
     db: Session,
     project_id: UUID,
@@ -690,12 +729,19 @@ def add_only_extras_to_project(
 
     # Malzemeler
     for extra in extras:
+        # 💲 payload.unit_price → katalog fallback
+        unit_price = getattr(extra, "unit_price", None)
+        if unit_price is None:
+            mat = db.query(OtherMaterial).filter(OtherMaterial.id == extra.material_id).first()
+            unit_price = float(mat.unit_price) if mat and mat.unit_price is not None else None
+
         obj = ProjectExtraMaterial(
             id=uuid4(),
             project_id=project.id,
             material_id=extra.material_id,
             count=extra.count,
             cut_length_mm=extra.cut_length_mm,
+            unit_price=unit_price,  # 💲
         )
         _apply_pdf(obj, getattr(extra, "pdf", None))
         db.add(obj)
@@ -747,6 +793,7 @@ def add_only_extras_to_project(
     db.commit()
     db.refresh(project)
     return project
+
 
 
 def get_project_requirements_detailed(
@@ -817,8 +864,9 @@ def get_project_requirements_detailed(
                 material_id=m.material_id,
                 cut_length_mm=m.cut_length_mm,
                 count=m.count,
-                type=m.type,                           # ✅ yeni
-                piece_length_mm=m.piece_length_mm,     # ✅ yeni
+                unit_price=float(m.unit_price) if m.unit_price is not None else None,  # 💲
+                type=m.type,
+                piece_length_mm=m.piece_length_mm,
                 order_index=m.order_index,
                 material=db.query(OtherMaterial).filter(OtherMaterial.id == m.material_id).first(),
                 pdf=_pdf_from_obj(m),
@@ -867,6 +915,7 @@ def get_project_requirements_detailed(
             material_id=e.material_id,
             cut_length_mm=e.cut_length_mm,
             count=e.count,
+            unit_price=float(e.unit_price) if e.unit_price is not None else None,  # 💲
             material=db.query(OtherMaterial).filter(OtherMaterial.id == e.material_id).first(),
             pdf=_pdf_from_obj(e),
         )
@@ -927,6 +976,7 @@ def get_project_requirements_detailed(
         extra_glasses=extra_glasses,
         extra_remotes=extra_remotes,
     )
+
 
 # ------------------------------------------------------------
 # Renk güncelleme
@@ -1075,14 +1125,21 @@ def create_project_extra_material(
     project_id: UUID,
     material_id: UUID,
     count: int,
-    cut_length_mm: Optional[float] = None
+    cut_length_mm: Optional[float] = None,
+    unit_price: Optional[float] = None,
 ) -> ProjectExtraMaterial:
+    # 💲 payload.unit_price → katalog fallback
+    if unit_price is None:
+        mat = db.query(OtherMaterial).filter(OtherMaterial.id == material_id).first()
+        unit_price = float(mat.unit_price) if mat and mat.unit_price is not None else None
+
     extra = ProjectExtraMaterial(
         id=uuid4(),
         project_id=project_id,
         material_id=material_id,
         count=count,
         cut_length_mm=cut_length_mm,
+        unit_price=unit_price,
     )
     db.add(extra)
     db.commit()
@@ -1091,11 +1148,13 @@ def create_project_extra_material(
     return extra
 
 
+
 def update_project_extra_material(
     db: Session,
     extra_id: UUID,
     count: Optional[int] = None,
-    cut_length_mm: Optional[float] = None
+    cut_length_mm: Optional[float] = None,
+    unit_price: Optional[float] = None,
 ) -> Optional[ProjectExtraMaterial]:
     extra = db.query(ProjectExtraMaterial).filter(ProjectExtraMaterial.id == extra_id).first()
     if not extra:
@@ -1105,11 +1164,14 @@ def update_project_extra_material(
         extra.count = count
     if cut_length_mm is not None:
         extra.cut_length_mm = cut_length_mm
+    if unit_price is not None:
+        extra.unit_price = unit_price
 
     db.commit()
     db.refresh(extra)
     extra.pdf = _pdf_from_obj(extra)
     return extra
+
 
 
 def delete_project_extra_material(
@@ -1265,7 +1327,7 @@ def update_project_system(
     db.query(ProjectSystemProfile).filter(ProjectSystemProfile.project_system_id == project_system_id).delete(synchronize_session=False)
     db.query(ProjectSystemGlass).filter(ProjectSystemGlass.project_system_id == project_system_id).delete(synchronize_session=False)
     db.query(ProjectSystemMaterial).filter(ProjectSystemMaterial.project_system_id == project_system_id).delete(synchronize_session=False)
-    db.query(ProjectSystemRemote).filter(ProjectSystemRemote.project_system_id == project_system_id).delete(synchronize_session=False)  # 🆕
+    db.query(ProjectSystemRemote).filter(ProjectSystemRemote.project_system_id == project_system_id).delete(synchronize_session=False)
 
     # Yeniden ekle
     for p in payload.profiles:
@@ -1300,14 +1362,24 @@ def update_project_system(
         typ = m.type if m.type is not None else (tpl.type if tpl else None)
         piece_len = m.piece_length_mm if m.piece_length_mm is not None else (tpl.piece_length_mm if tpl else None)
 
+        # 💲 payload → template → katalog
+        unit_price = getattr(m, "unit_price", None)
+        if unit_price is None:
+            if tpl is not None and tpl.unit_price is not None:
+                unit_price = float(tpl.unit_price)
+            else:
+                mat = db.query(OtherMaterial).filter(OtherMaterial.id == m.material_id).first()
+                unit_price = float(mat.unit_price) if mat and mat.unit_price is not None else None
+
         obj = ProjectSystemMaterial(
             id=uuid4(),
             project_system_id=ps.id,
             material_id=m.material_id,
             cut_length_mm=m.cut_length_mm,
             count=m.count,
-            type=typ,                       # ✅
-            piece_length_mm=piece_len,      # ✅
+            type=typ,
+            piece_length_mm=piece_len,
+            unit_price=unit_price,  # 💲
             order_index=(tpl.order_index if tpl else None),
         )
         _apply_pdf(obj, getattr(m, "pdf", None))
@@ -1334,6 +1406,7 @@ def update_project_system(
     db.commit()
     db.refresh(ps)
     return ps
+
 
 
 def delete_project_system(

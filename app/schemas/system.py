@@ -151,6 +151,7 @@ class OtherMaterialOut(BaseModel):
     birim: str
     birim_agirlik: float
     hesaplama_turu: Optional[str]
+    unit_price: Optional[float] = None
     created_at: datetime
     updated_at: datetime
 
@@ -232,6 +233,7 @@ class SystemMaterialTemplateBase(BaseModel):
     material_id: UUID
     formula_quantity: str = Field(..., min_length=1)
     formula_cut_length: Optional[str] = None
+    unit_price: Optional[float] = None   # şablon bazında fiyat override
 
     # ✅ YENİ
     type: Optional[str] = Field(default=None, max_length=50)
@@ -244,6 +246,7 @@ class SystemMaterialTemplateCreate(SystemMaterialTemplateBase):
 class SystemMaterialTemplateUpdate(BaseModel):
     formula_quantity: str = Field(..., min_length=1)
     formula_cut_length: Optional[str] = None
+    unit_price: Optional[float] = None
     type: Optional[str] = Field(default=None, max_length=50)
     piece_length_mm: Optional[int] = None
     order_index: Optional[int] = None
@@ -332,6 +335,7 @@ class MaterialTemplateOut(BaseModel):
     material_id: UUID
     formula_quantity: str
     formula_cut_length: Optional[str] = None
+    unit_price: Optional[float] = None   # şablon üzerindeki fiyat (varsa)
     type: Optional[str] = None
     piece_length_mm: Optional[int] = None
     order_index: Optional[int] = None
@@ -391,6 +395,7 @@ class MaterialTemplateIn(BaseModel):
     material_id: UUID
     formula_quantity: str = Field(..., min_length=1)
     formula_cut_length: Optional[str] = None
+    unit_price: Optional[float] = None
     type: Optional[str] = Field(default=None, max_length=50)
     piece_length_mm: Optional[int] = None
     order_index: Optional[int] = None

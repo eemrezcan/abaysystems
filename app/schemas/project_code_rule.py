@@ -10,7 +10,7 @@ class ProjectCodeRuleBase(BaseModel):
         min_length=2,
         max_length=32,
         regex=r"^[A-Z0-9]+$",
-        description="Global benzersiz prefix; yalnızca A-Z ve 0-9."
+        description="Prefix; yalnızca A-Z ve 0-9 (global unique değil)."
     )
     separator: str = Field(
         "-",
@@ -38,7 +38,7 @@ class ProjectCodeRuleUpdate(BaseModel):
         min_length=2,
         max_length=32,
         regex=r"^[A-Z0-9]+$",
-        description="Yeni prefix (opsiyonel)."
+        description="Yeni prefix (opsiyonel; global unique değil)."
     )
     separator: Optional[str] = Field(
         None,
@@ -51,11 +51,7 @@ class ProjectCodeRuleUpdate(BaseModel):
         ge=0,
         description="Yeni padding (opsiyonel)."
     )
-    start_number: Optional[int] = Field(
-        None,
-        ge=0,
-        description="Yeni başlangıç sayısı (opsiyonel)."
-    )
+
 
 class ProjectCodeRuleOut(ProjectCodeRuleBase):
     id: UUID = Field(...)

@@ -500,6 +500,7 @@ def create_system_variant_with_templates(db: Session, payload: SystemVariantCrea
             material_id=mt.material_id,
             formula_quantity=mt.formula_quantity,
             formula_cut_length=mt.formula_cut_length,
+            unit_price=mt.unit_price,              # 💲 şablon bazında fiyat (opsiyonel)def update_system_variant_with_templates(db: Session
             type=mt.type,
             piece_length_mm=mt.piece_length_mm,
             order_index=mt.order_index if mt.order_index is not None else i
@@ -574,6 +575,7 @@ def update_system_variant_with_templates(db: Session, variant_id: UUID, payload:
             material_id=mt.material_id,
             formula_quantity=mt.formula_quantity,
             formula_cut_length=mt.formula_cut_length,
+            unit_price=mt.unit_price,              # 💲 şablon bazında fiyat (opsiyonel)
             type=mt.type,
             piece_length_mm=mt.piece_length_mm,
             order_index=mt.order_index if mt.order_index is not None else i

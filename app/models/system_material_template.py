@@ -1,7 +1,7 @@
 # app/models/system_material_template.py
 
 import uuid
-from sqlalchemy import Column, String, ForeignKey, Integer,Boolean
+from sqlalchemy import Column, String, ForeignKey, Integer,Boolean, Numeric
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -16,6 +16,8 @@ class SystemMaterialTemplate(Base):
     material_id       = Column(UUID(as_uuid=True), ForeignKey("other_material.id"), nullable=False)
     formula_quantity  = Column(String, nullable=False)
     formula_cut_length = Column(String, nullable=True)
+    # 💲 Opsiyonel birim fiyat (material.unit_price üzerine şablon bazında override edilebilir)
+    unit_price        = Column(Numeric, nullable=True)
     
     # ✅ İSTENEN GÜNCEL: Serbest metin, 50 karakter, nullable
     type = Column(String(50), nullable=True)

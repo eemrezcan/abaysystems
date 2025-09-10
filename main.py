@@ -27,6 +27,10 @@ from app.routes import me_project_code as me_project_code_routes
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 from app.core.config import MEDIA_ROOT
+from pathlib import Path
+
+Path(MEDIA_ROOT).mkdir(parents=True, exist_ok=True)
+
 app = FastAPI()
 
 
