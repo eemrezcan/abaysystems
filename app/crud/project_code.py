@@ -60,14 +60,15 @@ def update_rule(
     if padding is not None:
         rule.padding = padding
     if start_number is not None:
-        # hiç üretim yapılmadıysa (gerekirse esnetilebilir)
         rule.start_number = start_number
+        # sonraki verilecek sayı: max(current_number+1, start_number)
         if rule.current_number < start_number - 1:
             rule.current_number = start_number - 1
     db.add(rule)
     db.commit()
     db.refresh(rule)
     return rule
+
 
 # ---------- Preview (kilitsiz) ----------
 

@@ -56,19 +56,19 @@ def update_my_rule(
     if not rule:
         raise HTTPException(status_code=404, detail="Kural bulunamadı.")
 
-    # start_number’ı bu endpointten güncellemiyoruz; hiçbir kontrol yok
-    # prefix değişimine de izin veriyoruz (artık unique değil)
+    # start_number dâhil tüm alanlar opsiyonel ve çok kez değiştirilebilir
     try:
         return crud_pc.update_rule(
             db, rule,
             prefix=payload.prefix,
             separator=payload.separator,
             padding=payload.padding,
-            # start_number parametresi BİLEREK gönderilmiyor
+            start_number=payload.start_number,  # <-- geri eklendi
         )
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Kural güncellenirken bir hata oluştu.")
+
 
 @router.get("/next", response_model=NextProjectCodeOut)
 def preview_next_code(

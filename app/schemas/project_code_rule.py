@@ -38,7 +38,7 @@ class ProjectCodeRuleUpdate(BaseModel):
         min_length=2,
         max_length=32,
         regex=r"^[A-Z0-9]+$",
-        description="Yeni prefix (opsiyonel; global unique değil)."
+        description="Yeni prefix (opsiyonel)."
     )
     separator: Optional[str] = Field(
         None,
@@ -51,6 +51,12 @@ class ProjectCodeRuleUpdate(BaseModel):
         ge=0,
         description="Yeni padding (opsiyonel)."
     )
+    start_number: Optional[int] = Field(
+        None,
+        ge=0,
+        description="Yeni başlangıç sayısı (opsiyonel)."
+    )
+
 
 
 class ProjectCodeRuleOut(ProjectCodeRuleBase):
