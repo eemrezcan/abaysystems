@@ -171,12 +171,14 @@ class SystemBasicOut(BaseModel):
 
 
 # ——————————————————————
-# Template CRUD Schemas — SystemProfileTemplate —
+# — Template CRUD Schemas — SystemProfileTemplate —
 class SystemProfileTemplateBase(BaseModel):
     system_variant_id: UUID
     profile_id: UUID
     formula_cut_length: str = Field(..., min_length=1)
     formula_cut_count: str = Field(..., min_length=1)
+    # NEW
+    is_painted: bool = False
 
 class SystemProfileTemplateCreate(SystemProfileTemplateBase):
     order_index: Optional[int] = None
@@ -186,12 +188,16 @@ class SystemProfileTemplateUpdate(BaseModel):
     formula_cut_length: str = Field(..., min_length=1)
     formula_cut_count: str = Field(..., min_length=1)
     order_index: Optional[int] = None
+    # NEW
+    is_painted: Optional[bool] = None
     pdf: Optional[PdfFlags] = None
 
 class SystemProfileTemplateOut(SystemProfileTemplateBase):
     id: UUID
     order_index: Optional[int]
     created_at: datetime
+    # NEW (base’de zaten var ama burada “bool” olarak garanti edelim)
+    is_painted: bool
     pdf: PdfFlags
 
     class Config:
@@ -305,17 +311,21 @@ class RemoteTemplateOut(BaseModel):
         orm_mode = True
 
 # ——————————————————————
+# ——————————————————————
 # Toplu GET için “view” Şemaları
 class ProfileTemplateOut(BaseModel):
     profile_id: UUID
     formula_cut_length: str
     formula_cut_count: str
     order_index: Optional[int] = None
+    # NEW
+    is_painted: bool
     profile: ProfileOut
     pdf: PdfFlags
 
     class Config:
         orm_mode = True
+
 
 
 class GlassTemplateOut(BaseModel):
@@ -372,14 +382,18 @@ class SystemVariantDetailOut(BaseModel):
         orm_mode = True
 
 # ——————————————————————
+# ——————————————————————
 # New: Bulk-create a SystemVariant with its templates
 class ProfileTemplateIn(BaseModel):
     profile_id: UUID
     formula_cut_length: str = Field(..., min_length=1)
     formula_cut_count: str = Field(..., min_length=1)
     order_index: Optional[int] = None
+    # NEW
+    is_painted: Optional[bool] = False
     # +++
     pdf: Optional[PdfFlags] = None
+
 
 
 class GlassTemplateIn(BaseModel):

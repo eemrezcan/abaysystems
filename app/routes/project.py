@@ -79,6 +79,7 @@ from app.schemas.project import (
     ProjectExtraRemoteUpdate,      # 🆕
     ProjectExtraRemoteOut,         # 🆕
     ProjectCodeNumberUpdate,
+    ProjectPricesUpdate,
 )
 
 # Ek: Extra* sahiplik kontrolünde projeye join için Project ve Extra modellerine ihtiyacımız var
@@ -245,6 +246,42 @@ def update_project_code_endpoint(
     return updated
 
 
+@router.put("/{project_id}/prices", response_model=ProjectOut)
+def update_project_prices_endpoint(
+    project_id: UUID,
+    payload: ProjectPricesUpdate,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    """
+    Yalnızca press_price ve painted_price alanlarını günceller.
+    En az bir alan gönderilmelidir.
+    """
+    # Sahiplik doğrulaması
+    proj = get_project(db, project_id)
+    ensure_owner_or_404(proj, current_user.id, "created_by")
+
+    # En az bir alan zorunlu
+    if payload.press_price is None and payload.painted_price is None:
+        raise HTTPException(status_code=400, detail="En az bir alan (press_price veya painted_price) gönderin.")
+
+    # Var olan ortak update akışını kullan
+    try:
+        updated = update_project_all(
+            db,
+            project_id=project_id,
+            payload=ProjectUpdate(
+                press_price=payload.press_price,
+                painted_price=payload.painted_price,
+            ),
+            owner_id=current_user.id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if not updated:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return updated
 
 # ───────── Requirements (Systems + Extras) ─────────
 
@@ -310,6 +347,7 @@ def list_requirements_endpoint(
                 cut_count=p.cut_count,
                 total_weight_kg=float(p.total_weight_kg) if p.total_weight_kg is not None else 0.0,
                 order_index=p.order_index,
+                is_painted=bool(getattr(p, "is_painted", False)),
             )
             for p in sys.profiles
         ]
@@ -456,6 +494,7 @@ def add_extra_profile_endpoint(
             profile_id=payload.profile_id,
             cut_length_mm=payload.cut_length_mm,
             cut_count=payload.cut_count,
+            is_painted=payload.is_painted,
         )
     except ValueError:
         raise HTTPException(404, "Project not found")
@@ -483,6 +522,7 @@ def update_extra_profile_endpoint(
         extra_id,
         cut_length_mm=payload.cut_length_mm,
         cut_count=payload.cut_count,
+        is_painted=payload.is_painted,
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Extra profile not found")

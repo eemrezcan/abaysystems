@@ -144,6 +144,8 @@ def create_project(db: Session, payload: ProjectCreate, created_by: UUID) -> Pro
         created_by=created_by,
         project_kodu=code,
         created_at=datetime.utcnow(),
+        press_price=payload.press_price,
+        painted_price=payload.painted_price,
     )
     db.add(project)
 
@@ -358,6 +360,10 @@ def update_project_all(
         proj.profile_color_id = data["profile_color_id"]  # None gelirse temizler
     if "glass_color_id" in data:
         proj.glass_color_id = data["glass_color_id"]      # None gelirse temizler
+    if "press_price" in data:
+        proj.press_price = data["press_price"]
+    if "painted_price" in data:
+        proj.painted_price = data["painted_price"]
 
     db.commit()
     db.refresh(proj)
@@ -425,12 +431,16 @@ def add_systems_to_project(
         db.flush()
 
         # Şablonlara göre order_index haritaları
-        tpl_profiles = {
-            t.profile_id: t.order_index
-            for t in db.query(SystemProfileTemplate)
-                       .filter(SystemProfileTemplate.system_variant_id == sys_req.system_variant_id)
-                       .all()
-        }
+        # Şablonlara göre order_index haritaları
+        tpl_profiles_list = db.query(SystemProfileTemplate)\
+            .filter(SystemProfileTemplate.system_variant_id == sys_req.system_variant_id)\
+            .all()
+
+        tpl_profiles_order = {t.profile_id: t.order_index for t in tpl_profiles_list}
+        tpl_profiles_painted = {t.profile_id: bool(getattr(t, "is_painted", False)) for t in tpl_profiles_list}
+
+        # ... cam ve malzeme haritaları aynı kalsın ...
+
         tpl_glasses = {
             t.glass_type_id: t.order_index
             for t in db.query(SystemGlassTemplate)
@@ -446,6 +456,9 @@ def add_systems_to_project(
 
         # Profiller
         for p in sys_req.profiles:
+            payload_has_is_painted = hasattr(p, "__fields_set__") and ("is_painted" in p.__fields_set__)
+            is_painted_val = bool(p.is_painted) if payload_has_is_painted else tpl_profiles_painted.get(p.profile_id, False)
+
             obj = ProjectSystemProfile(
                 id=uuid4(),
                 project_system_id=ps.id,
@@ -453,10 +466,13 @@ def add_systems_to_project(
                 cut_length_mm=p.cut_length_mm,
                 cut_count=p.cut_count,
                 total_weight_kg=p.total_weight_kg,
-                order_index=tpl_profiles.get(p.profile_id),
+                order_index=tpl_profiles_order.get(p.profile_id),
+                # NEW 👇
+                is_painted=is_painted_val,
             )
             _apply_pdf(obj, getattr(p, "pdf", None))
             db.add(obj)
+
 
         # Camlar
         for g in sys_req.glasses:
@@ -762,9 +778,12 @@ def add_only_extras_to_project(
             profile_id=profile.profile_id,
             cut_length_mm=profile.cut_length_mm,
             cut_count=profile.cut_count,
+            # NEW 👇
+            is_painted=bool(getattr(profile, "is_painted", False)),
         )
         _apply_pdf(obj, getattr(profile, "pdf", None))
         db.add(obj)
+
 
     # Camlar
     for glass in extra_glasses:
@@ -837,11 +856,14 @@ def get_project_requirements_detailed(
                 cut_count=p.cut_count,
                 total_weight_kg=p.total_weight_kg,
                 order_index=p.order_index,
+                # NEW 👇
+                is_painted=bool(getattr(p, "is_painted", False)),
                 profile=db.query(Profile).filter(Profile.id == p.profile_id).first(),
                 pdf=_pdf_from_obj(p),
             )
             for p in profiles_raw
         ]
+
 
         glasses_raw = (
             db.query(ProjectSystemGlass)
@@ -939,10 +961,13 @@ def get_project_requirements_detailed(
                 profile_id=p.profile_id,
                 cut_length_mm=float(p.cut_length_mm),
                 cut_count=p.cut_count,
+                # NEW 👇
+                is_painted=bool(getattr(p, "is_painted", False)),
                 profile=prof,
                 pdf=_pdf_from_obj(p),
             )
         )
+
 
     # ekstra camlar (detaylı)
     extra_glasses = []
@@ -978,11 +1003,14 @@ def get_project_requirements_detailed(
         customer=customer,
         profile_color=project.profile_color,
         glass_color=project.glass_color,
+        press_price=float(project.press_price) if project.press_price is not None else None,
+        painted_price=float(project.painted_price) if project.painted_price is not None else None,
         systems=result_systems,
         extra_requirements=extra_requirements,
         extra_profiles=extra_profiles,
         extra_glasses=extra_glasses,
         extra_remotes=extra_remotes,
+
     )
 
 
@@ -1014,7 +1042,8 @@ def create_project_extra_profile(
     project_id: UUID,
     profile_id: UUID,
     cut_length_mm: float,
-    cut_count: int
+    cut_count: int,
+    is_painted: Optional[bool] = False,
 ) -> ProjectExtraProfile:
     extra = ProjectExtraProfile(
         id=uuid4(),
@@ -1022,6 +1051,7 @@ def create_project_extra_profile(
         profile_id=profile_id,
         cut_length_mm=cut_length_mm,
         cut_count=cut_count,
+        is_painted=bool(is_painted),
     )
     db.add(extra)
     db.commit()
@@ -1034,7 +1064,9 @@ def update_project_extra_profile(
     db: Session,
     extra_id: UUID,
     cut_length_mm: Optional[float] = None,
-    cut_count: Optional[int] = None
+    cut_count: Optional[int] = None,
+    # NEW 👇
+    is_painted: Optional[bool] = None,
 ) -> Optional[ProjectExtraProfile]:
     extra = db.query(ProjectExtraProfile).filter(ProjectExtraProfile.id == extra_id).first()
     if not extra:
@@ -1044,11 +1076,15 @@ def update_project_extra_profile(
         extra.cut_length_mm = cut_length_mm
     if cut_count is not None:
         extra.cut_count = cut_count
+    # NEW 👇
+    if is_painted is not None:
+        extra.is_painted = bool(is_painted)
 
     db.commit()
     db.refresh(extra)
     extra.pdf = _pdf_from_obj(extra)
     return extra
+
 
 
 def delete_project_extra_profile(

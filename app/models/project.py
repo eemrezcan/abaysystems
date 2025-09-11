@@ -26,6 +26,10 @@ class Project(Base):
     project_name   = Column(String(100), nullable=False)                # 🟢 Yeni eklenen sütun
     created_by     = Column(PGUUID(as_uuid=True), ForeignKey("app_user.id"), nullable=False)
 
+    # 🆕 NEW: Proje üstbilgisine fiyat alanları
+    press_price    = Column(Numeric, nullable=True)    # pres bedeli (opsiyonel)
+    painted_price  = Column(Numeric, nullable=True)    # boya bedeli (opsiyonel)
+
     profile_color_id = Column(PGUUID(as_uuid=True), ForeignKey("color.id"), nullable=True)
     profile_color    = relationship("Color", foreign_keys=[profile_color_id])
 
@@ -72,7 +76,10 @@ class ProjectSystemProfile(Base):
     cut_count          = Column(Integer, nullable=False)
     total_weight_kg    = Column(Numeric, nullable=True)
     unit_price         = Column(Numeric, nullable=True)
-    order_index       = Column(Integer, nullable=True)
+    order_index        = Column(Integer, nullable=True)
+
+    # --- NEW: Şablondaki boyalı/boyasız kararını proje satırına da taşı ---
+    is_painted         = Column(Boolean, nullable=False, default=False)  # NEW ✅
 
     # --- PDF Flags ---
     cam_ciktisi                   = Column(Boolean, nullable=False, default=True)
@@ -189,6 +196,8 @@ class ProjectExtraProfile(Base):
     cut_count = Column(Integer, nullable=False)
     unit_price = Column(Numeric, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    is_painted         = Column(Boolean, nullable=False, default=False)  # NEW ✅
 
     # --- PDF Flags ---
     cam_ciktisi                   = Column(Boolean, nullable=False, default=True)

@@ -24,7 +24,10 @@ class ProfileInProject(BaseModel):
     cut_count: int
     total_weight_kg: float
     order_index: Optional[int] = None
+    # NEW
+    is_painted: bool = False
     pdf: Optional[PdfFlags] = None
+
 
 class GlassInProject(BaseModel):
     glass_type_id: UUID
@@ -54,6 +57,9 @@ class RemoteInProject(BaseModel):
     unit_price: Optional[float] = None  # proje anındaki birim fiyat snapshotu (opsiyonel)
     pdf: Optional[PdfFlags] = None
 
+class ProjectPricesUpdate(BaseModel):
+    press_price: Optional[float] = None
+    painted_price: Optional[float] = None
 # ----------------------------------------
 # SystemRequirement and ExtraRequirement
 # ----------------------------------------
@@ -78,7 +84,10 @@ class ExtraProfileIn(BaseModel):
     profile_id: UUID
     cut_length_mm: float
     cut_count: int
+    # NEW
+    is_painted: Optional[bool] = False
     pdf: Optional[PdfFlags] = None
+
 
 class ExtraGlassIn(BaseModel):
     glass_type_id: UUID
@@ -128,7 +137,9 @@ class ProjectMeta(BaseModel):
 
 class ProjectCreate(ProjectMeta):
     """Payload for creating a new Project (meta only)"""
-    pass
+    # 🆕 NEW (opsiyonel, üst bilgi fiyat alanları)
+    press_price: Optional[float] = None
+    painted_price: Optional[float] = None
 
 class ProjectUpdate(BaseModel):
     """Projeyi güncellemek için opsiyonel alanlar."""
@@ -144,6 +155,8 @@ class ProjectUpdate(BaseModel):
         None, description="Yeni cam rengi ID"
     )
     created_at: Optional[datetime] = None
+    press_price: Optional[float] = None
+    painted_price: Optional[float] = None
     
     class Config:
         orm_mode = True
@@ -159,6 +172,8 @@ class ProjectOut(ProjectMeta):
         description="Otomatik üretilen proje kodu, format: TALU-{sayi}, sayi 10000'den başlar"
     )
     created_at: datetime
+    press_price: Optional[float] = None
+    painted_price: Optional[float] = None
 
     class Config:
         orm_mode = True
@@ -219,11 +234,14 @@ class ExtraProfileDetailed(BaseModel):
     profile_id: UUID
     cut_length_mm: float
     cut_count: int
+    # NEW
+    is_painted: bool
     profile: ProfileOut
     pdf: PdfFlags
 
     class Config:
         orm_mode = True
+
 
 class ExtraGlassDetailed(BaseModel):
     glass_type_id: UUID
@@ -328,6 +346,9 @@ class ProjectRequirementsDetailedOut(BaseModel):
     extra_profiles: List[ExtraProfileDetailed] = Field(default_factory=list)
     extra_glasses:  List[ExtraGlassDetailed] = Field(default_factory=list)
     extra_remotes:  List[ExtraRemoteDetailed] = Field(default_factory=list)  # 🆕
+    press_price: Optional[float] = None
+    painted_price: Optional[float] = None
+
     class Config:
         orm_mode = True
 
@@ -345,12 +366,18 @@ class ProjectExtraProfileCreate(BaseModel):
     profile_id: UUID
     cut_length_mm: float
     cut_count: int
+    # NEW
+    is_painted: Optional[bool] = False
     pdf: Optional[PdfFlags] = None
+
 
 class ProjectExtraProfileUpdate(BaseModel):
     cut_length_mm: Optional[float] = None
     cut_count: Optional[int] = None
+    # NEW
+    is_painted: Optional[bool] = None
     pdf: Optional[PdfFlags] = None
+
 
 class ProjectExtraProfileOut(BaseModel):
     id: UUID
@@ -358,11 +385,14 @@ class ProjectExtraProfileOut(BaseModel):
     profile_id: UUID
     cut_length_mm: float
     cut_count: int
+    # NEW
+    is_painted: bool
     created_at: datetime
     pdf: PdfFlags
 
     class Config:
         orm_mode = True
+
 
 #  CAM EKLE ÇIKART SİL ---------------------------------------
 class ProjectExtraGlassCreate(BaseModel):

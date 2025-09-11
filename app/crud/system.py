@@ -473,10 +473,13 @@ def create_system_variant_with_templates(db: Session, payload: SystemVariantCrea
             profile_id=pt.profile_id,
             formula_cut_length=pt.formula_cut_length,
             formula_cut_count=pt.formula_cut_count,
-            order_index=pt.order_index if pt.order_index is not None else i
+            order_index=pt.order_index if pt.order_index is not None else i,
+            # NEW 👇
+            is_painted=bool(getattr(pt, "is_painted", False)),
         )
         _apply_pdf(obj, getattr(pt, "pdf", None))
         db.add(obj)
+
 
     # 3) Glass şablonları
     for i, gt in enumerate(payload.glass_templates):
@@ -548,10 +551,13 @@ def update_system_variant_with_templates(db: Session, variant_id: UUID, payload:
             profile_id=pt.profile_id,
             formula_cut_length=pt.formula_cut_length,
             formula_cut_count=pt.formula_cut_count,
-            order_index=pt.order_index if pt.order_index is not None else i
+            order_index=pt.order_index if pt.order_index is not None else i,
+            # NEW 👇
+            is_painted=bool(getattr(pt, "is_painted", False)),
         )
         _apply_pdf(obj, getattr(pt, "pdf", None))
         db.add(obj)
+
 
     # CAM
     for i, gt in enumerate(payload.glass_templates):

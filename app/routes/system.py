@@ -226,6 +226,8 @@ def fetch_system_templates(
                 formula_cut_length=tpl.formula_cut_length,
                 formula_cut_count=tpl.formula_cut_count,
                 order_index=tpl.order_index,
+                # 👇 NEW
+                is_painted=bool(getattr(tpl, "is_painted", False)),
                 profile=tpl.profile,
                 pdf=tpl.pdf
             )
@@ -307,6 +309,8 @@ def get_system_variant_detail_endpoint(
                 formula_cut_length=tpl.formula_cut_length,
                 formula_cut_count=tpl.formula_cut_count,
                 order_index=tpl.order_index,
+                # 👇 NEW
+                is_painted=bool(getattr(tpl, "is_painted", False)),
                 profile=tpl.profile,
                 pdf=_pdf_flags_from_tpl(tpl),
             )

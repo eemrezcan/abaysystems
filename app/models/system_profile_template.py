@@ -27,6 +27,9 @@ class SystemProfileTemplate(Base):
     optimizasyon_detayli_ciktisi  = Column(Boolean, nullable=False, default=True)
     optimizasyon_detaysiz_ciktisi = Column(Boolean, nullable=False, default=True)
 
+    # --- Yeni alan ---
+    is_painted = Column(Boolean, nullable=False, default=False)  # NEW
+
     # ilişki (opsiyonel, kullanmak isterseniz)
     variant = relationship("SystemVariant", back_populates="profile_templates")
     profile = relationship("Profile")
