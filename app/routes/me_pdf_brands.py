@@ -11,6 +11,7 @@ from app.models.app_user import AppUser
 from app.schemas.pdf import PdfBrandCreate, PdfBrandUpdate, PdfBrandOut, PdfBrandLogoOut
 from app.crud import pdf as crud
 from app.core.config import MEDIA_ROOT
+from fastapi.responses import FileResponse
 
 router = APIRouter(prefix="/api/me/pdf/brands", tags=["me-pdf-brands"])
 
@@ -47,6 +48,16 @@ def _remove_file_safely(path: Path):
             path.unlink()
     except Exception:
         pass
+
+def _content_type_from_path(path: Path) -> str:
+    ext = path.suffix.lower()
+    if ext in (".jpg", ".jpeg"):
+        return "image/jpeg"
+    if ext == ".png":
+        return "image/png"
+    if ext == ".webp":
+        return "image/webp"
+    return "application/octet-stream"
 # --------- Brands CRUD (me) ---------
 
 @router.get("", response_model=List[PdfBrandOut])
@@ -155,3 +166,41 @@ def delete_my_brand_logo(id: UUID, db: Session = Depends(get_db), current_user: 
     # DB’de logo_url=None
     crud.brand_clear_logo(db, obj)
     return
+
+@router.get("/{id}/image/file")
+def get_my_brand_logo_file(
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    """
+    Brand logosunu doğrudan dosya (binary) olarak döndürür.
+    Content-Type, uzantıya göre image/jpeg | image/png | image/webp olur.
+    """
+    obj = crud.brand_get(db, current_user.id, id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Brand bulunamadı")
+
+    if not obj.logo_url:
+        raise HTTPException(status_code=404, detail="Bu brand için logo yok")
+
+    # DB'deki /static/... yolundan gerçek dosya yolunu çöz
+    rel = obj.logo_url.replace("/static/", "")
+    fpath = Path(MEDIA_ROOT) / Path(rel)
+
+    # Dosya bulunamazsa, klasörde olası 'logo.*' adaylarını dene (uzantı değişmiş olabilir)
+    if not fpath.exists():
+        folder = _brand_dir(id)
+        candidates = [p for p in folder.glob("logo.*") if p.suffix.lower() in ALLOWED_CONTENT_TYPES.values()]
+        if not candidates:
+            raise HTTPException(status_code=404, detail="Logo dosyası bulunamadı")
+        fpath = candidates[0]
+
+    if not fpath.exists():
+        raise HTTPException(status_code=404, detail="Logo dosyası bulunamadı")
+
+    # Inline görüntüleme için Content-Disposition belirtmiyoruz (tarayıcı default: inline)
+    return FileResponse(
+        path=fpath,
+        media_type=_content_type_from_path(fpath),
+    )
