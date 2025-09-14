@@ -432,12 +432,13 @@ def add_systems_to_project(
 
         # Şablonlara göre order_index haritaları
         # Şablonlara göre order_index haritaları
-        tpl_profiles_list = db.query(SystemProfileTemplate)\
-            .filter(SystemProfileTemplate.system_variant_id == sys_req.system_variant_id)\
-            .all()
+        tpl_profiles = {
+            t.profile_id: t
+            for t in db.query(SystemProfileTemplate)
+                    .filter(SystemProfileTemplate.system_variant_id == sys_req.system_variant_id)
+                    .all()
+        }
 
-        tpl_profiles_order = {t.profile_id: t.order_index for t in tpl_profiles_list}
-        tpl_profiles_painted = {t.profile_id: bool(getattr(t, "is_painted", False)) for t in tpl_profiles_list}
 
         # ... cam ve malzeme haritaları aynı kalsın ...
 
@@ -456,9 +457,7 @@ def add_systems_to_project(
 
         # Profiller
         for p in sys_req.profiles:
-            payload_has_is_painted = hasattr(p, "__fields_set__") and ("is_painted" in p.__fields_set__)
-            is_painted_val = bool(p.is_painted) if payload_has_is_painted else tpl_profiles_painted.get(p.profile_id, False)
-
+            tpl = tpl_profiles.get(p.profile_id)
             obj = ProjectSystemProfile(
                 id=uuid4(),
                 project_system_id=ps.id,
@@ -466,12 +465,12 @@ def add_systems_to_project(
                 cut_length_mm=p.cut_length_mm,
                 cut_count=p.cut_count,
                 total_weight_kg=p.total_weight_kg,
-                order_index=tpl_profiles_order.get(p.profile_id),
-                # NEW 👇
-                is_painted=is_painted_val,
+                order_index=(tpl.order_index if tpl is not None else None),
+                is_painted=bool(getattr(tpl, "is_painted", False)) if tpl is not None else False,
             )
             _apply_pdf(obj, getattr(p, "pdf", None))
             db.add(obj)
+
 
 
         # Camlar
@@ -631,10 +630,10 @@ def add_only_systems_to_project(
         db.flush()
 
         tpl_profiles = {
-            t.profile_id: t.order_index
+            t.profile_id: t
             for t in db.query(SystemProfileTemplate)
-                       .filter(SystemProfileTemplate.system_variant_id == sys_req.system_variant_id)
-                       .all()
+                    .filter(SystemProfileTemplate.system_variant_id == sys_req.system_variant_id)
+                    .all()
         }
         tpl_glasses = {
             t.glass_type_id: t.order_index
@@ -651,6 +650,7 @@ def add_only_systems_to_project(
 
         # Profiller
         for p in sys_req.profiles:
+            tpl = tpl_profiles.get(p.profile_id)
             obj = ProjectSystemProfile(
                 id=uuid4(),
                 project_system_id=ps.id,
@@ -658,10 +658,12 @@ def add_only_systems_to_project(
                 cut_length_mm=p.cut_length_mm,
                 cut_count=p.cut_count,
                 total_weight_kg=p.total_weight_kg,
-                order_index=tpl_profiles.get(p.profile_id),
+                order_index=(tpl.order_index if tpl is not None else None),
+                is_painted=bool(getattr(tpl, "is_painted", False)) if tpl is not None else False,
             )
             _apply_pdf(obj, getattr(p, "pdf", None))
             db.add(obj)
+
 
         # Camlar
         for g in sys_req.glasses:
@@ -1337,10 +1339,10 @@ def update_project_system(
     variant_id = ps.system_variant_id
 
     tpl_profiles = {
-        t.profile_id: t.order_index
+        t.profile_id: t
         for t in db.query(SystemProfileTemplate)
-                   .filter_by(system_variant_id=variant_id)
-                   .all()
+                .filter_by(system_variant_id=variant_id)
+                .all()
     }
     tpl_glasses = {
         t.glass_type_id: t.order_index
@@ -1375,6 +1377,7 @@ def update_project_system(
 
     # Yeniden ekle
     for p in payload.profiles:
+        tpl = tpl_profiles.get(p.profile_id)
         obj = ProjectSystemProfile(
             id=uuid4(),
             project_system_id=ps.id,
@@ -1382,7 +1385,8 @@ def update_project_system(
             cut_length_mm=p.cut_length_mm,
             cut_count=p.cut_count,
             total_weight_kg=p.total_weight_kg,
-            order_index=tpl_profiles.get(p.profile_id),
+            order_index=(tpl.order_index if tpl is not None else None),
+            is_painted=bool(getattr(tpl, "is_painted", False)) if tpl is not None else False,
         )
         _apply_pdf(obj, getattr(p, "pdf", None))
         db.add(obj)
