@@ -1,7 +1,7 @@
 # app/crud/project.py
 
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, date
 from uuid import UUID
 from typing import List, Optional, Tuple, Any
 from sqlalchemy.orm import Session
@@ -15,6 +15,8 @@ from app.crud.project_code import issue_next_code_in_tx
 from sqlalchemy.exc import IntegrityError
 from app.models.project_code_rule import ProjectCodeRule
 from sqlalchemy.exc import IntegrityError
+from app.models.color import Color
+
 
 from app.models.project import (
     Project,
@@ -137,6 +139,8 @@ def create_project(db: Session, payload: ProjectCreate, created_by: UUID) -> Pro
     next_n, code = issue_next_code_in_tx(db, created_by)
 
     # 2) Proje kaydını oluştur
+    today = datetime.utcnow()
+
     project = Project(
         id=uuid4(),
         customer_id=payload.customer_id,
@@ -146,14 +150,20 @@ def create_project(db: Session, payload: ProjectCreate, created_by: UUID) -> Pro
         created_at=datetime.utcnow(),
         press_price=payload.press_price,
         painted_price=payload.painted_price,
+
+        # 🆕 Yeni alanlar
+        is_teklif=True if payload.is_teklif is None else bool(payload.is_teklif),
+        paint_status="durum belirtilmedi",
+        glass_status="durum belirtilmedi",
+        production_status="durum belirtilmedi",
+        approval_date=today,  # 🆕 kural: yeni proje oluşur oluşmaz bugünün tarihi
     )
     db.add(project)
 
-    # 3) Tek commit
+    # 3) Tek commit (unique çakışmasına karşı bir retry)
     try:
         db.commit()
     except IntegrityError:
-        # Uç senaryoda unique çakışma olursa bir kez daha dene
         db.rollback()
         next_n, code = issue_next_code_in_tx(db, created_by)
         project.project_kodu = code
@@ -164,50 +174,59 @@ def create_project(db: Session, payload: ProjectCreate, created_by: UUID) -> Pro
     return project
 
 
+
 def get_projects(
     db: Session,
     owner_id: UUID,
     name: Optional[str] = None,
     limit: Optional[int] = None,
-    offset: int = 0,  # 🟢 yeni
+    offset: int = 0,
+    is_teklif: Optional[bool] = None,   # 🆕
 ) -> list[Project]:
     """
-    Kendi projelerini, en yeniden eskiye sıralı döndürür.
-    İsteğe bağlı olarak 'name' (contains, case-insensitive) filtresi,
-    'offset' ve 'limit' uygular (klasik sayfalama).
+    Kendi projelerini döndürür.
+    - is_teklif=True ise created_at DESC ile sırala (son oluşturulan en üstte)
+    - is_teklif=False ise approval_date DESC ile sırala (son onaylanan en üstte)
+    - is_teklif verilmezse created_at DESC kullan (eski davranış)
+    - name varsa project_name contains (CI)
     """
-    query = (
-        db.query(Project)
-        .filter(Project.created_by == owner_id)
-        .order_by(Project.created_at.desc())
-    )
+    query = db.query(Project).filter(Project.created_by == owner_id)
 
     if name:
         like_val = f"%{name.lower()}%"
         query = query.filter(func.lower(Project.project_name).like(like_val))
 
-    # 🟢 offset önce uygulanır
+    if is_teklif is not None:
+        query = query.filter(Project.is_teklif == bool(is_teklif))
+
+    # Sıralama kuralı
+    if is_teklif is False:
+        query = query.order_by(Project.approval_date.desc(), Project.created_at.desc())
+    else:
+        query = query.order_by(Project.created_at.desc())
+
     if offset:
         query = query.offset(offset)
-
     if limit is not None:
         query = query.limit(limit)
 
     return query.all()
 
+
 def get_projects_page(
     db: Session,
     owner_id: UUID,
     name: Optional[str],
-    code: Optional[str],          # 🆕 proje kodu filtresi
+    code: Optional[str],
     limit: int,
     offset: int,
+    is_teklif: Optional[bool] = None,   # 🆕
 ) -> Tuple[List[Project], int]:
     """
-    Filtrelenmiş toplam kayıt sayısı + sayfadaki kayıtları birlikte döndürür.
-    - name: project_name contains (case-insensitive)
-    - code: project_kodu contains (case-insensitive)
-    İki filtre birlikte gelirse AND uygulanır.
+    Filtrelenmiş toplam kayıt sayısı + sayfadaki kayıtlar.
+    - name: project_name contains (CI)
+    - code: project_kodu contains (CI)
+    - is_teklif: True/False'a göre filtre ve sıralama
     """
     base_q = db.query(Project).filter(Project.created_by == owner_id)
 
@@ -219,12 +238,18 @@ def get_projects_page(
         code_like = f"%{code.lower()}%"
         base_q = base_q.filter(func.lower(Project.project_kodu).like(code_like))
 
-    # Toplam (limit/offset uygulanmadan)
+    if is_teklif is not None:
+        base_q = base_q.filter(Project.is_teklif == bool(is_teklif))
+
     total = base_q.order_by(None).count()
 
-    # Sayfa verisi
+    if is_teklif is False:
+        order_clause = [Project.approval_date.desc(), Project.created_at.desc()]
+    else:
+        order_clause = [Project.created_at.desc()]
+
     items = (
-        base_q.order_by(Project.created_at.desc())
+        base_q.order_by(*order_clause)
               .offset(offset)
               .limit(limit)
               .all()
@@ -245,17 +270,50 @@ def update_project(db: Session, project_id: UUID, payload: ProjectUpdate) -> Opt
     if not proj:
         return None
 
-    # created_at güncellemesi isteğe bağlı
-    if payload.created_at is not None:
-        proj.created_at = payload.created_at
+    # is_teklif toggle kuralı (önce mevcut değeri hatırla)
+    before_is_teklif = getattr(proj, "is_teklif", True)
 
-    for field, value in payload.dict(exclude_unset=True).items():
-        # id / created_by korumasına gerek yoksa schema zaten içermez
-        setattr(proj, field, value)
+    data = payload.dict(exclude_unset=True)
+
+    # created_at açıkça gönderildiyse güncelle
+    if "created_at" in data:
+        proj.created_at = data["created_at"]
+
+    # Basit alanlar
+    if "customer_id" in data:
+        proj.customer_id = data["customer_id"]
+    if "project_name" in data:
+        proj.project_name = data["project_name"]
+    if "profile_color_id" in data:
+        proj.profile_color_id = data["profile_color_id"]
+    if "glass_color_id" in data:
+        proj.glass_color_id = data["glass_color_id"]
+    if "press_price" in data:
+        proj.press_price = data["press_price"]
+    if "painted_price" in data:
+        proj.painted_price = data["painted_price"]
+
+    # 🆕 Status alanları
+    if "paint_status" in data and data["paint_status"] is not None:
+        proj.paint_status = data["paint_status"]
+    if "glass_status" in data and data["glass_status"] is not None:
+        proj.glass_status = data["glass_status"]
+    if "production_status" in data and data["production_status"] is not None:
+        proj.production_status = data["production_status"]
+
+    # 🆕 is_teklif değişimi
+    if "is_teklif" in data and data["is_teklif"] is not None:
+        new_is_teklif = bool(data["is_teklif"])
+        if before_is_teklif is True and new_is_teklif is False:
+            # True → False: approval_date “o anın tarihi”ne çekilir
+            proj.approval_date = datetime.utcnow()
+        # False → True: approval_date DEĞİŞMEZ
+        proj.is_teklif = new_is_teklif
 
     db.commit()
     db.refresh(proj)
     return proj
+
 
 def update_project_code_by_number(
     db: Session,
@@ -298,7 +356,7 @@ def update_project_code_by_number(
 def update_project_all(
     db: Session,
     project_id: UUID,
-    payload: ProjectUpdate,              # ProjectUpdate
+    payload: ProjectUpdate,
     owner_id: UUID,
 ) -> Optional[Project]:
     # Proje sahibine ait mi?
@@ -310,7 +368,7 @@ def update_project_all(
     if not proj:
         return None
 
-    # Müşteri değişiyorsa; o müşteri de bu kullanıcıya (bayiye/admin’e) ait ve silinmemiş olmalı
+    # Müşteri sahiplik kontrolü (varsa)
     if payload.customer_id is not None and payload.customer_id != proj.customer_id:
         cust = (
             db.query(Customer)
@@ -324,12 +382,12 @@ def update_project_all(
         if not cust:
             raise ValueError("Customer not found or not owned by you.")
 
+    # Proje kodu numarası güncellemesi (varsa)
     if payload.project_number is not None:
         rule = _get_owner_rule(db, owner_id)
         if not rule:
             raise ValueError("Önce proje kodu kuralınızı oluşturun.")
         new_code = _format_code_from_rule(rule, payload.project_number)
-
         exists = (
             db.query(Project)
             .filter(Project.project_kodu == new_code, Project.id != project_id)
@@ -337,37 +395,48 @@ def update_project_all(
         )
         if exists:
             raise ValueError("Bu proje kodu (prefix+numara) zaten kullanılıyor.")
-
         proj.project_kodu = new_code
 
-
-    # Diğer alanlar (unset olanları dokunma; None gönderdiyse temizlemeye izin verelim)
+    # Alanları uygula
     data = payload.dict(exclude_unset=True)
-
-    # Zaten yukarıda ayrı ele aldık:
     data.pop("project_kodu", None)
 
-    # created_at açıkça gönderildiyse güncelle
     if "created_at" in data:
         proj.created_at = data["created_at"]
-
-    # isim / müşteri / renkler
     if "project_name" in data:
         proj.project_name = data["project_name"]
     if "customer_id" in data:
         proj.customer_id = data["customer_id"]
     if "profile_color_id" in data:
-        proj.profile_color_id = data["profile_color_id"]  # None gelirse temizler
+        proj.profile_color_id = data["profile_color_id"]
     if "glass_color_id" in data:
-        proj.glass_color_id = data["glass_color_id"]      # None gelirse temizler
+        proj.glass_color_id = data["glass_color_id"]
     if "press_price" in data:
         proj.press_price = data["press_price"]
     if "painted_price" in data:
         proj.painted_price = data["painted_price"]
 
+    # 🆕 Status alanları
+    if "paint_status" in data and data["paint_status"] is not None:
+        proj.paint_status = data["paint_status"]
+    if "glass_status" in data and data["glass_status"] is not None:
+        proj.glass_status = data["glass_status"]
+    if "production_status" in data and data["production_status"] is not None:
+        proj.production_status = data["production_status"]
+
+    # 🆕 is_teklif toggle
+    if "is_teklif" in data and data["is_teklif"] is not None:
+        before = bool(getattr(proj, "is_teklif", True))
+        after = bool(data["is_teklif"])
+        if before is True and after is False:
+            proj.approval_date = datetime.utcnow()  # True → False: şimdi
+        # False → True: dokunma
+        proj.is_teklif = after
+
     db.commit()
     db.refresh(proj)
     return proj
+
 
 def delete_project(db: Session, project_id: UUID, owner_id: Optional[UUID] = None) -> bool:
     """
@@ -484,9 +553,12 @@ def add_systems_to_project(
                 count=g.count,
                 area_m2=g.area_m2,
                 order_index=tpl_glasses.get(g.glass_type_id),
+                # 🆕 cam rengi
+                glass_color_id=getattr(g, "glass_color_id", None),
             )
             _apply_pdf(obj, getattr(g, "pdf", None))
             db.add(obj)
+
 
         # Malzemeler
         for m in sys_req.materials:
@@ -676,6 +748,8 @@ def add_only_systems_to_project(
                 count=g.count,
                 area_m2=g.area_m2,
                 order_index=tpl_glasses.get(g.glass_type_id),
+                # 🆕
+                glass_color_id=getattr(g, "glass_color_id", None),
             )
             _apply_pdf(obj, getattr(g, "pdf", None))
             db.add(obj)
@@ -740,7 +814,6 @@ def add_only_systems_to_project(
     return project
 
 
-
 def add_only_extras_to_project(
     db: Session,
     project_id: UUID,
@@ -753,9 +826,8 @@ def add_only_extras_to_project(
     if not project:
         raise ValueError("Project not found")
 
-    # Malzemeler
+    # --- Extra Materials ---
     for extra in extras:
-        # 💲 payload.unit_price → katalog fallback
         unit_price = getattr(extra, "unit_price", None)
         if unit_price is None:
             mat = db.query(OtherMaterial).filter(OtherMaterial.id == extra.material_id).first()
@@ -763,55 +835,58 @@ def add_only_extras_to_project(
 
         obj = ProjectExtraMaterial(
             id=uuid4(),
-            project_id=project.id,
+            project_id=project_id,  # 🔴 FIX: Project.id değil, parametre
             material_id=extra.material_id,
             count=extra.count,
             cut_length_mm=extra.cut_length_mm,
-            unit_price=unit_price,  # 💲
+            unit_price=unit_price,
         )
         _apply_pdf(obj, getattr(extra, "pdf", None))
         db.add(obj)
 
-    # Profiller
+    # --- Extra Profiles ---
     for profile in extra_profiles:
         obj = ProjectExtraProfile(
             id=uuid4(),
-            project_id=project.id,
+            project_id=project_id,  # 🔴 FIX
             profile_id=profile.profile_id,
             cut_length_mm=profile.cut_length_mm,
             cut_count=profile.cut_count,
-            # NEW 👇
             is_painted=bool(getattr(profile, "is_painted", False)),
+            unit_price=getattr(profile, "unit_price", None),
         )
         _apply_pdf(obj, getattr(profile, "pdf", None))
         db.add(obj)
 
-
-    # Camlar
+    # --- Extra Glasses ---
     for glass in extra_glasses:
         area_m2 = (glass.width_mm / 1000) * (glass.height_mm / 1000)
         obj = ProjectExtraGlass(
             id=uuid4(),
-            project_id=project.id,
+            project_id=project_id,  # 🔴 FIX
             glass_type_id=glass.glass_type_id,
             width_mm=glass.width_mm,
             height_mm=glass.height_mm,
             count=glass.count,
             area_m2=area_m2,
+            unit_price=getattr(glass, "unit_price", None),
+            # 🆕
+            glass_color_id=getattr(glass, "glass_color_id", None),
         )
+
         _apply_pdf(obj, getattr(glass, "pdf", None))
         db.add(obj)
 
-    # Kumandalar (extra)
-    for r in extra_remotes or []:
-        unit_price = r.unit_price
+    # --- Extra Remotes (opsiyonel) ---
+    for r in (extra_remotes or []):
+        unit_price = getattr(r, "unit_price", None)
         if unit_price is None:
             rem = db.query(Remote).filter(Remote.id == r.remote_id).first()
-            unit_price = float(rem.price) if rem and rem.price is not None else None
+            unit_price = float(rem.unit_price) if rem and rem.unit_price is not None else None
 
         obj = ProjectExtraRemote(
             id=uuid4(),
-            project_id=project.id,
+            project_id=project_id,  # 🔴 FIX
             remote_id=r.remote_id,
             count=r.count,
             unit_price=unit_price,
@@ -822,6 +897,8 @@ def add_only_extras_to_project(
     db.commit()
     db.refresh(project)
     return project
+
+
 
 
 
@@ -858,7 +935,6 @@ def get_project_requirements_detailed(
                 cut_count=p.cut_count,
                 total_weight_kg=p.total_weight_kg,
                 order_index=p.order_index,
-                # NEW 👇
                 is_painted=bool(getattr(p, "is_painted", False)),
                 profile=db.query(Profile).filter(Profile.id == p.profile_id).first(),
                 pdf=_pdf_from_obj(p),
@@ -866,25 +942,30 @@ def get_project_requirements_detailed(
             for p in profiles_raw
         ]
 
-
         glasses_raw = (
             db.query(ProjectSystemGlass)
             .filter(ProjectSystemGlass.project_system_id == ps.id)
             .all()
         )
-        glasses = [
-            GlassInProjectOut(
-                glass_type_id=g.glass_type_id,
-                width_mm=g.width_mm,
-                height_mm=g.height_mm,
-                count=g.count,
-                area_m2=g.area_m2,
-                order_index=g.order_index,
-                glass_type=db.query(GlassType).filter(GlassType.id == g.glass_type_id).first(),
-                pdf=_pdf_from_obj(g),
+        glasses = []
+        for g in glasses_raw:
+            glass_color_obj = db.query(Color).filter(Color.id == g.glass_color_id).first() if getattr(g, "glass_color_id", None) else None
+            glasses.append(
+                GlassInProjectOut(
+                    glass_type_id=g.glass_type_id,
+                    width_mm=g.width_mm,
+                    height_mm=g.height_mm,
+                    count=g.count,
+                    area_m2=g.area_m2,
+                    order_index=g.order_index,
+                    glass_type=db.query(GlassType).filter(GlassType.id == g.glass_type_id).first(),
+                    # 🆕
+                    glass_color_id=getattr(g, "glass_color_id", None),
+                    glass_color=glass_color_obj,
+                    pdf=_pdf_from_obj(g),
+                )
             )
-            for g in glasses_raw
-        ]
+
 
         materials_raw = (
             db.query(ProjectSystemMaterial)
@@ -896,7 +977,7 @@ def get_project_requirements_detailed(
                 material_id=m.material_id,
                 cut_length_mm=m.cut_length_mm,
                 count=m.count,
-                unit_price=float(m.unit_price) if m.unit_price is not None else None,  # 💲
+                unit_price=float(m.unit_price) if m.unit_price is not None else None,
                 type=m.type,
                 piece_length_mm=m.piece_length_mm,
                 order_index=m.order_index,
@@ -941,57 +1022,67 @@ def get_project_requirements_detailed(
             )
         )
 
-    extras_raw = db.query(ProjectExtraMaterial).filter(ProjectExtraMaterial.project_id == project_id).all()
-    extra_requirements = [
-        MaterialInProjectOut(
-            material_id=e.material_id,
-            cut_length_mm=e.cut_length_mm,
-            count=e.count,
-            unit_price=float(e.unit_price) if e.unit_price is not None else None,  # 💲
-            material=db.query(OtherMaterial).filter(OtherMaterial.id == e.material_id).first(),
-            pdf=_pdf_from_obj(e),
-        )
-        for e in extras_raw
-    ]
+    # --- EXTRA'lar ---
+    # Extra Material (DETAY + id)
+    extra_materials_out = []
+    for e in db.query(ProjectExtraMaterial).filter(ProjectExtraMaterial.project_id == project_id).all():
+        mat = db.query(OtherMaterial).filter(OtherMaterial.id == e.material_id).first()
+        extra_materials_out.append({
+            "id": e.id,  # 🔴 id eklendi
+            "material_id": e.material_id,
+            "count": e.count,
+            "cut_length_mm": e.cut_length_mm,
+            "unit_price": float(e.unit_price) if e.unit_price is not None else None,
+            "material": mat,
+            "pdf": _pdf_from_obj(e),
+        })
 
-    # ekstra profiller (detaylı)
+    # Extra Profile (DETAY + id)
     extra_profiles = []
     for p in db.query(ProjectExtraProfile).filter(ProjectExtraProfile.project_id == project_id).all():
         prof = db.query(Profile).filter(Profile.id == p.profile_id).first()
         extra_profiles.append(
             ExtraProfileDetailed(
+                id=p.id,  # 🔴 id eklendi
                 profile_id=p.profile_id,
                 cut_length_mm=float(p.cut_length_mm),
                 cut_count=p.cut_count,
-                # NEW 👇
                 is_painted=bool(getattr(p, "is_painted", False)),
+                unit_price=float(p.unit_price) if p.unit_price is not None else None,
                 profile=prof,
                 pdf=_pdf_from_obj(p),
             )
         )
 
-
-    # ekstra camlar (detaylı)
+    # Extra Glass (DETAY + id)
     extra_glasses = []
     for g in db.query(ProjectExtraGlass).filter(ProjectExtraGlass.project_id == project_id).all():
         gt = db.query(GlassType).filter(GlassType.id == g.glass_type_id).first()
+        glass_color_obj = db.query(Color).filter(Color.id == g.glass_color_id).first() if getattr(g, "glass_color_id", None) else None
         extra_glasses.append(
             ExtraGlassDetailed(
+                id=g.id,
                 glass_type_id=g.glass_type_id,
                 width_mm=float(g.width_mm),
                 height_mm=float(g.height_mm),
                 count=g.count,
+                unit_price=float(g.unit_price) if g.unit_price is not None else None,
                 glass_type=gt,
+                # 🆕
+                glass_color_id=getattr(g, "glass_color_id", None),
+                glass_color=glass_color_obj,
                 pdf=_pdf_from_obj(g),
             )
         )
 
-    # ekstra kumandalar (detaylı)
+
+    # Extra Remote (DETAY + id)
     extra_remotes = []
     for r in db.query(ProjectExtraRemote).filter(ProjectExtraRemote.project_id == project_id).all():
         remote_obj = db.query(Remote).filter(Remote.id == r.remote_id).first()
         extra_remotes.append(
             ExtraRemoteDetailed(
+                id=r.id,  # 🔴 id eklendi
                 remote_id=r.remote_id,
                 count=r.count,
                 unit_price=float(r.unit_price) if r.unit_price is not None else None,
@@ -1008,12 +1099,14 @@ def get_project_requirements_detailed(
         press_price=float(project.press_price) if project.press_price is not None else None,
         painted_price=float(project.painted_price) if project.painted_price is not None else None,
         systems=result_systems,
-        extra_requirements=extra_requirements,
+        # ⬇️ Şemanız ExtraMaterialDetailed bekliyorsa cast etmek yerine dict döndürdük;
+        # Pydantic modeliniz id + material alanlarını içeriyorsa birebir uyuşacak.
+        extra_requirements=extra_materials_out,
         extra_profiles=extra_profiles,
         extra_glasses=extra_glasses,
         extra_remotes=extra_remotes,
-
     )
+
 
 
 # ------------------------------------------------------------
@@ -1046,6 +1139,7 @@ def create_project_extra_profile(
     cut_length_mm: float,
     cut_count: int,
     is_painted: Optional[bool] = False,
+    unit_price: Optional[float] = None,
 ) -> ProjectExtraProfile:
     extra = ProjectExtraProfile(
         id=uuid4(),
@@ -1054,6 +1148,7 @@ def create_project_extra_profile(
         cut_length_mm=cut_length_mm,
         cut_count=cut_count,
         is_painted=bool(is_painted),
+        unit_price=unit_price,
     )
     db.add(extra)
     db.commit()
@@ -1069,6 +1164,7 @@ def update_project_extra_profile(
     cut_count: Optional[int] = None,
     # NEW 👇
     is_painted: Optional[bool] = None,
+    unit_price: Optional[float] = None,
 ) -> Optional[ProjectExtraProfile]:
     extra = db.query(ProjectExtraProfile).filter(ProjectExtraProfile.id == extra_id).first()
     if not extra:
@@ -1081,6 +1177,9 @@ def update_project_extra_profile(
     # NEW 👇
     if is_painted is not None:
         extra.is_painted = bool(is_painted)
+
+    if unit_price is not None:
+        extra.unit_price = unit_price
 
     db.commit()
     db.refresh(extra)
@@ -1107,7 +1206,9 @@ def create_project_extra_glass(
     glass_type_id: UUID,
     width_mm: float,
     height_mm: float,
-    count: int
+    count: int,
+    unit_price: Optional[float] = None,
+    glass_color_id: Optional[UUID] = None,   # 🆕
 ) -> ProjectExtraGlass:
     area_m2 = (width_mm / 1000) * (height_mm / 1000)
     extra = ProjectExtraGlass(
@@ -1118,6 +1219,9 @@ def create_project_extra_glass(
         height_mm=height_mm,
         count=count,
         area_m2=area_m2,
+        unit_price=unit_price,
+        # 🆕
+        glass_color_id=glass_color_id,
     )
     db.add(extra)
     db.commit()
@@ -1126,12 +1230,15 @@ def create_project_extra_glass(
     return extra
 
 
+
 def update_project_extra_glass(
     db: Session,
     extra_id: UUID,
     width_mm: Optional[float] = None,
     height_mm: Optional[float] = None,
-    count: Optional[int] = None
+    count: Optional[int] = None,
+    unit_price: Optional[float] = None,
+    glass_color_id: Optional[UUID] = None,   # 🆕
 ) -> Optional[ProjectExtraGlass]:
     extra = db.query(ProjectExtraGlass).filter(ProjectExtraGlass.id == extra_id).first()
     if not extra:
@@ -1143,6 +1250,11 @@ def update_project_extra_glass(
         extra.height_mm = height_mm
     if count is not None:
         extra.count = count
+    if unit_price is not None:
+        extra.unit_price = unit_price
+    # 🆕
+    if glass_color_id is not None:
+        extra.glass_color_id = glass_color_id
 
     # area_m2 yeniden hesapla
     if width_mm or height_mm:
@@ -1152,6 +1264,7 @@ def update_project_extra_glass(
     db.refresh(extra)
     extra.pdf = _pdf_from_obj(extra)
     return extra
+
 
 
 def delete_project_extra_glass(
@@ -1174,10 +1287,6 @@ def create_project_extra_material(
     cut_length_mm: Optional[float] = None,
     unit_price: Optional[float] = None,
 ) -> ProjectExtraMaterial:
-    # 💲 payload.unit_price → katalog fallback
-    if unit_price is None:
-        mat = db.query(OtherMaterial).filter(OtherMaterial.id == material_id).first()
-        unit_price = float(mat.unit_price) if mat and mat.unit_price is not None else None
 
     extra = ProjectExtraMaterial(
         id=uuid4(),
@@ -1401,9 +1510,12 @@ def update_project_system(
             count=g.count,
             area_m2=g.area_m2,
             order_index=tpl_glasses.get(g.glass_type_id),
+            # 🆕
+            glass_color_id=getattr(g, "glass_color_id", None),
         )
         _apply_pdf(obj, getattr(g, "pdf", None))
         db.add(obj)
+
 
     for m in payload.materials:
         tpl = tpl_materials.get(m.material_id)

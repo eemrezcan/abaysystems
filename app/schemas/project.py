@@ -36,7 +36,10 @@ class GlassInProject(BaseModel):
     count: int
     area_m2: float
     order_index: Optional[int] = None
+    # 🆕 Cam rengi (opsiyonel)
+    glass_color_id: Optional[UUID] = None
     pdf: Optional[PdfFlags] = None
+
 
 class MaterialInProject(BaseModel):
     material_id: UUID
@@ -86,6 +89,7 @@ class ExtraProfileIn(BaseModel):
     cut_count: int
     # NEW
     is_painted: Optional[bool] = False
+    unit_price: Optional[float] = None
     pdf: Optional[PdfFlags] = None
 
 
@@ -94,7 +98,11 @@ class ExtraGlassIn(BaseModel):
     width_mm: float
     height_mm: float
     count: int
+    unit_price: Optional[float] = None
+    # 🆕 Cam rengi (opsiyonel)
+    glass_color_id: Optional[UUID] = None
     pdf: Optional[PdfFlags] = None
+
 
 # 🆕 Proje geneli ekstra kumanda
 class ExtraRemoteIn(BaseModel):
@@ -141,6 +149,11 @@ class ProjectCreate(ProjectMeta):
     press_price: Optional[float] = None
     painted_price: Optional[float] = None
 
+    # 🆕 NEW (frontend POST’ta gönderecek)
+    is_teklif: Optional[bool] = True
+
+    # 🔸 NOT: paint/glass/production status alanları backend’de default "durum belirtilmedi" olacak.
+
 class ProjectUpdate(BaseModel):
     """Projeyi güncellemek için opsiyonel alanlar."""
     project_number: Optional[int] = Field(
@@ -148,18 +161,22 @@ class ProjectUpdate(BaseModel):
     )
     customer_id: Optional[UUID]
     project_name: Optional[str]
-    profile_color_id: Optional[UUID] = Field(
-        None, description="Yeni profil rengi ID"
-    )
-    glass_color_id: Optional[UUID] = Field(
-        None, description="Yeni cam rengi ID"
-    )
+    profile_color_id: Optional[UUID] = Field(None, description="Yeni profil rengi ID")
+    glass_color_id: Optional[UUID] = Field(None, description="Yeni cam rengi ID")
     created_at: Optional[datetime] = None
     press_price: Optional[float] = None
     painted_price: Optional[float] = None
-    
+
+    # 🆕 NEW — PUT ile değişecek alanlar
+    is_teklif: Optional[bool] = None
+    paint_status: Optional[str] = None
+    glass_status: Optional[str] = None
+    production_status: Optional[str] = None
+    # 🔸 NOT: approval_date’i burada expose ETMİYORUZ (kurala göre backend set edecek)
+
     class Config:
         orm_mode = True
+
 
 class ProjectCodeNumberUpdate(BaseModel):
     number: int = Field(..., ge=0, description="Proje kodunun SAYI kısmı (sadece rakam).")
@@ -168,15 +185,22 @@ class ProjectCodeNumberUpdate(BaseModel):
 class ProjectOut(ProjectMeta):
     id: UUID
     project_kodu: str = Field(
-        ..., 
-        description="Otomatik üretilen proje kodu, format: TALU-{sayi}, sayi 10000'den başlar"
+        ..., description="Otomatik üretilen proje kodu, format: TALU-{sayi}, sayi 10000'den başlar"
     )
     created_at: datetime
     press_price: Optional[float] = None
     painted_price: Optional[float] = None
 
+    # 🆕 NEW — frontend’in görmek istediği alanlar
+    is_teklif: bool
+    paint_status: str
+    glass_status: str
+    production_status: str
+    approval_date: Optional[datetime] = None   # <- datetime oldu
+
     class Config:
         orm_mode = True
+
 
 class ProjectPageOut(BaseModel):
     items: List[ProjectOut]
@@ -231,11 +255,12 @@ class OtherMaterialOut(BaseModel):
 # Detailed “extra” modeller
 # ----------------------------------------
 class ExtraProfileDetailed(BaseModel):
+    id: UUID                              # 🆕 id eklendi
     profile_id: UUID
     cut_length_mm: float
     cut_count: int
-    # NEW
     is_painted: bool
+    unit_price: Optional[float] = None
     profile: ProfileOut
     pdf: PdfFlags
 
@@ -244,18 +269,38 @@ class ExtraProfileDetailed(BaseModel):
 
 
 class ExtraGlassDetailed(BaseModel):
+    id: UUID                              # 🆕 id eklendi
     glass_type_id: UUID
     width_mm: float
     height_mm: float
     count: int
+    unit_price: Optional[float] = None
     glass_type: GlassTypeOut
+    # 🆕 Cam rengi
+    glass_color_id: Optional[UUID] = None
+    glass_color: Optional['ColorOut'] = None
     pdf: PdfFlags
 
     class Config:
         orm_mode = True
 
+
+class ExtraMaterialDetailed(BaseModel):    # 🆕 yeni
+    id: UUID
+    material_id: UUID
+    count: int
+    cut_length_mm: Optional[float] = None
+    unit_price: Optional[float] = None
+    material: OtherMaterialOut
+    pdf: PdfFlags
+
+    class Config:
+        orm_mode = True
+
+
 # 🆕 Extra Remote (detay)
 class ExtraRemoteDetailed(BaseModel):
+    id: UUID                              # 🆕 id eklendi
     remote_id: UUID
     count: int
     unit_price: Optional[float] = None
@@ -264,6 +309,7 @@ class ExtraRemoteDetailed(BaseModel):
 
     class Config:
         orm_mode = True
+
 
 #-------------------------------------------
 class SystemBasicOut(BaseModel):
@@ -287,10 +333,13 @@ class ProfileInProjectOut(ProfileInProject):
 
 class GlassInProjectOut(GlassInProject):
     glass_type: GlassTypeOut
+    # 🆕 Cam rengi detay (opsiyonel)
+    glass_color: Optional['ColorOut'] = None
     pdf: PdfFlags
 
     class Config:
         orm_mode = True
+
 
 class MaterialInProjectOut(MaterialInProject):
     material: OtherMaterialOut
@@ -342,15 +391,17 @@ class ProjectRequirementsDetailedOut(BaseModel):
     profile_color: Optional[ColorOut] = None
     glass_color: Optional[ColorOut] = None
     systems: List[SystemInProjectOut]
-    extra_requirements: List[MaterialInProjectOut] = Field(default_factory=list)
+    # ⬇️ Değişiklik: MaterialInProjectOut yerine ExtraMaterialDetailed
+    extra_requirements: List[ExtraMaterialDetailed] = Field(default_factory=list)
     extra_profiles: List[ExtraProfileDetailed] = Field(default_factory=list)
     extra_glasses:  List[ExtraGlassDetailed] = Field(default_factory=list)
-    extra_remotes:  List[ExtraRemoteDetailed] = Field(default_factory=list)  # 🆕
+    extra_remotes:  List[ExtraRemoteDetailed] = Field(default_factory=list)
     press_price: Optional[float] = None
     painted_price: Optional[float] = None
 
     class Config:
         orm_mode = True
+
 
 class ProjectCodeUpdate(BaseModel):
     project_kodu: str = Field(
@@ -360,7 +411,7 @@ class ProjectCodeUpdate(BaseModel):
         description="Yeni proje kodu, örn: TALU-12345"
     )
 
-#  EKSTRA PROFİL EKLE ÇIKART DÜZENLE  ------------------------
+# --- Extra Profile ---
 class ProjectExtraProfileCreate(BaseModel):
     project_id: UUID
     profile_id: UUID
@@ -368,16 +419,16 @@ class ProjectExtraProfileCreate(BaseModel):
     cut_count: int
     # NEW
     is_painted: Optional[bool] = False
+    unit_price: Optional[float] = None
     pdf: Optional[PdfFlags] = None
-
 
 class ProjectExtraProfileUpdate(BaseModel):
     cut_length_mm: Optional[float] = None
     cut_count: Optional[int] = None
     # NEW
     is_painted: Optional[bool] = None
+    unit_price: Optional[float] = None
     pdf: Optional[PdfFlags] = None
-
 
 class ProjectExtraProfileOut(BaseModel):
     id: UUID
@@ -387,27 +438,35 @@ class ProjectExtraProfileOut(BaseModel):
     cut_count: int
     # NEW
     is_painted: bool
+    unit_price: Optional[float] = None
     created_at: datetime
     pdf: PdfFlags
 
     class Config:
         orm_mode = True
 
-
-#  CAM EKLE ÇIKART SİL ---------------------------------------
+# --- Extra Glass ---
 class ProjectExtraGlassCreate(BaseModel):
     project_id: UUID
     glass_type_id: UUID
     width_mm: float
     height_mm: float
     count: int
+    unit_price: Optional[float] = None
+    # 🆕 Cam rengi
+    glass_color_id: Optional[UUID] = None
     pdf: Optional[PdfFlags] = None
+
 
 class ProjectExtraGlassUpdate(BaseModel):
     width_mm: Optional[float] = None
     height_mm: Optional[float] = None
     count: Optional[int] = None
+    unit_price: Optional[float] = None
+    # 🆕 Cam rengi
+    glass_color_id: Optional[UUID] = None
     pdf: Optional[PdfFlags] = None
+
 
 class ProjectExtraGlassOut(BaseModel):
     id: UUID
@@ -417,11 +476,16 @@ class ProjectExtraGlassOut(BaseModel):
     height_mm: float
     count: int
     area_m2: Optional[float]
+    unit_price: Optional[float] = None
     created_at: datetime
+    # 🆕 Cam rengi
+    glass_color_id: Optional[UUID] = None
+    glass_color: Optional['ColorOut'] = None
     pdf: PdfFlags
 
     class Config:
         orm_mode = True
+
 
 #  metaryal EKLE ÇIKART SİL ---------------------------------------
 class ProjectExtraMaterialCreate(BaseModel):
@@ -475,3 +539,13 @@ class ProjectExtraRemoteOut(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+# --- Pydantic forward refs fix ---
+try:
+    GlassInProjectOut.update_forward_refs(ColorOut=ColorOut)
+    ExtraGlassDetailed.update_forward_refs(ColorOut=ColorOut)
+    ProjectExtraGlassOut.update_forward_refs(ColorOut=ColorOut)
+except NameError:
+    # Eğer modül import sırası nedeniyle bir şeyler daha erken okunuyorsa sessizce geç
+    pass

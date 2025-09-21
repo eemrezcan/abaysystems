@@ -19,11 +19,11 @@ class PdfTitleTemplateUpdate(BaseModel):
 
 class PdfTitleTemplateOut(PdfTitleTemplateBase):
     id: UUID
-    is_deleted: bool
     created_at: datetime
     updated_at: datetime
     class Config:
         orm_mode = True
+
 
 # -------- Brands --------
 class PdfBrandBase(BaseModel):
@@ -40,7 +40,6 @@ class PdfBrandUpdate(BaseModel):
 class PdfBrandOut(PdfBrandBase):
     id: UUID
     logo_url: Optional[Union[AnyHttpUrl, str]] = None
-    is_deleted: bool
     created_at: datetime
     updated_at: datetime
     class Config:

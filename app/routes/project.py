@@ -101,7 +101,8 @@ def create_project_endpoint(
     Müşteri sahipliği doğrulanır (CRUD içinde).
     """
     try:
-        return create_project(db, payload, created_by=current_user.id)
+        proj = create_project(db, payload, created_by=current_user.id)
+        return ProjectOut.from_orm(proj)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -113,10 +114,18 @@ def list_projects(
         min_length=1,
         description="Proje adına göre filtre (contains, case-insensitive)"
     ),
-    code: str | None = Query(                     # 🆕
+    code: str | None = Query(
         default=None,
         min_length=1,
         description="Proje koduna göre filtre (contains, case-insensitive)"
+    ),
+    is_teklif: bool | None = Query(                 # 🆕 True/False gelirse filtre + sıralama kuralı
+        default=None,
+        description=(
+            "True → created_at DESC (son oluşturulan en üstte); "
+            "False → approval_date DESC (son onaylanan en üstte). "
+            "Boş bırakılırsa varsayılan sıralama: created_at DESC."
+        ),
     ),
     limit: int = Query(
         default=50,
@@ -132,22 +141,28 @@ def list_projects(
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    """Sadece oturumdaki kullanıcının projeleri; en yeni → en eski sırada.
-    İsteğe bağlı olarak proje adı ve/veya proje kodu ile filtrelenir."""
+    """
+    Sadece oturumdaki kullanıcının projeleri.
+    - is_teklif=True  → created_at DESC
+    - is_teklif=False → approval_date DESC
+    - is_teklif boş   → created_at DESC
+    """
     offset = (page - 1) * limit
 
     items, total = get_projects_page(
         db=db,
         owner_id=current_user.id,
         name=name,
-        code=code,                 # 🆕
+        code=code,
         limit=limit,
         offset=offset,
+        is_teklif=is_teklif,   # 🆕 CRUD’a geçir
     )
 
     total_pages = ceil(total / limit) if total > 0 else 0
+    items_out = [ProjectOut.from_orm(x) for x in items]
     return ProjectPageOut(
-        items=items,
+        items=items_out,
         total=total,
         page=page,
         limit=limit,
@@ -155,6 +170,7 @@ def list_projects(
         has_next=(page < total_pages) if total_pages > 0 else False,
         has_prev=(page > 1) and (total_pages > 0),
     )
+
 
 
 @router.get("/{project_id}", response_model=ProjectOut)
@@ -165,7 +181,7 @@ def get_project_endpoint(
 ):
     proj = get_project(db, project_id)   # CRUD imzası owner_id almıyor
     ensure_owner_or_404(proj, current_user.id, "created_by")
-    return proj
+    return ProjectOut.from_orm(proj)
 
 
 @router.put("/{project_id}", response_model=ProjectOut)
@@ -185,7 +201,7 @@ def update_project_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
     if not proj:
         raise HTTPException(status_code=404, detail="Project not found")
-    return proj
+    return ProjectOut.from_orm(proj)
 
 
 @router.delete("/{project_id}", status_code=204)
@@ -221,7 +237,7 @@ def update_project_colors_endpoint(
     )
     if not updated:
         raise HTTPException(404, "Project not found")
-    return updated
+    return ProjectOut.from_orm(updated)
 
 
 @router.put("/{project_id}/code", response_model=ProjectOut)
@@ -243,7 +259,7 @@ def update_project_code_endpoint(
 
     if not updated:
         raise HTTPException(status_code=404, detail="Project not found")
-    return updated
+    return ProjectOut.from_orm(updated)
 
 
 @router.put("/{project_id}/prices", response_model=ProjectOut)
@@ -281,7 +297,7 @@ def update_project_prices_endpoint(
 
     if not updated:
         raise HTTPException(status_code=404, detail="Project not found")
-    return updated
+    return ProjectOut.from_orm(updated)
 
 # ───────── Requirements (Systems + Extras) ─────────
 
@@ -298,7 +314,8 @@ def add_requirements_endpoint(
     ensure_owner_or_404(proj, current_user.id, "created_by")
 
     try:
-        return add_systems_to_project(db, project_id, payload)
+        proj = add_systems_to_project(db, project_id, payload)
+        return ProjectOut.from_orm(proj)
     except ValueError:
         raise HTTPException(404, "Project not found")
 
@@ -322,7 +339,7 @@ def update_requirements_endpoint(
 
     if not proj_updated:
         raise HTTPException(404, "Project not found")
-    return proj_updated
+    return ProjectOut.from_orm(proj_updated)
 
 
 @router.get("/{project_id}/requirements", response_model=ProjectSystemsUpdate)
@@ -359,6 +376,8 @@ def list_requirements_endpoint(
                 count=g.count,
                 area_m2=float(g.area_m2) if g.area_m2 is not None else 0.0,
                 order_index=g.order_index,
+                # 🆕 cam rengi
+                glass_color_id=getattr(g, "glass_color_id", None),
             )
             for g in sys.glasses
         ]
@@ -414,6 +433,7 @@ def list_requirements_endpoint(
 
 
 
+
 @router.post("/{project_id}/add-requirements", response_model=ProjectOut)
 def add_only_systems_endpoint(
     project_id: UUID,
@@ -427,7 +447,8 @@ def add_only_systems_endpoint(
     ensure_owner_or_404(proj, current_user.id, "created_by")
 
     try:
-        return add_only_systems_to_project(db, project_id, payload.systems)
+        proj = add_only_systems_to_project(db, project_id, payload.systems)
+        return ProjectOut.from_orm(proj)
     except ValueError:
         raise HTTPException(404, "Project not found")
 
@@ -445,7 +466,7 @@ def add_only_extras_endpoint(
     ensure_owner_or_404(proj, current_user.id, "created_by")
 
     try:
-        return add_only_extras_to_project(
+        proj = add_only_extras_to_project(
             db,
             project_id,
             extras=payload.extra_requirements,
@@ -453,6 +474,7 @@ def add_only_extras_endpoint(
             extra_glasses=payload.extra_glasses,
             extra_remotes=payload.extra_remotes,   # 🆕
         )
+        return ProjectOut.from_orm(proj)
     except ValueError:
         raise HTTPException(404, "Project not found")
 
@@ -476,26 +498,28 @@ def get_detailed_requirements_endpoint(
 
 # ───────── Extra Profile ─────────
 
+# CREATE
 @router.post("/extra-profiles", response_model=ProjectExtraProfileOut, status_code=201)
 def add_extra_profile_endpoint(
     payload: ProjectExtraProfileCreate,
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    """Ekstra profil ekler."""
-    # Sahiplik doğrulaması (payload.project_id)
     proj = get_project(db, payload.project_id)
     ensure_owner_or_404(proj, current_user.id, "created_by")
 
     try:
-        return create_project_extra_profile(
+        extra = create_project_extra_profile(
             db,
             project_id=payload.project_id,
             profile_id=payload.profile_id,
             cut_length_mm=payload.cut_length_mm,
             cut_count=payload.cut_count,
             is_painted=payload.is_painted,
+            unit_price=getattr(payload, "unit_price", None),
         )
+        # FastAPI pydantic ile kendisi serialize edecek
+        return extra
     except ValueError:
         raise HTTPException(404, "Project not found")
 
@@ -507,8 +531,6 @@ def update_extra_profile_endpoint(
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    """Ekstra profil günceller."""
-    # Sahiplik doğrulaması: extra_id -> project -> created_by
     proj = (
         db.query(Project)
         .join(ProjectExtraProfile, ProjectExtraProfile.project_id == Project.id)
@@ -523,10 +545,12 @@ def update_extra_profile_endpoint(
         cut_length_mm=payload.cut_length_mm,
         cut_count=payload.cut_count,
         is_painted=payload.is_painted,
+        unit_price=getattr(payload, "unit_price", None),
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Extra profile not found")
     return updated
+
 
 
 @router.delete("/extra-profiles/{extra_id}", status_code=204)
@@ -553,28 +577,32 @@ def delete_extra_profile_endpoint(
 
 # ───────── Extra Glass ─────────
 
+# CREATE
 @router.post("/extra-glasses", response_model=ProjectExtraGlassOut, status_code=201)
 def add_extra_glass_endpoint(
     payload: ProjectExtraGlassCreate,
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    """Ekstra cam ekler."""
-    # Sahiplik doğrulaması
     proj = get_project(db, payload.project_id)
     ensure_owner_or_404(proj, current_user.id, "created_by")
 
     try:
-        return create_project_extra_glass(
+        extra = create_project_extra_glass(
             db,
             project_id=payload.project_id,
             glass_type_id=payload.glass_type_id,
             width_mm=payload.width_mm,
             height_mm=payload.height_mm,
             count=payload.count,
+            unit_price=getattr(payload, "unit_price", None),
+            # 🆕 cam rengi
+            glass_color_id=getattr(payload, "glass_color_id", None),
         )
+        return extra
     except ValueError:
         raise HTTPException(404, "Project not found")
+
 
 
 @router.put("/extra-glasses/{extra_id}", response_model=ProjectExtraGlassOut)
@@ -584,8 +612,6 @@ def update_extra_glass_endpoint(
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    """Ekstra cam günceller."""
-    # Sahiplik doğrulaması
     proj = (
         db.query(Project)
         .join(ProjectExtraGlass, ProjectExtraGlass.project_id == Project.id)
@@ -600,10 +626,15 @@ def update_extra_glass_endpoint(
         width_mm=payload.width_mm,
         height_mm=payload.height_mm,
         count=payload.count,
+        unit_price=getattr(payload, "unit_price", None),
+        # 🆕 cam rengi
+        glass_color_id=getattr(payload, "glass_color_id", None),
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Extra glass not found")
     return updated
+
+
 
 
 @router.delete("/extra-glasses/{extra_id}", status_code=204)
@@ -642,7 +673,7 @@ def add_extra_material_endpoint(
     ensure_owner_or_404(proj, current_user.id, "created_by")
 
     try:
-        return create_project_extra_material(
+        extra = create_project_extra_material(
             db,
             project_id=payload.project_id,
             material_id=payload.material_id,
@@ -650,6 +681,7 @@ def add_extra_material_endpoint(
             cut_length_mm=payload.cut_length_mm,
             unit_price=payload.unit_price,  # 💲 eklendi
         )
+        return ProjectExtraMaterialOut.from_orm(extra)
     except ValueError:
         raise HTTPException(404, "Project not found")
 
@@ -680,7 +712,7 @@ def update_extra_material_endpoint(
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Extra material not found")
-    return updated
+    return ProjectExtraMaterialOut.from_orm(updated)
 
 
 
@@ -718,13 +750,14 @@ def add_extra_remote_endpoint(
     ensure_owner_or_404(proj, current_user.id, "created_by")
 
     try:
-        return create_project_extra_remote(
+        extra = create_project_extra_remote(
             db,
             project_id=payload.project_id,
             remote_id=payload.remote_id,
             count=payload.count,
             unit_price=payload.unit_price,
         )
+        return ProjectExtraRemoteOut.from_orm(extra)
     except ValueError:
         raise HTTPException(404, "Project not found")
 
@@ -753,7 +786,7 @@ def update_extra_remote_endpoint(
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Extra remote not found")
-    return updated
+    return ProjectExtraRemoteOut.from_orm(updated)
 
 
 @router.delete("/extra-remotes/{extra_id}", status_code=204)

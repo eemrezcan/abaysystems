@@ -14,6 +14,8 @@ router = APIRouter(prefix="/api/me/pdf/titles", tags=["me-pdf-titles"])
 
 @router.get("", response_model=List[PdfTitleTemplateOut])
 def list_my_titles(q: Optional[str] = Query(None), db: Session = Depends(get_db), current_user: AppUser = Depends(get_current_user)):
+    # Lazy default: eksikse ekle
+    crud.titles_ensure_defaults(db, current_user.id)
     return crud.titles_list(db, owner_id=current_user.id, q=q)
 
 @router.get("/{id}", response_model=PdfTitleTemplateOut)
@@ -25,6 +27,8 @@ def get_my_title(id: UUID, db: Session = Depends(get_db), current_user: AppUser 
 
 @router.get("/by-key/{key}", response_model=PdfTitleTemplateOut)
 def get_my_title_by_key(key: str, db: Session = Depends(get_db), current_user: AppUser = Depends(get_current_user)):
+    # Lazy default: çağıranlar doğrudan by-key kullanıyorsa da eksikler tamam olsun
+    crud.titles_ensure_defaults(db, current_user.id)
     obj = crud.title_get_by_key(db, current_user.id, key)
     if not obj:
         raise HTTPException(status_code=404, detail="Title bulunamadı")
@@ -41,7 +45,6 @@ def update_my_title(id: UUID, payload: PdfTitleTemplateUpdate, db: Session = Dep
     obj = crud.title_get(db, current_user.id, id)
     if not obj:
         raise HTTPException(status_code=404, detail="Title bulunamadı")
-    # key değişiyorsa çakışma kontrolü (aynı owner için)
     if payload.key and payload.key != obj.key:
         if crud.title_get_by_key(db, current_user.id, payload.key):
             raise HTTPException(status_code=409, detail="Bu key ile başka bir title var")
@@ -52,5 +55,5 @@ def delete_my_title(id: UUID, db: Session = Depends(get_db), current_user: AppUs
     obj = crud.title_get(db, current_user.id, id)
     if not obj:
         return
-    crud.title_soft_delete(db, obj)
+    crud.title_delete(db, obj)   # HARD DELETE
     return

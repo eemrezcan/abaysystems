@@ -1,9 +1,9 @@
 # app/models/project.py
 
 import uuid
-from sqlalchemy import Column, String, Numeric, Integer, ForeignKey, UniqueConstraint, Index, Boolean
+from sqlalchemy import Column, String, Numeric, Integer, ForeignKey, UniqueConstraint, Index, Boolean,Date
 from sqlalchemy.dialects.postgresql import UUID as PGUUID, TIMESTAMP
-from sqlalchemy.sql import func
+from sqlalchemy.sql import func,expression
 from sqlalchemy.orm import relationship
 from app.models.color import Color
 from app.models.app_user import AppUser
@@ -14,21 +14,26 @@ class Project(Base):
     __tablename__ = "project"
 
     __table_args__ = (
-        # Aynı kullanıcının içinde proje kodu tek olsun
         UniqueConstraint('created_by', 'project_kodu', name='uq_project_owner_code'),
-        # Listelemelerde hız için
         Index('ix_project_created_by', 'created_by'),
     )
 
     id             = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_kodu   = Column(String(50), unique=True, nullable=False)
     customer_id    = Column(PGUUID(as_uuid=True), ForeignKey("customer.id"), nullable=False)
-    project_name   = Column(String(100), nullable=False)                # 🟢 Yeni eklenen sütun
+    project_name   = Column(String(100), nullable=False)
     created_by     = Column(PGUUID(as_uuid=True), ForeignKey("app_user.id"), nullable=False)
 
-    # 🆕 NEW: Proje üstbilgisine fiyat alanları
-    press_price    = Column(Numeric, nullable=True)    # pres bedeli (opsiyonel)
-    painted_price  = Column(Numeric, nullable=True)    # boya bedeli (opsiyonel)
+    # Üst bilgi fiyat alanları (opsiyonel)
+    press_price    = Column(Numeric, nullable=True)
+    painted_price  = Column(Numeric, nullable=True)
+
+    # 🔹 Yeni sütunlar
+    is_teklif          = Column(Boolean, nullable=False, server_default=expression.true())  # yeni proje default: teklif
+    paint_status       = Column(String(50), nullable=False, server_default="durum belirtilmedi")
+    glass_status       = Column(String(50), nullable=False, server_default="durum belirtilmedi")
+    production_status  = Column(String(50), nullable=False, server_default="durum belirtilmedi")
+    approval_date      = Column(TIMESTAMP(timezone=True), nullable=True)
 
     profile_color_id = Column(PGUUID(as_uuid=True), ForeignKey("color.id"), nullable=True)
     profile_color    = relationship("Color", foreign_keys=[profile_color_id])
@@ -45,8 +50,12 @@ class Project(Base):
     extra_remotes   = relationship("ProjectExtraRemote", back_populates="project", cascade="all, delete-orphan")
 
 
-# 🔹 customer_id üzerinde doğrudan index (FK erişimleri için)
+# 🔹 mevcut index
 Index("ix_project_customer", Project.customer_id)
+
+# 🔹 yeni indexler
+Index("ix_project_is_teklif", Project.is_teklif)
+Index("ix_project_approval_date", Project.approval_date)
 
 class ProjectSystem(Base):
     __tablename__ = "project_system"
@@ -104,6 +113,9 @@ class ProjectSystemGlass(Base):
     count              = Column(Integer, nullable=False)
     area_m2            = Column(Numeric, nullable=True)
     order_index       = Column(Integer, nullable=True)
+
+    glass_color_id     = Column(PGUUID(as_uuid=True), ForeignKey("color.id"), nullable=True)
+    glass_color        = relationship("Color", foreign_keys=[glass_color_id])
 
     # --- PDF Flags ---
     cam_ciktisi                   = Column(Boolean, nullable=False, default=True)
@@ -221,7 +233,11 @@ class ProjectExtraGlass(Base):
     height_mm = Column(Numeric, nullable=False)
     count = Column(Integer, nullable=False)
     area_m2 = Column(Numeric, nullable=True)
+    unit_price = Column(Numeric, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    # 🆕 Cam rengi (opsiyonel)
+    glass_color_id = Column(PGUUID(as_uuid=True), ForeignKey("color.id"), nullable=True)
+    glass_color    = relationship("Color", foreign_keys=[glass_color_id])
 
     # --- PDF Flags ---
     cam_ciktisi                   = Column(Boolean, nullable=False, default=True)
