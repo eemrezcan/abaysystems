@@ -268,6 +268,7 @@ class ExtraProfileDetailed(BaseModel):
 
 class ExtraGlassDetailed(BaseModel):
     id: UUID                              # 🆕 id eklendi
+    project_extra_glass_id: UUID  # alias
     glass_type_id: UUID
     width_mm: float
     height_mm: float
@@ -330,13 +331,19 @@ class ProfileInProjectOut(ProfileInProject):
         orm_mode = True
 
 class GlassInProjectOut(GlassInProject):
+    # ✅ Bu ID, ProjectSystemGlass tablosundaki satırın kimliğidir
+    id: UUID
+
     glass_type: GlassTypeOut
-    # 🆕 Cam rengi detay (opsiyonel)
+    # (Opsiyonel) mevcut renk ID’si — sadece response için
+    glass_color_id: Optional[UUID] = None
+    # (Opsiyonel) renk objesi
     glass_color: Optional['ColorOut'] = None
     pdf: PdfFlags
 
     class Config:
         orm_mode = True
+
 
 
 class MaterialInProjectOut(MaterialInProject):

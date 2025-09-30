@@ -946,19 +946,22 @@ def get_project_requirements_detailed(
         glasses = []
         for g in glasses_raw:
             glass_color_obj = db.query(Color).filter(Color.id == g.glass_color_id).first() if getattr(g, "glass_color_id", None) else None
-            glasses.append(
-                GlassInProjectOut(
-                    glass_type_id=g.glass_type_id,
-                    width_mm=g.width_mm,
-                    height_mm=g.height_mm,
-                    count=g.count,
-                    area_m2=g.area_m2,
-                    order_index=g.order_index,
-                    glass_type=db.query(GlassType).filter(GlassType.id == g.glass_type_id).first(),
-                    glass_color=glass_color_obj,
-                    pdf=_pdf_from_obj(g),
-                )
+        glasses.append(
+            GlassInProjectOut(
+                id=g.id,  # ✅ ProjectSystemGlass.id
+                glass_type_id=g.glass_type_id,
+                width_mm=g.width_mm,
+                height_mm=g.height_mm,
+                count=g.count,
+                area_m2=g.area_m2,
+                order_index=g.order_index,
+                glass_type=db.query(GlassType).filter(GlassType.id == g.glass_type_id).first(),
+                glass_color_id=getattr(g, "glass_color_id", None),
+                glass_color=glass_color_obj,
+                pdf=_pdf_from_obj(g),
             )
+        )
+
 
 
 
@@ -1057,6 +1060,7 @@ def get_project_requirements_detailed(
         extra_glasses.append(
             ExtraGlassDetailed(
                 id=g.id,
+                project_extra_glass_id=g.id,
                 glass_type_id=g.glass_type_id,
                 width_mm=float(g.width_mm),
                 height_mm=float(g.height_mm),
