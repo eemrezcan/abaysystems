@@ -541,6 +541,44 @@ class ProjectExtraRemoteOut(BaseModel):
     class Config:
         orm_mode = True
 
+# --- Glass color update payloads (PUT) ---
+
+class SingleGlassColorUpdate(BaseModel):
+    """
+    Tek bir cam kaydının (system/extra) rengini güncellemek için.
+    glass_color_id = UUID verilirse o renge atanır, None verilirse renk temizlenir.
+    """
+    glass_color_id: Optional[UUID] = None  # null -> rengi temizle
+
+
+class SystemGlassColorItem(BaseModel):
+    """
+    Toplu güncellemede tek bir system glass (ProjectSystemGlass) satırı.
+    """
+    project_system_glass_id: UUID
+    glass_color_id: Optional[UUID] = None  # null -> rengi temizle
+
+
+class SystemGlassColorBulkUpdate(BaseModel):
+    """
+    System camları için toplu renk güncelleme.
+    """
+    items: List[SystemGlassColorItem]
+
+
+class ExtraGlassColorItem(BaseModel):
+    """
+    Toplu güncellemede tek bir extra glass (ProjectExtraGlass) satırı.
+    """
+    extra_glass_id: UUID
+    glass_color_id: Optional[UUID] = None  # null -> rengi temizle
+
+
+class ExtraGlassColorBulkUpdate(BaseModel):
+    """
+    Extra camlar için toplu renk güncelleme.
+    """
+    items: List[ExtraGlassColorItem]
 
 # --- Pydantic forward refs fix ---
 try:

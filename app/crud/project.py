@@ -945,24 +945,25 @@ def get_project_requirements_detailed(
         )
         glasses = []
         for g in glasses_raw:
-            glass_color_obj = db.query(Color).filter(Color.id == g.glass_color_id).first() if getattr(g, "glass_color_id", None) else None
-        glasses.append(
-            GlassInProjectOut(
-                id=g.id,  # ✅ ProjectSystemGlass.id
-                glass_type_id=g.glass_type_id,
-                width_mm=g.width_mm,
-                height_mm=g.height_mm,
-                count=g.count,
-                area_m2=g.area_m2,
-                order_index=g.order_index,
-                glass_type=db.query(GlassType).filter(GlassType.id == g.glass_type_id).first(),
-                glass_color_id=getattr(g, "glass_color_id", None),
-                glass_color=glass_color_obj,
-                pdf=_pdf_from_obj(g),
+            glass_color_obj = (
+                db.query(Color).filter(Color.id == g.glass_color_id).first()
+                if getattr(g, "glass_color_id", None) else None
             )
-        )
-
-
+            glasses.append(
+                GlassInProjectOut(
+                    id=g.id,  # ✅ ProjectSystemGlass.id
+                    glass_type_id=g.glass_type_id,
+                    width_mm=g.width_mm,
+                    height_mm=g.height_mm,
+                    count=g.count,
+                    area_m2=g.area_m2,
+                    order_index=g.order_index,
+                    glass_type=db.query(GlassType).filter(GlassType.id == g.glass_type_id).first(),
+                    glass_color_id=getattr(g, "glass_color_id", None),
+                    glass_color=glass_color_obj,
+                    pdf=_pdf_from_obj(g),
+                )
+            )
 
 
         materials_raw = (
@@ -1126,6 +1127,93 @@ def update_project_colors(
     db.commit()
     db.refresh(project)
     return project
+
+# ------------------------------------------------------------
+# Glass color updates (system & extra)
+# ------------------------------------------------------------
+
+def update_project_system_glass_color(
+    db: Session,
+    project_system_glass_id: UUID,
+    glass_color_id: Optional[UUID],
+):
+    """
+    Tek bir ProjectSystemGlass satırının cam rengini günceller (None => temizler).
+    """
+    obj = (
+        db.query(ProjectSystemGlass)
+          .filter(ProjectSystemGlass.id == project_system_glass_id)
+          .first()
+    )
+    if not obj:
+        return None
+    obj.glass_color_id = glass_color_id
+    db.commit()
+    db.refresh(obj)
+    obj.pdf = _pdf_from_obj(obj)
+    return obj
+
+
+def bulk_update_project_system_glass_colors(
+    db: Session,
+    items: List[Tuple[UUID, Optional[UUID]]],
+) -> int:
+    """
+    Birden fazla ProjectSystemGlass satırını toplu günceller.
+    items: [(project_system_glass_id, glass_color_id_or_None), ...]
+    Dönen değer: başarıyla güncellenen satır sayısı.
+    """
+    updated = 0
+    for psg_id, color_id in items:
+        obj = db.query(ProjectSystemGlass).filter(ProjectSystemGlass.id == psg_id).first()
+        if not obj:
+            continue
+        obj.glass_color_id = color_id
+        updated += 1
+    db.commit()
+    return updated
+
+
+def update_project_extra_glass_color(
+    db: Session,
+    extra_glass_id: UUID,
+    glass_color_id: Optional[UUID],
+):
+    """
+    Tek bir ProjectExtraGlass satırının cam rengini günceller (None => temizler).
+    """
+    obj = (
+        db.query(ProjectExtraGlass)
+          .filter(ProjectExtraGlass.id == extra_glass_id)
+          .first()
+    )
+    if not obj:
+        return None
+    obj.glass_color_id = glass_color_id
+    db.commit()
+    db.refresh(obj)
+    obj.pdf = _pdf_from_obj(obj)
+    return obj
+
+
+def bulk_update_project_extra_glass_colors(
+    db: Session,
+    items: List[Tuple[UUID, Optional[UUID]]],
+) -> int:
+    """
+    Birden fazla ProjectExtraGlass satırını toplu günceller.
+    items: [(extra_glass_id, glass_color_id_or_None), ...]
+    Dönen değer: başarıyla güncellenen satır sayısı.
+    """
+    updated = 0
+    for ex_id, color_id in items:
+        obj = db.query(ProjectExtraGlass).filter(ProjectExtraGlass.id == ex_id).first()
+        if not obj:
+            continue
+        obj.glass_color_id = color_id
+        updated += 1
+    db.commit()
+    return updated
 
 # ------------------------------------------------------------
 # Extra Profile CRUD

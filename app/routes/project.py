@@ -45,7 +45,12 @@ from app.crud.project import (
     create_project_extra_remote,   # 🆕
     update_project_extra_remote,   # 🆕
     delete_project_extra_remote,   # 🆕
-    update_project_code_by_number
+    update_project_code_by_number,
+    update_project_system_glass_color,      # 🆕
+    bulk_update_project_system_glass_colors,# 🆕
+    update_project_extra_glass_color,       # 🆕
+    bulk_update_project_extra_glass_colors, # 🆕
+
 )
 
 from app.schemas.project import (
@@ -82,10 +87,43 @@ from app.schemas.project import (
     ProjectPricesUpdate,
 )
 
-# Ek: Extra* sahiplik kontrolünde projeye join için Project ve Extra modellerine ihtiyacımız var
-from app.models.project import Project, ProjectExtraProfile, ProjectExtraGlass, ProjectExtraMaterial, ProjectExtraRemote, ProjectSystemRemote
+from app.models.project import (
+    Project,
+    ProjectExtraProfile,
+    ProjectExtraGlass,
+    ProjectExtraMaterial,
+    ProjectExtraRemote,
+    ProjectSystemRemote,
+    ProjectSystemGlass,     # 🆕 system glass join’ı için
+    ProjectSystem,          # 🆕 security join zinciri için
+)
 
 router = APIRouter(prefix="/api/projects", tags=["Projects"])
+
+# ───────── Local payload models for color updates ─────────
+from pydantic import BaseModel
+from typing import Optional
+
+class SystemGlassColorUpdateIn(BaseModel):
+    glass_color_id: Optional[UUID] = None  # None gönderilirse renk temizlenir
+
+class BulkSystemGlassColorItem(BaseModel):
+    project_system_glass_id: UUID
+    glass_color_id: Optional[UUID] = None
+
+class BulkSystemGlassColorUpdateIn(BaseModel):
+    items: List[BulkSystemGlassColorItem]
+
+class ExtraGlassColorUpdateIn(BaseModel):
+    glass_color_id: Optional[UUID] = None  # None => temizle
+
+class BulkExtraGlassColorItem(BaseModel):
+    extra_glass_id: UUID
+    glass_color_id: Optional[UUID] = None
+
+class BulkExtraGlassColorUpdateIn(BaseModel):
+    items: List[BulkExtraGlassColorItem]
+
 
 
 # ───────── Project CRUD ─────────
@@ -802,6 +840,138 @@ def delete_extra_remote_endpoint(
     if not success:
         raise HTTPException(status_code=404, detail="Extra remote not found")
     return
+
+# ───────── Glass color updates (SYSTEM) ─────────
+
+@router.put("/{project_id}/system-glasses/{psg_id}/color")
+def update_system_glass_color_endpoint(
+    project_id: UUID,
+    psg_id: UUID,
+    payload: SystemGlassColorUpdateIn,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    """
+    Tek bir ProjectSystemGlass satırının cam rengini günceller (None => temizler).
+    """
+    # Sahiplik: psg_id gerçekten bu projeye mi ait ve proje user’a mı ait?
+    proj = (
+        db.query(Project)
+        .join(ProjectSystem, ProjectSystem.project_id == Project.id)
+        .join(ProjectSystemGlass, ProjectSystemGlass.project_system_id == ProjectSystem.id)
+        .filter(Project.id == project_id, ProjectSystemGlass.id == psg_id)
+        .first()
+    )
+    ensure_owner_or_404(proj, current_user.id, "created_by")
+
+    updated = update_project_system_glass_color(
+        db,
+        project_system_glass_id=psg_id,
+        glass_color_id=payload.glass_color_id,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="System glass not found")
+
+    return {"ok": True, "id": str(psg_id), "glass_color_id": str(payload.glass_color_id) if payload.glass_color_id else None}
+
+
+@router.put("/{project_id}/system-glasses/colors/bulk")
+def bulk_update_system_glass_colors_endpoint(
+    project_id: UUID,
+    payload: BulkSystemGlassColorUpdateIn,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    """
+    Birden fazla ProjectSystemGlass kaydını toplu günceller.
+    Güvenlik: sadece bu project_id'ye ait satırlar güncellenir.
+    """
+    if not payload.items:
+        return {"updated": 0}
+
+    ids = [it.project_system_glass_id for it in payload.items]
+
+    # Sahiplik filtresi: sadece bu projeye ait olanları bırak
+    valid_ids = set(
+        r[0] for r in
+        db.query(ProjectSystemGlass.id)
+          .join(ProjectSystem, ProjectSystemGlass.project_system_id == ProjectSystem.id)
+          .join(Project, ProjectSystem.project_id == Project.id)
+          .filter(Project.id == project_id, Project.created_by == current_user.id, ProjectSystemGlass.id.in_(ids))
+          .all()
+    )
+
+    filtered_items = [(it.project_system_glass_id, it.glass_color_id) for it in payload.items if it.project_system_glass_id in valid_ids]
+    if not filtered_items:
+        return {"updated": 0}
+
+    updated_count = bulk_update_project_system_glass_colors(db, filtered_items)
+    return {"updated": updated_count}
+
+
+# ───────── Glass color updates (EXTRA) ─────────
+
+@router.put("/extra-glasses/{extra_id}/color")
+def update_extra_glass_color_endpoint(
+    extra_id: UUID,
+    payload: ExtraGlassColorUpdateIn,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    """
+    Tek bir ProjectExtraGlass satırının cam rengini günceller (None => temizler).
+    """
+    # Sahiplik: extra_id'nin bağlı olduğu proje user’a mı ait?
+    proj = (
+        db.query(Project)
+        .join(ProjectExtraGlass, ProjectExtraGlass.project_id == Project.id)
+        .filter(ProjectExtraGlass.id == extra_id)
+        .first()
+    )
+    ensure_owner_or_404(proj, current_user.id, "created_by")
+
+    updated = update_project_extra_glass_color(
+        db,
+        extra_glass_id=extra_id,
+        glass_color_id=payload.glass_color_id,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Extra glass not found")
+
+    return {"ok": True, "id": str(extra_id), "glass_color_id": str(payload.glass_color_id) if payload.glass_color_id else None}
+
+
+@router.put("/{project_id}/extra-glasses/colors/bulk")
+def bulk_update_extra_glass_colors_endpoint(
+    project_id: UUID,
+    payload: BulkExtraGlassColorUpdateIn,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    """
+    Birden fazla ProjectExtraGlass kaydını toplu günceller.
+    Güvenlik: sadece bu project_id'ye ait satırlar güncellenir.
+    """
+    if not payload.items:
+        return {"updated": 0}
+
+    ids = [it.extra_glass_id for it in payload.items]
+
+    valid_ids = set(
+        r[0] for r in
+        db.query(ProjectExtraGlass.id)
+          .join(Project, ProjectExtraGlass.project_id == Project.id)
+          .filter(Project.id == project_id, Project.created_by == current_user.id, ProjectExtraGlass.id.in_(ids))
+          .all()
+    )
+
+    filtered_items = [(it.extra_glass_id, it.glass_color_id) for it in payload.items if it.extra_glass_id in valid_ids]
+    if not filtered_items:
+        return {"updated": 0}
+
+    updated_count = bulk_update_project_extra_glass_colors(db, filtered_items)
+    return {"updated": updated_count}
+
 
 
 # ───────── ProjectSystem güncelleme & silme ─────────
