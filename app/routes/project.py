@@ -376,8 +376,6 @@ def list_requirements_endpoint(
                 count=g.count,
                 area_m2=float(g.area_m2) if g.area_m2 is not None else 0.0,
                 order_index=g.order_index,
-                # 🆕 cam rengi
-                glass_color_id=getattr(g, "glass_color_id", None),
             )
             for g in sys.glasses
         ]
@@ -596,8 +594,6 @@ def add_extra_glass_endpoint(
             height_mm=payload.height_mm,
             count=payload.count,
             unit_price=getattr(payload, "unit_price", None),
-            # 🆕 cam rengi
-            glass_color_id=getattr(payload, "glass_color_id", None),
         )
         return extra
     except ValueError:
@@ -627,8 +623,6 @@ def update_extra_glass_endpoint(
         height_mm=payload.height_mm,
         count=payload.count,
         unit_price=getattr(payload, "unit_price", None),
-        # 🆕 cam rengi
-        glass_color_id=getattr(payload, "glass_color_id", None),
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Extra glass not found")

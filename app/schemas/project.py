@@ -1,3 +1,5 @@
+#app/schemas/project.py
+
 from pydantic import BaseModel, Field
 from uuid import UUID
 from typing import List, Optional
@@ -36,8 +38,6 @@ class GlassInProject(BaseModel):
     count: int
     area_m2: float
     order_index: Optional[int] = None
-    # 🆕 Cam rengi (opsiyonel)
-    glass_color_id: Optional[UUID] = None
     pdf: Optional[PdfFlags] = None
 
 
@@ -99,8 +99,6 @@ class ExtraGlassIn(BaseModel):
     height_mm: float
     count: int
     unit_price: Optional[float] = None
-    # 🆕 Cam rengi (opsiyonel)
-    glass_color_id: Optional[UUID] = None
     pdf: Optional[PdfFlags] = None
 
 
@@ -453,8 +451,6 @@ class ProjectExtraGlassCreate(BaseModel):
     height_mm: float
     count: int
     unit_price: Optional[float] = None
-    # 🆕 Cam rengi
-    glass_color_id: Optional[UUID] = None
     pdf: Optional[PdfFlags] = None
 
 
@@ -463,8 +459,6 @@ class ProjectExtraGlassUpdate(BaseModel):
     height_mm: Optional[float] = None
     count: Optional[int] = None
     unit_price: Optional[float] = None
-    # 🆕 Cam rengi
-    glass_color_id: Optional[UUID] = None
     pdf: Optional[PdfFlags] = None
 
 

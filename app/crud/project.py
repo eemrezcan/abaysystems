@@ -553,11 +553,10 @@ def add_systems_to_project(
                 count=g.count,
                 area_m2=g.area_m2,
                 order_index=tpl_glasses.get(g.glass_type_id),
-                # 🆕 cam rengi
-                glass_color_id=getattr(g, "glass_color_id", None),
             )
             _apply_pdf(obj, getattr(g, "pdf", None))
             db.add(obj)
+
 
 
         # Malzemeler
@@ -748,11 +747,10 @@ def add_only_systems_to_project(
                 count=g.count,
                 area_m2=g.area_m2,
                 order_index=tpl_glasses.get(g.glass_type_id),
-                # 🆕
-                glass_color_id=getattr(g, "glass_color_id", None),
             )
             _apply_pdf(obj, getattr(g, "pdf", None))
             db.add(obj)
+
 
         # Malzemeler
         for m in sys_req.materials:
@@ -870,12 +868,10 @@ def add_only_extras_to_project(
             count=glass.count,
             area_m2=area_m2,
             unit_price=getattr(glass, "unit_price", None),
-            # 🆕
-            glass_color_id=getattr(glass, "glass_color_id", None),
         )
-
         _apply_pdf(obj, getattr(glass, "pdf", None))
         db.add(obj)
+
 
     # --- Extra Remotes (opsiyonel) ---
     for r in (extra_remotes or []):
@@ -959,12 +955,11 @@ def get_project_requirements_detailed(
                     area_m2=g.area_m2,
                     order_index=g.order_index,
                     glass_type=db.query(GlassType).filter(GlassType.id == g.glass_type_id).first(),
-                    # 🆕
-                    glass_color_id=getattr(g, "glass_color_id", None),
                     glass_color=glass_color_obj,
                     pdf=_pdf_from_obj(g),
                 )
             )
+
 
 
         materials_raw = (
@@ -1208,7 +1203,6 @@ def create_project_extra_glass(
     height_mm: float,
     count: int,
     unit_price: Optional[float] = None,
-    glass_color_id: Optional[UUID] = None,   # 🆕
 ) -> ProjectExtraGlass:
     area_m2 = (width_mm / 1000) * (height_mm / 1000)
     extra = ProjectExtraGlass(
@@ -1220,14 +1214,13 @@ def create_project_extra_glass(
         count=count,
         area_m2=area_m2,
         unit_price=unit_price,
-        # 🆕
-        glass_color_id=glass_color_id,
     )
     db.add(extra)
     db.commit()
     db.refresh(extra)
     extra.pdf = _pdf_from_obj(extra)
     return extra
+
 
 
 
@@ -1238,7 +1231,6 @@ def update_project_extra_glass(
     height_mm: Optional[float] = None,
     count: Optional[int] = None,
     unit_price: Optional[float] = None,
-    glass_color_id: Optional[UUID] = None,   # 🆕
 ) -> Optional[ProjectExtraGlass]:
     extra = db.query(ProjectExtraGlass).filter(ProjectExtraGlass.id == extra_id).first()
     if not extra:
@@ -1252,9 +1244,6 @@ def update_project_extra_glass(
         extra.count = count
     if unit_price is not None:
         extra.unit_price = unit_price
-    # 🆕
-    if glass_color_id is not None:
-        extra.glass_color_id = glass_color_id
 
     # area_m2 yeniden hesapla
     if width_mm or height_mm:
@@ -1264,6 +1253,7 @@ def update_project_extra_glass(
     db.refresh(extra)
     extra.pdf = _pdf_from_obj(extra)
     return extra
+
 
 
 
@@ -1510,11 +1500,10 @@ def update_project_system(
             count=g.count,
             area_m2=g.area_m2,
             order_index=tpl_glasses.get(g.glass_type_id),
-            # 🆕
-            glass_color_id=getattr(g, "glass_color_id", None),
         )
         _apply_pdf(obj, getattr(g, "pdf", None))
         db.add(obj)
+
 
 
     for m in payload.materials:
