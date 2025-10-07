@@ -50,6 +50,9 @@ from app.crud.project import (
     bulk_update_project_system_glass_colors,# 🆕
     update_project_extra_glass_color,       # 🆕
     bulk_update_project_extra_glass_colors, # 🆕
+    bulk_update_system_glass_color_by_type,
+    bulk_update_all_glass_colors_in_project,        # ⬅️ EKLE
+    bulk_update_glass_colors_by_type_in_project,    # ⬅️ EKLE
 
 )
 
@@ -85,6 +88,9 @@ from app.schemas.project import (
     ProjectExtraRemoteOut,         # 🆕
     ProjectCodeNumberUpdate,
     ProjectPricesUpdate,
+    SystemGlassBulkByTypeIn,
+    ProjectGlassColorAllIn,       # ⬅️ EKLE
+    ProjectGlassColorByTypeIn,    # ⬅️ EKLE
 )
 
 from app.models.project import (
@@ -875,39 +881,29 @@ def update_system_glass_color_endpoint(
     return {"ok": True, "id": str(psg_id), "glass_color_id": str(payload.glass_color_id) if payload.glass_color_id else None}
 
 
-@router.put("/{project_id}/system-glasses/colors/bulk")
-def bulk_update_system_glass_colors_endpoint(
+@router.put("/{project_id}/system-glasses/colors/bulk", response_model=dict)
+def bulk_update_system_glass_colors_by_type_endpoint(
     project_id: UUID,
-    payload: BulkSystemGlassColorUpdateIn,
+    payload: SystemGlassBulkByTypeIn,
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
     """
-    Birden fazla ProjectSystemGlass kaydını toplu günceller.
-    Güvenlik: sadece bu project_id'ye ait satırlar güncellenir.
+    Bir projede, verilen system_variant_id + glass_type_id kombinasyonuna uyan TÜM
+    ProjectSystemGlass kayıtlarının cam rengini (glass_color_id) topluca günceller.
     """
-    if not payload.items:
-        return {"updated": 0}
+    # Sahiplik doğrulaması
+    proj = get_project(db, project_id)
+    ensure_owner_or_404(proj, current_user.id, "created_by")
 
-    ids = [it.project_system_glass_id for it in payload.items]
-
-    # Sahiplik filtresi: sadece bu projeye ait olanları bırak
-    valid_ids = set(
-        r[0] for r in
-        db.query(ProjectSystemGlass.id)
-          .join(ProjectSystem, ProjectSystemGlass.project_system_id == ProjectSystem.id)
-          .join(Project, ProjectSystem.project_id == Project.id)
-          .filter(Project.id == project_id, Project.created_by == current_user.id, ProjectSystemGlass.id.in_(ids))
-          .all()
+    affected = bulk_update_system_glass_color_by_type(
+        db=db,
+        project_id=project_id,
+        system_variant_id=payload.system_variant_id,
+        glass_type_id=payload.glass_type_id,
+        glass_color_id=payload.glass_color_id,
     )
-
-    filtered_items = [(it.project_system_glass_id, it.glass_color_id) for it in payload.items if it.project_system_glass_id in valid_ids]
-    if not filtered_items:
-        return {"updated": 0}
-
-    updated_count = bulk_update_project_system_glass_colors(db, filtered_items)
-    return {"updated": updated_count}
-
+    return {"updated": affected}
 
 # ───────── Glass color updates (EXTRA) ─────────
 
@@ -971,6 +967,48 @@ def bulk_update_extra_glass_colors_endpoint(
 
     updated_count = bulk_update_project_extra_glass_colors(db, filtered_items)
     return {"updated": updated_count}
+
+@router.put("/{project_id}/glasses/colors/all", response_model=dict)
+def bulk_set_all_glass_colors_in_project_endpoint(
+    project_id: UUID,
+    payload: ProjectGlassColorAllIn,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    """
+    Projede yer alan TÜM camların (sistem + ekstra) cam rengini topluca ayarlar/temizler.
+    """
+    proj = get_project(db, project_id)
+    ensure_owner_or_404(proj, current_user.id, "created_by")
+
+    result = bulk_update_all_glass_colors_in_project(
+        db=db,
+        project_id=project_id,
+        glass_color_id=payload.glass_color_id,
+    )
+    return result
+
+
+@router.put("/{project_id}/glasses/colors/by-type", response_model=dict)
+def bulk_set_glass_colors_by_type_in_project_endpoint(
+    project_id: UUID,
+    payload: ProjectGlassColorByTypeIn,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    """
+    Projede, verilen glass_type_id'ye sahip tüm camların (sistem + ekstra) rengini topluca ayarlar/temizler.
+    """
+    proj = get_project(db, project_id)
+    ensure_owner_or_404(proj, current_user.id, "created_by")
+
+    result = bulk_update_glass_colors_by_type_in_project(
+        db=db,
+        project_id=project_id,
+        glass_type_id=payload.glass_type_id,
+        glass_color_id=payload.glass_color_id,
+    )
+    return result
 
 
 

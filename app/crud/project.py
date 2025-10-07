@@ -1215,6 +1215,116 @@ def bulk_update_project_extra_glass_colors(
     db.commit()
     return updated
 
+def bulk_update_system_glass_color_by_type(
+    db: Session,
+    project_id: UUID,
+    system_variant_id: UUID,
+    glass_type_id: UUID,
+    glass_color_id: Optional[UUID],
+) -> int:
+    """
+    Verilen project_id içinde, system_variant_id + glass_type_id eşleşen TÜM ProjectSystemGlass
+    kayıtlarının glass_color_id değerini günceller. Etkilenen satır sayısını döndürür.
+    """
+    q = (
+        db.query(ProjectSystemGlass)
+          .join(ProjectSystem, ProjectSystemGlass.project_system_id == ProjectSystem.id)
+          .filter(
+              ProjectSystem.project_id == project_id,
+              ProjectSystem.system_variant_id == system_variant_id,
+              ProjectSystemGlass.glass_type_id == glass_type_id,
+          )
+    )
+    updated = q.update(
+        { ProjectSystemGlass.glass_color_id: glass_color_id },
+        synchronize_session=False
+    )
+    db.commit()
+    return int(updated or 0)
+
+def bulk_update_all_glass_colors_in_project(
+    db: Session,
+    project_id: UUID,
+    glass_color_id: Optional[UUID],
+) -> dict:
+    """
+    Projede yer alan TÜM camların (ProjectSystemGlass + ProjectExtraGlass) rengini günceller.
+    Dönüş: {"system_updated": X, "extra_updated": Y, "total": X+Y}
+    """
+    # System içindeki camlar
+    q_sys = (
+        db.query(ProjectSystemGlass)
+          .join(ProjectSystem, ProjectSystemGlass.project_system_id == ProjectSystem.id)
+          .filter(ProjectSystem.project_id == project_id)
+    )
+    sys_updated = q_sys.update(
+        { ProjectSystemGlass.glass_color_id: glass_color_id },
+        synchronize_session=False
+    )
+
+    # Extra camlar
+    q_extra = (
+        db.query(ProjectExtraGlass)
+          .filter(ProjectExtraGlass.project_id == project_id)
+    )
+    extra_updated = q_extra.update(
+        { ProjectExtraGlass.glass_color_id: glass_color_id },
+        synchronize_session=False
+    )
+
+    db.commit()
+    return {
+        "system_updated": int(sys_updated or 0),
+        "extra_updated": int(extra_updated or 0),
+        "total": int((sys_updated or 0) + (extra_updated or 0)),
+    }
+
+
+def bulk_update_glass_colors_by_type_in_project(
+    db: Session,
+    project_id: UUID,
+    glass_type_id: UUID,
+    glass_color_id: Optional[UUID],
+) -> dict:
+    """
+    Projede, verilen glass_type_id'ye sahip TÜM camların (ProjectSystemGlass + ProjectExtraGlass)
+    rengini günceller.
+    Dönüş: {"system_updated": X, "extra_updated": Y, "total": X+Y}
+    """
+    # System içindeki camlar
+    q_sys = (
+        db.query(ProjectSystemGlass)
+          .join(ProjectSystem, ProjectSystemGlass.project_system_id == ProjectSystem.id)
+          .filter(
+              ProjectSystem.project_id == project_id,
+              ProjectSystemGlass.glass_type_id == glass_type_id,
+          )
+    )
+    sys_updated = q_sys.update(
+        { ProjectSystemGlass.glass_color_id: glass_color_id },
+        synchronize_session=False
+    )
+
+    # Extra camlar
+    q_extra = (
+        db.query(ProjectExtraGlass)
+          .filter(
+              ProjectExtraGlass.project_id == project_id,
+              ProjectExtraGlass.glass_type_id == glass_type_id,
+          )
+    )
+    extra_updated = q_extra.update(
+        { ProjectExtraGlass.glass_color_id: glass_color_id },
+        synchronize_session=False
+    )
+
+    db.commit()
+    return {
+        "system_updated": int(sys_updated or 0),
+        "extra_updated": int(extra_updated or 0),
+        "total": int((sys_updated or 0) + (extra_updated or 0)),
+    }
+
 # ------------------------------------------------------------
 # Extra Profile CRUD
 # ------------------------------------------------------------

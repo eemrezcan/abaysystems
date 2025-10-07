@@ -580,6 +580,24 @@ class ExtraGlassColorBulkUpdate(BaseModel):
     """
     items: List[ExtraGlassColorItem]
 
+
+class SystemGlassBulkByTypeIn(BaseModel):
+    system_variant_id: UUID
+    glass_type_id: UUID
+    glass_color_id: Optional[UUID] = None
+
+
+# ... mevcut import ve içerikler ...
+
+# 🔹 PROJE GENELİ: tüm camları aynı renge çek
+class ProjectGlassColorAllIn(BaseModel):
+    glass_color_id: Optional[UUID] = None  # null gönderilirse renk temizlenir
+
+# 🔹 PROJE GENELİ: belirli cam tipine göre tüm camların rengini çek
+class ProjectGlassColorByTypeIn(BaseModel):
+    glass_type_id: UUID
+    glass_color_id: Optional[UUID] = None  # null → temizle
+
 # --- Pydantic forward refs fix ---
 try:
     GlassInProjectOut.update_forward_refs(ColorOut=ColorOut)
@@ -588,3 +606,4 @@ try:
 except NameError:
     # Eğer modül import sırası nedeniyle bir şeyler daha erken okunuyorsa sessizce geç
     pass
+
