@@ -1225,22 +1225,30 @@ def bulk_update_system_glass_color_by_type(
     """
     Verilen project_id içinde, system_variant_id + glass_type_id eşleşen TÜM ProjectSystemGlass
     kayıtlarının glass_color_id değerini günceller. Etkilenen satır sayısını döndürür.
+    (JOIN'lı update yerine IN (subquery) kullanır.)
     """
-    q = (
-        db.query(ProjectSystemGlass)
+    # 1) Etkilenecek satırların ID'lerini alt-sorgu ile çek
+    id_subq = (
+        db.query(ProjectSystemGlass.id)
           .join(ProjectSystem, ProjectSystemGlass.project_system_id == ProjectSystem.id)
           .filter(
               ProjectSystem.project_id == project_id,
               ProjectSystem.system_variant_id == system_variant_id,
               ProjectSystemGlass.glass_type_id == glass_type_id,
           )
+          .subquery()
     )
-    updated = q.update(
-        { ProjectSystemGlass.glass_color_id: glass_color_id },
-        synchronize_session=False
+
+    # 2) IN (subquery) ile güvenli bulk update
+    updated = (
+        db.query(ProjectSystemGlass)
+          .filter(ProjectSystemGlass.id.in_(db.query(id_subq.c.id)))
+          .update({ProjectSystemGlass.glass_color_id: glass_color_id}, synchronize_session=False)
     )
+
     db.commit()
     return int(updated or 0)
+
 
 def bulk_update_all_glass_colors_in_project(
     db: Session,
@@ -1251,25 +1259,24 @@ def bulk_update_all_glass_colors_in_project(
     Projede yer alan TÜM camların (ProjectSystemGlass + ProjectExtraGlass) rengini günceller.
     Dönüş: {"system_updated": X, "extra_updated": Y, "total": X+Y}
     """
-    # System içindeki camlar
-    q_sys = (
-        db.query(ProjectSystemGlass)
+    # System içindeki camlar → IN (subquery) yaklaşımı
+    sys_ids_subq = (
+        db.query(ProjectSystemGlass.id)
           .join(ProjectSystem, ProjectSystemGlass.project_system_id == ProjectSystem.id)
           .filter(ProjectSystem.project_id == project_id)
+          .subquery()
     )
-    sys_updated = q_sys.update(
-        { ProjectSystemGlass.glass_color_id: glass_color_id },
-        synchronize_session=False
+    sys_updated = (
+        db.query(ProjectSystemGlass)
+          .filter(ProjectSystemGlass.id.in_(db.query(sys_ids_subq.c.id)))
+          .update({ProjectSystemGlass.glass_color_id: glass_color_id}, synchronize_session=False)
     )
 
-    # Extra camlar
-    q_extra = (
+    # Extra camlar → join yok, direkt update
+    extra_updated = (
         db.query(ProjectExtraGlass)
           .filter(ProjectExtraGlass.project_id == project_id)
-    )
-    extra_updated = q_extra.update(
-        { ProjectExtraGlass.glass_color_id: glass_color_id },
-        synchronize_session=False
+          .update({ProjectExtraGlass.glass_color_id: glass_color_id}, synchronize_session=False)
     )
 
     db.commit()
@@ -1278,6 +1285,7 @@ def bulk_update_all_glass_colors_in_project(
         "extra_updated": int(extra_updated or 0),
         "total": int((sys_updated or 0) + (extra_updated or 0)),
     }
+
 
 
 def bulk_update_glass_colors_by_type_in_project(
@@ -1291,31 +1299,30 @@ def bulk_update_glass_colors_by_type_in_project(
     rengini günceller.
     Dönüş: {"system_updated": X, "extra_updated": Y, "total": X+Y}
     """
-    # System içindeki camlar
-    q_sys = (
-        db.query(ProjectSystemGlass)
+    # System içindeki camlar (type filtresiyle) → IN (subquery)
+    sys_ids_subq = (
+        db.query(ProjectSystemGlass.id)
           .join(ProjectSystem, ProjectSystemGlass.project_system_id == ProjectSystem.id)
           .filter(
               ProjectSystem.project_id == project_id,
               ProjectSystemGlass.glass_type_id == glass_type_id,
           )
+          .subquery()
     )
-    sys_updated = q_sys.update(
-        { ProjectSystemGlass.glass_color_id: glass_color_id },
-        synchronize_session=False
+    sys_updated = (
+        db.query(ProjectSystemGlass)
+          .filter(ProjectSystemGlass.id.in_(db.query(sys_ids_subq.c.id)))
+          .update({ProjectSystemGlass.glass_color_id: glass_color_id}, synchronize_session=False)
     )
 
-    # Extra camlar
-    q_extra = (
+    # Extra camlar → join yok, direkt update
+    extra_updated = (
         db.query(ProjectExtraGlass)
           .filter(
               ProjectExtraGlass.project_id == project_id,
               ProjectExtraGlass.glass_type_id == glass_type_id,
           )
-    )
-    extra_updated = q_extra.update(
-        { ProjectExtraGlass.glass_color_id: glass_color_id },
-        synchronize_session=False
+          .update({ProjectExtraGlass.glass_color_id: glass_color_id}, synchronize_session=False)
     )
 
     db.commit()
@@ -1324,6 +1331,7 @@ def bulk_update_glass_colors_by_type_in_project(
         "extra_updated": int(extra_updated or 0),
         "total": int((sys_updated or 0) + (extra_updated or 0)),
     }
+
 
 # ------------------------------------------------------------
 # Extra Profile CRUD

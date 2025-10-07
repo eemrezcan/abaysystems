@@ -905,6 +905,7 @@ def bulk_update_system_glass_colors_by_type_endpoint(
     )
     return {"updated": affected}
 
+
 # ───────── Glass color updates (EXTRA) ─────────
 
 @router.put("/extra-glasses/{extra_id}/color")
@@ -989,6 +990,7 @@ def bulk_set_all_glass_colors_in_project_endpoint(
     return result
 
 
+
 @router.put("/{project_id}/glasses/colors/by-type", response_model=dict)
 def bulk_set_glass_colors_by_type_in_project_endpoint(
     project_id: UUID,
@@ -1009,6 +1011,7 @@ def bulk_set_glass_colors_by_type_in_project_endpoint(
         glass_color_id=payload.glass_color_id,
     )
     return result
+
 
 
 
