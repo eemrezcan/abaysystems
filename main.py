@@ -8,7 +8,7 @@ import app.models.other_material
 import app.models.profile
 import app.models.system
 
-from fastapi import FastAPI
+from fastapi import FastAPI, APIRouter
 from app.routes.order import router as order_router
 from app.routes.system import router as system_router 
 from app.routes.project import router as project_router
@@ -28,6 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 from app.core.config import MEDIA_ROOT
 from pathlib import Path
+from app.core.config import settings
 
 Path(MEDIA_ROOT).mkdir(parents=True, exist_ok=True)
 
@@ -43,12 +44,28 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,      # Geliştirme için sadece bu kökenlere izin
+    allow_origins=settings.BACKEND_CORS_ORIGINS,      # Geliştirme için sadece bu kökenlere izin
+    allow_origin_regex=r"^https://(www\.)?denemesoftwareapp\.xyz$",
     allow_credentials=True,
     allow_methods=["*"],        # Tüm HTTP metodları
-    allow_headers=["*"],        # Tüm başlıklar
+    allow_headers=["*"],
+    expose_headers=["*"],        # Tüm başlıklar
 )
 
+debug_router = APIRouter()
+
+@debug_router.get("/__cors_debug")
+def cors_debug():
+    return {
+        "BACKEND_CORS_ORIGINS": settings.BACKEND_CORS_ORIGINS,
+        "BACKEND_CORS_ORIGINS_RAW": getattr(settings, "BACKEND_CORS_ORIGINS_RAW", None),
+        "FRONTEND_URL": settings.FRONTEND_URL,
+        "SAMESITE": settings.REFRESH_COOKIE_SAMESITE,
+        "DOMAIN": settings.REFRESH_COOKIE_DOMAIN,
+    }
+
+# en altta veya router tanımlarının yanında
+app.include_router(debug_router, prefix="/api")
 
 
 
