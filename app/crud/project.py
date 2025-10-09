@@ -182,24 +182,42 @@ def get_projects(
     limit: Optional[int] = None,
     offset: int = 0,
     is_teklif: Optional[bool] = None,   # 🆕
+    # --- yeni filtreler ---
+    paint_status: Optional[str] = None,
+    glass_status: Optional[str] = None,
+    production_status: Optional[str] = None,
+    customer_id: Optional[UUID] = None,
 ) -> list[Project]:
     """
     Kendi projelerini döndürür.
-    - is_teklif=True ise created_at DESC ile sırala (son oluşturulan en üstte)
-    - is_teklif=False ise approval_date DESC ile sırala (son onaylanan en üstte)
-    - is_teklif verilmezse created_at DESC kullan (eski davranış)
-    - name varsa project_name contains (CI)
+    Ek filtreler:
+      - paint_status / glass_status / production_status: exact match
+      - customer_id: eşleşen müşteri
+    Sıralama:
+      - is_teklif=True   → created_at DESC
+      - is_teklif=False  → approval_date DESC, created_at DESC
+      - is_teklif=None   → created_at DESC
     """
     query = db.query(Project).filter(Project.created_by == owner_id)
 
+    # Arama
     if name:
         like_val = f"%{name.lower()}%"
         query = query.filter(func.lower(Project.project_name).like(like_val))
 
+    # Filtreler
     if is_teklif is not None:
         query = query.filter(Project.is_teklif == bool(is_teklif))
+    if paint_status:
+        query = query.filter(Project.paint_status == paint_status.strip())
+    if glass_status:
+        query = query.filter(Project.glass_status == glass_status.strip())
+    if production_status:
+        query = query.filter(Project.production_status == production_status.strip())
+    if customer_id:
+        query = query.filter(Project.customer_id == customer_id)
 
-    # Sıralama kuralı
+    # Sıralama
     if is_teklif is False:
         query = query.order_by(Project.approval_date.desc(), Project.created_at.desc())
     else:
@@ -213,6 +231,7 @@ def get_projects(
     return query.all()
 
 
+
 def get_projects_page(
     db: Session,
     owner_id: UUID,
@@ -221,33 +240,52 @@ def get_projects_page(
     limit: int,
     offset: int,
     is_teklif: Optional[bool] = None,   # 🆕
+    # --- yeni filtreler ---
+    paint_status: Optional[str] = None,
+    glass_status: Optional[str] = None,
+    production_status: Optional[str] = None,
+    customer_id: Optional[UUID] = None,
 ) -> Tuple[List[Project], int]:
     """
     Filtrelenmiş toplam kayıt sayısı + sayfadaki kayıtlar.
     - name: project_name contains (CI)
     - code: project_kodu contains (CI)
     - is_teklif: True/False'a göre filtre ve sıralama
+    - paint_status / glass_status / production_status: exact match
+    - customer_id: eşleşen müşteri
     """
     base_q = db.query(Project).filter(Project.created_by == owner_id)
 
+    # Metin aramaları
     if name:
         like_val = f"%{name.lower()}%"
         base_q = base_q.filter(func.lower(Project.project_name).like(like_val))
-
     if code:
         code_like = f"%{code.lower()}%"
         base_q = base_q.filter(func.lower(Project.project_kodu).like(code_like))
 
+    # Durum + müşteri filtreleri
     if is_teklif is not None:
         base_q = base_q.filter(Project.is_teklif == bool(is_teklif))
+    if paint_status:
+        base_q = base_q.filter(Project.paint_status == paint_status.strip())
+    if glass_status:
+        base_q = base_q.filter(Project.glass_status == glass_status.strip())
+    if production_status:
+        base_q = base_q.filter(Project.production_status == production_status.strip())
+    if customer_id:
+        base_q = base_q.filter(Project.customer_id == customer_id)
 
+    # Toplam
     total = base_q.order_by(None).count()
 
+    # Sıralama
     if is_teklif is False:
         order_clause = [Project.approval_date.desc(), Project.created_at.desc()]
     else:
         order_clause = [Project.created_at.desc()]
 
+    # Sayfa
     items = (
         base_q.order_by(*order_clause)
               .offset(offset)
@@ -255,6 +293,7 @@ def get_projects_page(
               .all()
     )
     return items, total
+
 
 
 

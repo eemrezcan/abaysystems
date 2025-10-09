@@ -57,6 +57,11 @@ Index("ix_project_customer", Project.customer_id)
 Index("ix_project_is_teklif", Project.is_teklif)
 Index("ix_project_approval_date", Project.approval_date)
 
+# ✅ filtre performansı için ek index'ler
+Index("ix_project_paint_status", Project.paint_status)
+Index("ix_project_glass_status", Project.glass_status)
+Index("ix_project_production_status", Project.production_status)
+
 class ProjectSystem(Base):
     __tablename__ = "project_system"
 

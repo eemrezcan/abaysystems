@@ -163,7 +163,7 @@ def list_projects(
         min_length=1,
         description="Proje koduna göre filtre (contains, case-insensitive)"
     ),
-    is_teklif: bool | None = Query(                 # 🆕 True/False gelirse filtre + sıralama kuralı
+    is_teklif: bool | None = Query(
         default=None,
         description=(
             "True → created_at DESC (son oluşturulan en üstte); "
@@ -171,6 +171,24 @@ def list_projects(
             "Boş bırakılırsa varsayılan sıralama: created_at DESC."
         ),
     ),
+    # 🔽 Yeni filtre parametreleri
+    paint_status: str | None = Query(
+        default=None,
+        description="Boya durumu (exact match). Örn: 'durum belirtilmedi', 'hazır', 'beklemede' vb."
+    ),
+    glass_status: str | None = Query(
+        default=None,
+        description="Cam durumu (exact match)."
+    ),
+    production_status: str | None = Query(
+        default=None,
+        description="Üretim durumu (exact match)."
+    ),
+    customer_id: UUID | None = Query(
+        default=None,
+        description="Belirli bir müşteri ID'sine ait projeler."
+    ),
+    # Sayfalama
     limit: int = Query(
         default=50,
         ge=1,
@@ -187,9 +205,11 @@ def list_projects(
 ):
     """
     Sadece oturumdaki kullanıcının projeleri.
-    - is_teklif=True  → created_at DESC
-    - is_teklif=False → approval_date DESC
-    - is_teklif boş   → created_at DESC
+    Filtreler:
+      - name / code: contains (CI)
+      - is_teklif: True/False → sıralama kuralı değişir
+      - paint_status / glass_status / production_status: exact match
+      - customer_id: eşleşen müşteri
     """
     offset = (page - 1) * limit
 
@@ -200,7 +220,12 @@ def list_projects(
         code=code,
         limit=limit,
         offset=offset,
-        is_teklif=is_teklif,   # 🆕 CRUD’a geçir
+        is_teklif=is_teklif,
+        # 🔽 CRUD’a geçir
+        paint_status=paint_status,
+        glass_status=glass_status,
+        production_status=production_status,
+        customer_id=customer_id,
     )
 
     total_pages = ceil(total / limit) if total > 0 else 0
@@ -214,6 +239,7 @@ def list_projects(
         has_next=(page < total_pages) if total_pages > 0 else False,
         has_prev=(page > 1) and (total_pages > 0),
     )
+
 
 
 

@@ -209,6 +209,31 @@ class ProjectPageOut(BaseModel):
     has_next: bool
     has_prev: bool
     
+class ProjectListParams(BaseModel):
+    """
+    GET /api/projects/ listeleme filtresi için query param şeması.
+    Tüm alanlar opsiyoneldir; verileni uygularız.
+    """
+    paint_status: Optional[str] = Field(
+        None, description='Proje boya durumu (exact match).'
+    )
+    glass_status: Optional[str] = Field(
+        None, description='Proje cam durumu (exact match).'
+    )
+    production_status: Optional[str] = Field(
+        None, description='Proje üretim durumu (exact match).'
+    )
+    customer_id: Optional[UUID] = Field(
+        None, description='Belirli bir müşteriye ait projeler.'
+    )
+
+    # Opsiyonel: sayfalama; mevcut ProjectPageOut ile uyumlu
+    page: int = Field(1, ge=1, description="Sayfa numarası")
+    limit: int = Field(20, ge=1, le=200, description="Sayfa başına kayıt")
+
+    class Config:
+        orm_mode = True
+
 # ----------------------------------------
 # Detailed Response Models for GET /requirements-detailed
 # ----------------------------------------
