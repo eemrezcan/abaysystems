@@ -180,6 +180,8 @@ class ProjectCodeNumberUpdate(BaseModel):
     number: int = Field(..., ge=0, description="Proje kodunun SAYI kısmı (sadece rakam).")
 
 
+# app/schemas/project.py
+
 class ProjectOut(ProjectMeta):
     id: UUID
     project_kodu: str = Field(
@@ -188,6 +190,9 @@ class ProjectOut(ProjectMeta):
     created_at: datetime
     press_price: Optional[float] = None
     painted_price: Optional[float] = None
+
+    # 🆕 EKLENDİ — listedeki her projeye müşteri adını da döndürelim
+    customer_name: str
 
     # 🆕 NEW — frontend’in görmek istediği alanlar
     is_teklif: bool
@@ -198,6 +203,7 @@ class ProjectOut(ProjectMeta):
 
     class Config:
         orm_mode = True
+
 
 
 class ProjectPageOut(BaseModel):

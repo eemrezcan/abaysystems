@@ -9,6 +9,7 @@ from math import ceil
 from app.db.session import get_db
 from app.core.security import get_current_user
 from app.models.app_user import AppUser
+from app.models.customer import Customer
 
 from app.utils.ownership import ensure_owner_or_404
 
@@ -130,7 +131,13 @@ class BulkExtraGlassColorItem(BaseModel):
 class BulkExtraGlassColorUpdateIn(BaseModel):
     items: List[BulkExtraGlassColorItem]
 
-
+def _attach_customer_name(db: Session, proj: Project) -> None:
+    """Project ORM objesine customer_name alanını enjekte eder."""
+    cust_name = None
+    if getattr(proj, "customer_id", None):
+        cust = db.query(Customer).filter(Customer.id == proj.customer_id).first()
+        cust_name = getattr(cust, "name", None)
+    setattr(proj, "customer_name", cust_name or "")
 
 # ───────── Project CRUD ─────────
 
@@ -146,6 +153,7 @@ def create_project_endpoint(
     """
     try:
         proj = create_project(db, payload, created_by=current_user.id)
+        _attach_customer_name(db, proj)  
         return ProjectOut.from_orm(proj)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -251,6 +259,7 @@ def get_project_endpoint(
 ):
     proj = get_project(db, project_id)   # CRUD imzası owner_id almıyor
     ensure_owner_or_404(proj, current_user.id, "created_by")
+    _attach_customer_name(db, proj)
     return ProjectOut.from_orm(proj)
 
 
@@ -271,6 +280,7 @@ def update_project_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
     if not proj:
         raise HTTPException(status_code=404, detail="Project not found")
+    _attach_customer_name(db, proj) 
     return ProjectOut.from_orm(proj)
 
 
@@ -307,13 +317,14 @@ def update_project_colors_endpoint(
     )
     if not updated:
         raise HTTPException(404, "Project not found")
+    _attach_customer_name(db, updated)  # ⬅️ EKLENDİ
     return ProjectOut.from_orm(updated)
 
 
 @router.put("/{project_id}/code", response_model=ProjectOut)
 def update_project_code_endpoint(
     project_id: UUID,
-    payload: ProjectCodeNumberUpdate,   # ⬅️ değişti
+    payload: ProjectCodeNumberUpdate,
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
@@ -329,6 +340,7 @@ def update_project_code_endpoint(
 
     if not updated:
         raise HTTPException(status_code=404, detail="Project not found")
+    _attach_customer_name(db, updated)  # ⬅️ EKLENDİ
     return ProjectOut.from_orm(updated)
 
 
@@ -367,7 +379,9 @@ def update_project_prices_endpoint(
 
     if not updated:
         raise HTTPException(status_code=404, detail="Project not found")
+    _attach_customer_name(db, updated)  # ⬅️ EKLENDİ
     return ProjectOut.from_orm(updated)
+
 
 # ───────── Requirements (Systems + Extras) ─────────
 
@@ -385,9 +399,11 @@ def add_requirements_endpoint(
 
     try:
         proj = add_systems_to_project(db, project_id, payload)
+        _attach_customer_name(db, proj)  # ⬅️ EKLENDİ
         return ProjectOut.from_orm(proj)
     except ValueError:
         raise HTTPException(404, "Project not found")
+
 
 
 @router.put("/{project_id}/requirements", response_model=ProjectOut)
@@ -409,7 +425,9 @@ def update_requirements_endpoint(
 
     if not proj_updated:
         raise HTTPException(404, "Project not found")
+    _attach_customer_name(db, proj_updated)  # ⬅️ EKLENDİ
     return ProjectOut.from_orm(proj_updated)
+
 
 
 @router.get("/{project_id}/requirements", response_model=ProjectSystemsUpdate)
@@ -516,9 +534,11 @@ def add_only_systems_endpoint(
 
     try:
         proj = add_only_systems_to_project(db, project_id, payload.systems)
+        _attach_customer_name(db, proj)  # ⬅️ EKLENDİ
         return ProjectOut.from_orm(proj)
     except ValueError:
         raise HTTPException(404, "Project not found")
+
 
 
 @router.post("/{project_id}/add-extra-requirements", response_model=ProjectOut)
@@ -540,11 +560,13 @@ def add_only_extras_endpoint(
             extras=payload.extra_requirements,
             extra_profiles=payload.extra_profiles,
             extra_glasses=payload.extra_glasses,
-            extra_remotes=payload.extra_remotes,   # 🆕
+            extra_remotes=payload.extra_remotes,
         )
+        _attach_customer_name(db, proj)  # ⬅️ EKLENDİ
         return ProjectOut.from_orm(proj)
     except ValueError:
         raise HTTPException(404, "Project not found")
+
 
 
 @router.get("/{project_id}/requirements-detailed", response_model=ProjectRequirementsDetailedOut)

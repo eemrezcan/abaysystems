@@ -28,7 +28,7 @@ from app.models.project import (
     ProjectExtraProfile,
     ProjectExtraGlass,
     ProjectSystemRemote,
-    ProjectExtraRemote
+    ProjectExtraRemote,
 )
 from app.models.customer import Customer
 from app.models.system_profile_template import SystemProfileTemplate
@@ -181,24 +181,21 @@ def get_projects(
     name: Optional[str] = None,
     limit: Optional[int] = None,
     offset: int = 0,
-    is_teklif: Optional[bool] = None,   # 🆕
-    # --- yeni filtreler ---
+    is_teklif: Optional[bool] = None,
     paint_status: Optional[str] = None,
     glass_status: Optional[str] = None,
     production_status: Optional[str] = None,
     customer_id: Optional[UUID] = None,
 ) -> list[Project]:
     """
-    Kendi projelerini döndürür.
-    Ek filtreler:
-      - paint_status / glass_status / production_status: exact match
-      - customer_id: eşleşen müşteri
-    Sıralama:
-      - is_teklif=True   → created_at DESC
-      - is_teklif=False  → approval_date DESC, created_at DESC
-      - is_teklif=None   → created_at DESC
+    Kendi projelerini döndürür (+ customer_name).
     """
-    query = db.query(Project).filter(Project.created_by == owner_id)
+    # 🔹 Project + Customer.name (LEFT JOIN)
+    query = (
+        db.query(Project, Customer.name.label("customer_name"))
+          .join(Customer, Customer.id == Project.customer_id, isouter=True)
+          .filter(Project.created_by == owner_id)
+    )
 
     # Arama
     if name:
@@ -228,7 +225,16 @@ def get_projects(
     if limit is not None:
         query = query.limit(limit)
 
-    return query.all()
+    rows = query.all()
+
+    # 🔹 Pydantic'in görmesi için attribute enjekte et
+    projects: list[Project] = []
+    for proj, cust_name in rows:
+        setattr(proj, "customer_name", cust_name or "")
+        projects.append(proj)
+
+    return projects
+
 
 
 
@@ -239,45 +245,54 @@ def get_projects_page(
     code: Optional[str],
     limit: int,
     offset: int,
-    is_teklif: Optional[bool] = None,   # 🆕
-    # --- yeni filtreler ---
+    is_teklif: Optional[bool] = None,
     paint_status: Optional[str] = None,
     glass_status: Optional[str] = None,
     production_status: Optional[str] = None,
     customer_id: Optional[UUID] = None,
 ) -> Tuple[List[Project], int]:
     """
-    Filtrelenmiş toplam kayıt sayısı + sayfadaki kayıtlar.
-    - name: project_name contains (CI)
-    - code: project_kodu contains (CI)
-    - is_teklif: True/False'a göre filtre ve sıralama
-    - paint_status / glass_status / production_status: exact match
-    - customer_id: eşleşen müşteri
+    Sayfalı liste (+ customer_name).
     """
-    base_q = db.query(Project).filter(Project.created_by == owner_id)
+    # 🔹 Items için JOIN'lı sorgu
+    items_q = (
+        db.query(Project, Customer.name.label("customer_name"))
+          .join(Customer, Customer.id == Project.customer_id, isouter=True)
+          .filter(Project.created_by == owner_id)
+    )
+
+    # 🔹 Count için JOIN'siz, sade Project sorgusu (çoğalmayı önlemek için)
+    count_q = db.query(func.count(Project.id)).filter(Project.created_by == owner_id)
 
     # Metin aramaları
     if name:
         like_val = f"%{name.lower()}%"
-        base_q = base_q.filter(func.lower(Project.project_name).like(like_val))
+        items_q = items_q.filter(func.lower(Project.project_name).like(like_val))
+        count_q = count_q.filter(func.lower(Project.project_name).like(like_val))
     if code:
         code_like = f"%{code.lower()}%"
-        base_q = base_q.filter(func.lower(Project.project_kodu).like(code_like))
+        items_q = items_q.filter(func.lower(Project.project_kodu).like(code_like))
+        count_q = count_q.filter(func.lower(Project.project_kodu).like(code_like))
 
     # Durum + müşteri filtreleri
     if is_teklif is not None:
-        base_q = base_q.filter(Project.is_teklif == bool(is_teklif))
+        items_q = items_q.filter(Project.is_teklif == bool(is_teklif))
+        count_q = count_q.filter(Project.is_teklif == bool(is_teklif))
     if paint_status:
-        base_q = base_q.filter(Project.paint_status == paint_status.strip())
+        items_q = items_q.filter(Project.paint_status == paint_status.strip())
+        count_q = count_q.filter(Project.paint_status == paint_status.strip())
     if glass_status:
-        base_q = base_q.filter(Project.glass_status == glass_status.strip())
+        items_q = items_q.filter(Project.glass_status == glass_status.strip())
+        count_q = count_q.filter(Project.glass_status == glass_status.strip())
     if production_status:
-        base_q = base_q.filter(Project.production_status == production_status.strip())
+        items_q = items_q.filter(Project.production_status == production_status.strip())
+        count_q = count_q.filter(Project.production_status == production_status.strip())
     if customer_id:
-        base_q = base_q.filter(Project.customer_id == customer_id)
+        items_q = items_q.filter(Project.customer_id == customer_id)
+        count_q = count_q.filter(Project.customer_id == customer_id)
 
     # Toplam
-    total = base_q.order_by(None).count()
+    total = count_q.scalar() or 0
 
     # Sıralama
     if is_teklif is False:
@@ -285,14 +300,20 @@ def get_projects_page(
     else:
         order_clause = [Project.created_at.desc()]
 
-    # Sayfa
-    items = (
-        base_q.order_by(*order_clause)
-              .offset(offset)
-              .limit(limit)
-              .all()
+    rows = (
+        items_q.order_by(*order_clause)
+               .offset(offset)
+               .limit(limit)
+               .all()
     )
-    return items, total
+
+    # 🔹 customer_name'i attribute olarak enjekte et
+    projects: List[Project] = []
+    for proj, cust_name in rows:
+        setattr(proj, "customer_name", cust_name or "")
+        projects.append(proj)
+
+    return projects, total
 
 
 
