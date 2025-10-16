@@ -20,7 +20,12 @@ class Project(Base):
 
     id             = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_kodu   = Column(String(50), unique=True, nullable=False)
-    customer_id    = Column(PGUUID(as_uuid=True), ForeignKey("customer.id"), nullable=False)
+    # YENİ
+    customer_id    = Column(
+        PGUUID(as_uuid=True),
+        ForeignKey("customer.id", ondelete="SET NULL"),
+        nullable=True
+    )
     project_name   = Column(String(100), nullable=False)
     created_by     = Column(PGUUID(as_uuid=True), ForeignKey("app_user.id"), nullable=False)
 

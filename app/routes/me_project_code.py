@@ -38,12 +38,11 @@ def create_my_rule(
             owner_id=current_user.id,
             prefix=payload.prefix,
             separator=payload.separator,
-            padding=payload.padding,
-            start_number=payload.start_number,
+            start_number=payload.start_number,  # ⬅️ padding yok
         )
     except IntegrityError:
         db.rollback()
-        # prefix artık global-unique değil ama yine de diğer hatalar için:
+        # prefix global-unique değil; yine de diğer hatalar için:
         raise HTTPException(status_code=409, detail="Kural oluşturulurken bir hata oluştu.")
 
 @router.put("/rule", response_model=ProjectCodeRuleOut)
@@ -56,19 +55,17 @@ def update_my_rule(
     if not rule:
         raise HTTPException(status_code=404, detail="Kural bulunamadı.")
 
-    # start_number dâhil tüm alanlar opsiyonel ve çok kez değiştirilebilir
+    # start_number dahil tüm alanlar opsiyonel; alt sınır mantığı geçerli
     try:
         return crud_pc.update_rule(
             db, rule,
             prefix=payload.prefix,
             separator=payload.separator,
-            padding=payload.padding,
-            start_number=payload.start_number,  # <-- geri eklendi
+            start_number=payload.start_number,  # ⬅️ padding yok
         )
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Kural güncellenirken bir hata oluştu.")
-
 
 @router.get("/next", response_model=NextProjectCodeOut)
 def preview_next_code(

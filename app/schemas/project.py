@@ -137,7 +137,7 @@ class ProjectExtraRequirementIn(BaseModel):
 # Project Creation and Output
 # ----------------------------------------
 class ProjectMeta(BaseModel):
-    customer_id: UUID
+    customer_id: Optional[UUID] = None  # ✅ yeni proje oluştururken zorunlu değil
     project_name: str
     created_by: UUID
 
@@ -154,9 +154,14 @@ class ProjectCreate(ProjectMeta):
 
 class ProjectUpdate(BaseModel):
     """Projeyi güncellemek için opsiyonel alanlar."""
-    project_number: Optional[int] = Field(
-        None, ge=0, description="Proje kodunun SAYI kısmı (sadece rakam)."
+    # ✅ Artık serbest metin proje kodu (prefix dahil) gönderilecek
+    project_code: Optional[str] = Field(
+        None,
+        min_length=1,
+        max_length=50,
+        description="Kullanıcının serbestçe verdiği tam proje kodu (prefix dahil)."
     )
+
     customer_id: Optional[UUID]
     project_name: Optional[str]
     profile_color_id: Optional[UUID] = Field(None, description="Yeni profil rengi ID")
@@ -165,12 +170,12 @@ class ProjectUpdate(BaseModel):
     press_price: Optional[float] = None
     painted_price: Optional[float] = None
 
-    # 🆕 NEW — PUT ile değişecek alanlar
+    # PUT ile değişecek alanlar
     is_teklif: Optional[bool] = None
     paint_status: Optional[str] = None
     glass_status: Optional[str] = None
     production_status: Optional[str] = None
-    # 🔸 NOT: approval_date’i burada expose ETMİYORUZ (kurala göre backend set edecek)
+    # NOT: approval_date’i burada expose etmiyoruz (backend set edecek)
 
     class Config:
         orm_mode = True
@@ -180,29 +185,24 @@ class ProjectCodeNumberUpdate(BaseModel):
     number: int = Field(..., ge=0, description="Proje kodunun SAYI kısmı (sadece rakam).")
 
 
-# app/schemas/project.py
-
 class ProjectOut(ProjectMeta):
     id: UUID
     project_kodu: str = Field(
-        ..., description="Otomatik üretilen proje kodu, format: TALU-{sayi}, sayi 10000'den başlar"
+        ..., description="Otomatik üretilen proje kodu, format: {PREFIX}{SEPARATOR}{sayi}"
     )
     created_at: datetime
     press_price: Optional[float] = None
     painted_price: Optional[float] = None
-
-    # 🆕 EKLENDİ — listedeki her projeye müşteri adını da döndürelim
-    customer_name: str
-
-    # 🆕 NEW — frontend’in görmek istediği alanlar
+    customer_name: Optional[str] = None  # ✅ customer_id olmayabilir
     is_teklif: bool
     paint_status: str
     glass_status: str
     production_status: str
-    approval_date: Optional[datetime] = None   # <- datetime oldu
+    approval_date: Optional[datetime] = None
 
     class Config:
         orm_mode = True
+
 
 
 
@@ -231,6 +231,14 @@ class ProjectListParams(BaseModel):
     )
     customer_id: Optional[UUID] = Field(
         None, description='Belirli bir müşteriye ait projeler.'
+    )
+    proje_sorted: Optional[bool] = Field(
+    None,
+    description="True: projeler 'olduğu gibi' sıralanır; False: mevcut mantıktaki ters sıralama; None: backend varsayılanı"
+    )
+    teklifler_sorted: Optional[bool] = Field(
+        None,
+        description="True: teklifler 'olduğu gibi' sıralanır; False: mevcut mantıktaki ters sıralama; None: backend varsayılanı"
     )
 
     # Opsiyonel: sayfalama; mevcut ProjectPageOut ile uyumlu
@@ -423,7 +431,7 @@ class ProjectColorUpdate(BaseModel):
 
 class ProjectRequirementsDetailedOut(BaseModel):
     id: UUID
-    customer: CustomerOut
+    customer: Optional[CustomerOut] = None  # ✅ müşteri olmayabilir
     profile_color: Optional[ColorOut] = None
     glass_color: Optional[ColorOut] = None
     systems: List[SystemInProjectOut]

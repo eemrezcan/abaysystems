@@ -18,15 +18,11 @@ class ProjectCodeRuleBase(BaseModel):
         max_length=5,
         description="Kod ayırıcısı (örn. '-')."
     )
-    padding: int = Field(
-        0,
-        ge=0,
-        description="Sayı genişliği; 0=pad yok, 5→00010."
-    )
+    # ⛔ padding kaldırıldı
     start_number: int = Field(
         1,
         ge=0,
-        description="İlk verilecek sayı."
+        description="İlk verilecek sayı (alt sınır mantığı)."
     )
 
 class ProjectCodeRuleCreate(ProjectCodeRuleBase):
@@ -46,18 +42,12 @@ class ProjectCodeRuleUpdate(BaseModel):
         max_length=5,
         description="Yeni ayırıcı (opsiyonel)."
     )
-    padding: Optional[int] = Field(
-        None,
-        ge=0,
-        description="Yeni padding (opsiyonel)."
-    )
+    # ⛔ padding kaldırıldı
     start_number: Optional[int] = Field(
         None,
         ge=0,
-        description="Yeni başlangıç sayısı (opsiyonel)."
+        description="Yeni başlangıç sayısı (opsiyonel; alt sınır)."
     )
-
-
 
 class ProjectCodeRuleOut(ProjectCodeRuleBase):
     id: UUID = Field(...)
@@ -72,4 +62,5 @@ class ProjectCodeRuleOut(ProjectCodeRuleBase):
 
 class NextProjectCodeOut(BaseModel):
     next_number: int = Field(..., ge=0, description="Bir sonraki verilecek sayı.")
-    next_code: str = Field(..., description="Örn: BALU-00010")
+    # Artık padding yok; kod basitçe prefix + separator + number
+    next_code: str = Field(..., description="Örn: BALU-10")

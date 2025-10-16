@@ -26,7 +26,7 @@ class SystemBase(BaseModel):
 
 class SystemCreate(SystemBase):
     """Fields for creating a new System"""
-    pass
+    is_active: Optional[bool] = True  # ✅ is_active (opsiyonel, varsayılan true)
 
 class SystemUpdate(BaseModel):
     """Fields for updating an existing System"""
@@ -35,6 +35,8 @@ class SystemUpdate(BaseModel):
     photo_url: Optional[str] = None
     # ✅ publish/unpublish için
     is_published: Optional[bool] = None
+    # ✅ aktif/pasif etiketi
+    is_active: Optional[bool] = None   # ✅ is_active
 
 class SystemOut(SystemBase):
     id: UUID
@@ -43,6 +45,8 @@ class SystemOut(SystemBase):
     updated_at: datetime
     # ✅ publish durumu
     is_published: bool
+    # ✅ aktif/pasif durumu
+    is_active: bool  # ✅ is_active
 
     class Config:
         orm_mode = True
@@ -59,7 +63,7 @@ class SystemVariantBase(BaseModel):
 
 class SystemVariantCreate(SystemVariantBase):
     """Fields for creating a System Variant"""
-    pass
+    is_active: Optional[bool] = True  # ✅ is_active (opsiyonel, varsayılan true)
 
 class SystemVariantUpdate(BaseModel):
     """Fields for updating a System Variant"""
@@ -67,6 +71,8 @@ class SystemVariantUpdate(BaseModel):
     photo_url: Optional[str] = None
     # ✅ publish/unpublish için
     is_published: Optional[bool] = None
+    # ✅ aktif/pasif etiketi
+    is_active: Optional[bool] = None   # ✅ is_active
 
     class Config:
         orm_mode = True
@@ -78,6 +84,8 @@ class SystemVariantOut(SystemVariantBase):
     updated_at: datetime
     # ✅ publish durumu
     is_published: bool
+    # ✅ aktif/pasif durumu
+    is_active: bool  # ✅ is_active
 
     class Config:
         orm_mode = True
@@ -100,6 +108,7 @@ class SystemVariantPageOut(BaseModel):
     total_pages: int
     has_next: bool
     has_prev: bool
+
 # ——————————————————————
 # Combined System & Variant & Glass create schema
 class GlassConfig(BaseModel):
@@ -111,11 +120,13 @@ class GlassConfig(BaseModel):
 class VariantConfig(BaseModel):
     name: str = Field(..., min_length=1)
     photo_url: Optional[str] = None
+    is_active: Optional[bool] = True  # ✅ is_active (opsiyonel)
 
 class SystemFullCreate(BaseModel):
     name: str = Field(..., min_length=1)
     description: Optional[str] = None
     photo_url: Optional[str] = None
+    is_active: Optional[bool] = True  # ✅ is_active (opsiyonel)
     variant: VariantConfig
     glass_configs: Optional[List[GlassConfig]] = []
 
@@ -165,6 +176,7 @@ class SystemBasicOut(BaseModel):
     photo_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    is_active: bool  # ✅ is_active (detay view’larda gösterim için)
 
     class Config:
         orm_mode = True
@@ -361,7 +373,7 @@ class SystemTemplatesOut(BaseModel):
     profileTemplates: List[ProfileTemplateOut]
     glassTemplates: List[GlassTemplateOut]
     materialTemplates: List[MaterialTemplateOut]
-    remoteTemplates: List[RemoteTemplateOut] 
+    remoteTemplates: List[RemoteTemplateOut]
 
     class Config:
         orm_mode = True
@@ -372,6 +384,7 @@ class SystemVariantDetailOut(BaseModel):
     photo_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    is_active: bool  # ✅ is_active (detay)
     system: SystemBasicOut
     profile_templates: List[ProfileTemplateOut]
     glass_templates: List[GlassTemplateOut]
@@ -428,6 +441,7 @@ class RemoteTemplateIn(BaseModel):
 class SystemVariantCreateWithTemplates(BaseModel):
     system_id: UUID = Field(..., alias="systemId")
     name: str = Field(..., min_length=1)
+    is_active: Optional[bool] = True  # ✅ is_active (opsiyonel)
     profile_templates: List[ProfileTemplateIn] = Field(default_factory=list)
     glass_templates: List[GlassTemplateIn] = Field(default_factory=list)
     material_templates: List[MaterialTemplateIn] = Field(default_factory=list)
@@ -441,6 +455,7 @@ class SystemVariantCreateWithTemplates(BaseModel):
 # New: Update a SystemVariant + templates
 class SystemVariantUpdateWithTemplates(BaseModel):
     name: Optional[str] = None
+    is_active: Optional[bool] = None  # ✅ is_active
     profile_templates: List[ProfileTemplateIn] = Field(default_factory=list)
     glass_templates: List[GlassTemplateIn] = Field(default_factory=list)
     material_templates: List[MaterialTemplateIn] = Field(default_factory=list)

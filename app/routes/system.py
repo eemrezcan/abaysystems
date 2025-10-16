@@ -100,6 +100,10 @@ def list_systems(
     # 🟢 limit artık str kabul ediyor: "10" veya "all"
     limit: str = Query("50", description='Sayfa başına kayıt. "all" desteklenir.'),
     page: int = Query(1, ge=1, description="1'den başlayan sayfa numarası"),
+    only_active: bool | None = Query(  # ✅ YENİ
+        None,
+        description="Sadece aktif sistemleri getir. True/False/None (filtreleme yok)."
+    ),
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
@@ -115,12 +119,13 @@ def list_systems(
         db=db,
         is_admin=is_admin,
         q=q,
-        limit=limit_val,   # 🟢 None ise LIMIT uygulanmayacak (Adım 2)
+        limit=limit_val,   # 🟢 None ise LIMIT uygulanmayacak
         offset=offset,
+        only_active=only_active,  # ✅ YENİ
     )
 
     if limit_val is None:
-        # 🟢 "all" modunda tek sayfa mantığı
+        # 🟢 "all" modunda tek sayfa
         effective_limit = total
         total_pages = 1 if total > 0 else 0
         page_out = 1
@@ -142,6 +147,7 @@ def list_systems(
         has_next=has_next,
         has_prev=has_prev,
     )
+
 
 
 
@@ -302,6 +308,7 @@ def get_system_variant_detail_endpoint(
         photo_url=variant.photo_url,
         created_at=variant.created_at,
         updated_at=variant.updated_at,
+        is_active=variant.is_active,  # ✅ YENİ
         system=variant.system,
         profile_templates=[
             ProfileTemplateOut(
@@ -309,7 +316,6 @@ def get_system_variant_detail_endpoint(
                 formula_cut_length=tpl.formula_cut_length,
                 formula_cut_count=tpl.formula_cut_count,
                 order_index=tpl.order_index,
-                # 👇 NEW
                 is_painted=bool(getattr(tpl, "is_painted", False)),
                 profile=tpl.profile,
                 pdf=_pdf_flags_from_tpl(tpl),
@@ -354,6 +360,7 @@ def get_system_variant_detail_endpoint(
             for tpl in variant.remote_templates
         ],
     )
+
 
 
 # ----- PROFILE TEMPLATE CRUD (admin-only) -----
@@ -599,6 +606,34 @@ def unpublish_system(
     if not obj or obj.is_deleted:
         raise HTTPException(status_code=404, detail="System not found")
     updated = update_system(db, system_id, SystemUpdate(is_published=False))
+    if not updated:
+        raise HTTPException(status_code=404, detail="System not found")
+    return updated
+
+@router.put("/systems/{system_id}/activate", response_model=SystemOut, dependencies=[Depends(get_current_admin)])
+def activate_system(
+    system_id: UUID,
+    db: Session = Depends(get_db),
+):
+    obj = get_system(db, system_id)
+    if not obj or obj.is_deleted:
+        raise HTTPException(status_code=404, detail="System not found")
+    updated = update_system(db, system_id, SystemUpdate(is_active=True))
+    if not updated:
+        raise HTTPException(status_code=404, detail="System not found")
+    return updated
+
+
+@router.put("/systems/{system_id}/deactivate", response_model=SystemOut, dependencies=[Depends(get_current_admin)])
+def deactivate_system(
+    system_id: UUID,
+    db: Session = Depends(get_db),
+):
+    obj = get_system(db, system_id)
+    if not obj or obj.is_deleted:
+        raise HTTPException(status_code=404, detail="System not found")
+    # Not: System false olunca varyantları da false yapma kuralı model event'inde (after_update) var.
+    updated = update_system(db, system_id, SystemUpdate(is_active=False))
     if not updated:
         raise HTTPException(status_code=404, detail="System not found")
     return updated

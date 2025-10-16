@@ -76,7 +76,8 @@ def _attach_pdf_many(seq):
 # ————— System CRUD —————
 
 def create_system(db: Session, payload: SystemCreate) -> System:
-    obj = System(id=uuid4(), **payload.dict())
+    data = payload.dict(exclude_unset=True)  # is_active dahil
+    obj = System(id=uuid4(), **data)
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -92,18 +93,15 @@ def get_systems_page(
     q: Optional[str],
     limit: Optional[int],
     offset: int,
+    only_active: Optional[bool] = None,  # ✅ eklendi
 ) -> Tuple[List[System], int]:
-    """
-    Sistemleri sayfalı döndürür.
-    - is_deleted=False zorunlu
-    - admin değilse is_published=True
-    - q varsa name içinde ilike
-    - total (count) + items (limit/offset)
-    """
     base_q = db.query(System).filter(System.is_deleted == False)
 
     if not is_admin:
         base_q = base_q.filter(System.is_published == True)
+
+    if only_active is True:
+        base_q = base_q.filter(System.is_active == True)  # ✅ aktif filtre
 
     if q:
         like = f"%{q}%"
@@ -113,11 +111,12 @@ def get_systems_page(
 
     q_items = base_q.order_by(System.created_at.desc())
     if limit is None:
-        items = q_items.all()          # 🟢 "all" → LIMIT yok
+        items = q_items.all()
     else:
         items = q_items.offset(offset).limit(limit).all()
 
     return items, total
+
 
 
 def get_system(db: Session, system_id: UUID) -> System | None:
@@ -128,11 +127,13 @@ def update_system(db: Session, system_id: UUID, payload: SystemUpdate) -> System
     obj = get_system(db, system_id)
     if not obj:
         return None
-    for k, v in payload.dict(exclude_unset=True).items():
+    data = payload.dict(exclude_unset=True)
+    for k, v in data.items():
         setattr(obj, k, v)
     db.commit()
     db.refresh(obj)
     return obj
+
 
 
 def delete_system(db: Session, system_id: UUID) -> bool:
@@ -143,8 +144,7 @@ def delete_system(db: Session, system_id: UUID) -> bool:
 # ————— SystemVariant CRUD —————
 
 def create_system_variant(db: Session, system_id: UUID, payload: SystemVariantCreate) -> SystemVariant:
-    # payload.dict() içinde gelen system_id alanını at, path'ten aldığımızı kullanacağız
-    data = payload.dict(by_alias=True, exclude={"system_id"})
+    data = payload.dict(by_alias=True, exclude={"system_id"}, exclude_unset=True)  # ✅ is_active gelebilir
     obj = SystemVariant(
         id=uuid4(),
         system_id=system_id,
@@ -390,29 +390,30 @@ def get_system_templates(db: Session, variant_id: UUID):
 # ————— Combined full creation —————
 
 def create_system_full(db: Session, payload: SystemFullCreate):
-    """Tek seferde System + Variant + Glass‐Config yaratır."""
-    # 1) System oluştur
+    # 1) System
     system = System(
         id=uuid4(),
         name=payload.name,
         description=payload.description,
-        photo_url=payload.photo_url  # 👈 EKLENDİ
+        photo_url=payload.photo_url,
+        is_active=(payload.is_active if payload.is_active is not None else True),  # ✅
     )
     db.add(system)
     db.flush()
 
-    # 2) Variant oluştur
-    variant_data = payload.variant.dict(by_alias=True)
+    # 2) Variant
+    variant_data = payload.variant.dict(by_alias=True, exclude_unset=True)
     variant = SystemVariant(
         id=uuid4(),
         system_id=system.id,
         name=variant_data["name"],
-        photo_url=variant_data.get("photo_url"),  # 👈 EKLENDİ
+        photo_url=variant_data.get("photo_url"),
+        is_active=(variant_data.get("is_active", True)),  # ✅
     )
     db.add(variant)
     db.flush()
 
-    # 3) Glass templates ekle
+    # 3) Glass templates
     for g in payload.glass_configs or []:
         tpl = SystemGlassTemplate(
             id=uuid4(),
@@ -460,7 +461,8 @@ def create_system_variant_with_templates(db: Session, payload: SystemVariantCrea
     variant = SystemVariant(
         id=uuid4(),
         system_id=payload.system_id,
-        name=payload.name
+        name=payload.name,
+        is_active=(payload.is_active if payload.is_active is not None else True),  # ✅
     )
     db.add(variant)
     db.flush()
@@ -474,12 +476,10 @@ def create_system_variant_with_templates(db: Session, payload: SystemVariantCrea
             formula_cut_length=pt.formula_cut_length,
             formula_cut_count=pt.formula_cut_count,
             order_index=pt.order_index if pt.order_index is not None else i,
-            # NEW 👇
             is_painted=bool(getattr(pt, "is_painted", False)),
         )
         _apply_pdf(obj, getattr(pt, "pdf", None))
         db.add(obj)
-
 
     # 3) Glass şablonları
     for i, gt in enumerate(payload.glass_templates):
@@ -503,7 +503,7 @@ def create_system_variant_with_templates(db: Session, payload: SystemVariantCrea
             material_id=mt.material_id,
             formula_quantity=mt.formula_quantity,
             formula_cut_length=mt.formula_cut_length,
-            unit_price=mt.unit_price,              # 💲 şablon bazında fiyat (opsiyonel)def update_system_variant_with_templates(db: Session
+            unit_price=mt.unit_price,
             type=mt.type,
             piece_length_mm=mt.piece_length_mm,
             order_index=mt.order_index if mt.order_index is not None else i
@@ -511,7 +511,7 @@ def create_system_variant_with_templates(db: Session, payload: SystemVariantCrea
         _apply_pdf(obj, getattr(mt, "pdf", None))
         db.add(obj)
 
-    # 4.5) Remote (kumanda) şablonları
+    # 4.5) Remote şablonları
     for i, rt in enumerate(payload.remote_templates):
         obj = SystemRemoteTemplate(
             id=uuid4(),
@@ -527,6 +527,7 @@ def create_system_variant_with_templates(db: Session, payload: SystemVariantCrea
     return variant
 
 
+
 # ————— Update SystemVariant + all its templates —————
 def update_system_variant_with_templates(db: Session, variant_id: UUID, payload: SystemVariantUpdateWithTemplates) -> SystemVariant:
     variant = get_system_variant(db, variant_id)
@@ -535,6 +536,8 @@ def update_system_variant_with_templates(db: Session, variant_id: UUID, payload:
 
     if payload.name is not None:
         variant.name = payload.name
+    if payload.is_active is not None:   # ✅ is_active güncelle
+        variant.is_active = bool(payload.is_active)
 
     # Eski şablonları temizle
     db.query(SystemProfileTemplate).filter_by(system_variant_id=variant_id).delete(synchronize_session=False)
@@ -552,12 +555,10 @@ def update_system_variant_with_templates(db: Session, variant_id: UUID, payload:
             formula_cut_length=pt.formula_cut_length,
             formula_cut_count=pt.formula_cut_count,
             order_index=pt.order_index if pt.order_index is not None else i,
-            # NEW 👇
             is_painted=bool(getattr(pt, "is_painted", False)),
         )
         _apply_pdf(obj, getattr(pt, "pdf", None))
         db.add(obj)
-
 
     # CAM
     for i, gt in enumerate(payload.glass_templates):
@@ -581,7 +582,7 @@ def update_system_variant_with_templates(db: Session, variant_id: UUID, payload:
             material_id=mt.material_id,
             formula_quantity=mt.formula_quantity,
             formula_cut_length=mt.formula_cut_length,
-            unit_price=mt.unit_price,              # 💲 şablon bazında fiyat (opsiyonel)
+            unit_price=mt.unit_price,
             type=mt.type,
             piece_length_mm=mt.piece_length_mm,
             order_index=mt.order_index if mt.order_index is not None else i

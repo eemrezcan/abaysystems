@@ -1,16 +1,14 @@
 # app/routes/system_variant.py
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlalchemy.orm import Session
 from uuid import UUID
 import os, shutil
 from fastapi.responses import FileResponse
 from pathlib import Path
+from math import ceil
 
 from app.db.session import get_db
-
-from math import ceil
-from fastapi import Query  # varsa tekrar ekleme
 
 # 🔐 rol kontrolü
 from app.core.security import get_current_user
@@ -20,24 +18,20 @@ from app.models.app_user import AppUser
 # 🔎 filtreler için modeller
 from app.models.system import System, SystemVariant
 
-from app.schemas.system import SystemVariantUpdate, SystemVariantOut, SystemVariantPageOut
-
 from app.crud.system_variant import (
     create_system_variant,
     get_system_variant,
     update_system_variant,
     delete_system_variant,
-    get_variants_for_system,  # admin için kullanılabilir; bayi filtreleri için aşağıda ORM query kullanıyoruz
-    get_system_variants_page,
-    get_variants_for_system_page,
-
+    get_variants_for_system,        # (opsiyonel kullanım)
+    get_system_variants_page,       # ✅ only_active desteği var
+    get_variants_for_system_page,   # ✅ only_active desteği var
 )
 
 from app.crud.system import (
     create_system_variant_with_templates,
     get_system_variant_detail,
     update_system_variant_with_templates,
-
 )
 
 from app.schemas.system import (
@@ -47,6 +41,7 @@ from app.schemas.system import (
     SystemVariantCreateWithTemplates,
     SystemVariantDetailOut,
     SystemVariantUpdateWithTemplates,
+    SystemVariantPageOut,
 )
 
 router = APIRouter(prefix="/api/system-variants", tags=["SystemVariants"])
@@ -62,15 +57,19 @@ VARIANT_PHOTO_DIR = os.path.join(BASE_DIR, "variant_photos")
 @router.get("/", response_model=SystemVariantPageOut)
 def list_variants(
     q: str | None = Query(None, description="Varyant veya sistem adına göre filtre"),
-    # limit artık string; "all" desteklenir
+    # limit artık string; 'all' desteklenir
     limit: str = Query("50", description='Sayfa başına kayıt. "all" desteklenir.'),
     page: int = Query(1, ge=1, description="1'den başlayan sayfa numarası"),
+    only_active: bool | None = Query(  # ✅ YENİ
+        None,
+        description="Sadece aktif varyantları getir. True/False/None (filtreleme yok)."
+    ),
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
     is_admin = (current_user.role == "admin")
 
-    # "all" → None (sınırsız), sayı → int (1..200 aralığına sıkıştır)
+    # 'all' → None (sınırsız), sayı → int (1..200 aralığına sıkıştır)
     limit_val = None if isinstance(limit, str) and limit.lower() == "all" else int(limit)
     if limit_val is not None:
         limit_val = max(1, min(limit_val, 200))
@@ -82,10 +81,11 @@ def list_variants(
         q=q,
         limit=limit_val,   # None ise CRUD'da LIMIT uygulanmamalı
         offset=offset,
+        only_active=only_active,  # ✅
     )
 
     if limit_val is None:
-        # "all" modunda tek sayfa mantığı
+        # 'all' modunda tek sayfa
         effective_limit = total
         total_pages = 1 if total > 0 else 0
         page_out = 1
@@ -109,19 +109,21 @@ def list_variants(
     )
 
 
-
-
 @router.get(
     "/system/{system_id}",
     response_model=SystemVariantPageOut,
-    summary="Belirli bir sistemin varyantlarını (sayfalı) listele"
+    summary="Belirli bir sistemin varyantlarını (sayfalı) listele",
 )
 def list_variants_by_system(
     system_id: UUID,
     q: str | None = Query(None, description="Varyant adına göre filtre"),
-    # 🟢 limit artık string — 'all' kabul eder
+    # limit artık string — 'all' kabul eder
     limit: str = Query("50", description='Sayfa başına kayıt. "all" desteklenir.'),
-    page: int = Query(1, ge=1, description="1\'den başlayan sayfa numarası"),
+    page: int = Query(1, ge=1, description="1'den başlayan sayfa numarası"),
+    only_active: bool | None = Query(  # ✅ YENİ
+        None,
+        description="Sadece aktif varyantları getir. True/False/None (filtreleme yok)."
+    ),
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
@@ -131,7 +133,6 @@ def list_variants_by_system(
     limit_val = None if isinstance(limit, str) and limit.lower() == "all" else int(limit)
     if limit_val is not None:
         limit_val = max(1, min(limit_val, 200))
-
     offset = 0 if limit_val is None else (page - 1) * limit_val
 
     items, total = get_variants_for_system_page(
@@ -141,6 +142,7 @@ def list_variants_by_system(
         q=q,
         limit=limit_val,   # None gelirse CRUD tarafında LIMIT uygulanmamalı
         offset=offset,
+        only_active=only_active,  # ✅
     )
 
     if limit_val is None:
@@ -180,7 +182,6 @@ def get_variant_photo_file(
 
     # Bayi unpublished/silinmiş variant veya sistemi görmesin
     if current_user.role != "admin":
-        # variant ve bağlı sistem publish/deleted kontrolü
         if obj.is_deleted or not obj.is_published:
             raise HTTPException(404, "Variant için fotoğraf bilgisi bulunamadı")
         sys = getattr(obj, "system", None)
@@ -208,12 +209,11 @@ def get_variant_photo_file(
 def create_variant(
     system_id: UUID,
     payload: SystemVariantCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Verilen System için yeni SystemVariant oluşturur.
     """
-    # klasör yoksa oluştur (foto yükleme için)
     if not os.path.exists(VARIANT_PHOTO_DIR):
         os.makedirs(VARIANT_PHOTO_DIR, exist_ok=True)
     return create_system_variant(db, system_id, payload)
@@ -223,7 +223,7 @@ def create_variant(
 def update_variant(
     variant_id: UUID,
     payload: SystemVariantUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Mevcut SystemVariant alanlarını günceller.
@@ -237,7 +237,7 @@ def update_variant(
 @router.delete("/{variant_id}", status_code=204, dependencies=[Depends(get_current_admin)])
 def delete_variant(
     variant_id: UUID,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     SystemVariant siler (bizde soft delete alanı var; CRUD içinde buna göre davranır).
@@ -252,7 +252,7 @@ def delete_variant(
 def upload_or_replace_variant_photo(
     variant_id: UUID,
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     obj = get_system_variant(db, variant_id)
     if not obj:
@@ -288,7 +288,7 @@ def upload_or_replace_variant_photo(
 @router.delete("/{variant_id}/photo", summary="Variant fotoğrafını sil", dependencies=[Depends(get_current_admin)])
 def delete_variant_photo(
     variant_id: UUID,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     obj = get_system_variant(db, variant_id)
     if not obj or not obj.photo_url:
@@ -306,12 +306,11 @@ def delete_variant_photo(
 @router.post("/", response_model=SystemVariantDetailOut, status_code=201, dependencies=[Depends(get_current_admin)])
 def create_variant_with_templates_endpoint(
     payload: SystemVariantCreateWithTemplates,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Yeni system variant oluşturur ve ilişkili profil, cam, malzeme şablonlarını ekler.
     """
-    # klasör yoksa oluştur (foto yükleme için)
     if not os.path.exists(VARIANT_PHOTO_DIR):
         os.makedirs(VARIANT_PHOTO_DIR, exist_ok=True)
 
@@ -326,12 +325,12 @@ def create_variant_with_templates_endpoint(
     "/{variant_id}/templates",
     response_model=SystemVariantDetailOut,
     summary="Bir SystemVariant ve tüm profil/cam/malzeme şablonlarını güncelle",
-    dependencies=[Depends(get_current_admin)]
+    dependencies=[Depends(get_current_admin)],
 )
 def update_variant_templates_endpoint(
     variant_id: UUID,
     payload: SystemVariantUpdateWithTemplates,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Mevcut bir variant’ın adını ve ilişkili tüm şablonlarını günceller.
@@ -345,6 +344,7 @@ def update_variant_templates_endpoint(
     if not detail:
         raise HTTPException(status_code=500, detail="Unable to fetch updated variant detail")
     return detail
+
 
 @router.put("/{variant_id}/publish", response_model=SystemVariantOut, dependencies=[Depends(get_current_admin)])
 def publish_variant(
@@ -382,6 +382,44 @@ def unpublish_variant(
         raise HTTPException(status_code=404, detail="Variant not found")
 
     updated = update_system_variant(db, variant_id, SystemVariantUpdate(is_published=False))
+    if not updated:
+        raise HTTPException(status_code=404, detail="Variant not found")
+    return updated
+
+
+# -----------------------------------------------------------------------------
+# ✅ VARYANT AKTİF/PASİF (ADMIN-ONLY)
+# -----------------------------------------------------------------------------
+
+@router.put("/{variant_id}/activate", response_model=SystemVariantOut, dependencies=[Depends(get_current_admin)])
+def activate_variant(
+    variant_id: UUID,
+    db: Session = Depends(get_db),
+):
+    """
+    Varyantı aktife alır. (Parent system pasifse yine de açılabilir; istersen burada kontrol ekleyebilirsin.)
+    """
+    v = get_system_variant(db, variant_id)
+    if not v or v.is_deleted:
+        raise HTTPException(status_code=404, detail="Variant not found")
+    updated = update_system_variant(db, variant_id, SystemVariantUpdate(is_active=True))
+    if not updated:
+        raise HTTPException(status_code=404, detail="Variant not found")
+    return updated
+
+
+@router.put("/{variant_id}/deactivate", response_model=SystemVariantOut, dependencies=[Depends(get_current_admin)])
+def deactivate_variant(
+    variant_id: UUID,
+    db: Session = Depends(get_db),
+):
+    """
+    Varyantı pasife alır.
+    """
+    v = get_system_variant(db, variant_id)
+    if not v or v.is_deleted:
+        raise HTTPException(status_code=404, detail="Variant not found")
+    updated = update_system_variant(db, variant_id, SystemVariantUpdate(is_active=False))
     if not updated:
         raise HTTPException(status_code=404, detail="Variant not found")
     return updated

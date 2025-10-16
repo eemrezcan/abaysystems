@@ -87,7 +87,7 @@ from app.schemas.project import (
     ProjectExtraRemoteCreate,      # 🆕
     ProjectExtraRemoteUpdate,      # 🆕
     ProjectExtraRemoteOut,         # 🆕
-    ProjectCodeNumberUpdate,
+    ProjectCodeUpdate,
     ProjectPricesUpdate,
     SystemGlassBulkByTypeIn,
     ProjectGlassColorAllIn,       # ⬅️ EKLE
@@ -196,6 +196,15 @@ def list_projects(
         default=None,
         description="Belirli bir müşteri ID'sine ait projeler."
     ),
+    # ✅ YENİ: sıralama bayrakları
+    proje_sorted: bool | None = Query(
+        default=None,
+        description="True: projeler (is_teklif=False) artan sıralanır; False/None: mevcut ters sıralama."
+    ),
+    teklifler_sorted: bool | None = Query(
+        default=None,
+        description="True: teklifler (is_teklif=True) artan sıralanır; False/None: mevcut ters sıralama."
+    ),
     # Sayfalama
     limit: int = Query(
         default=50,
@@ -229,11 +238,13 @@ def list_projects(
         limit=limit,
         offset=offset,
         is_teklif=is_teklif,
-        # 🔽 CRUD’a geçir
         paint_status=paint_status,
         glass_status=glass_status,
         production_status=production_status,
         customer_id=customer_id,
+        # ✅ YENİ
+        proje_sorted=proje_sorted,
+        teklifler_sorted=teklifler_sorted,
     )
 
     total_pages = ceil(total / limit) if total > 0 else 0
@@ -324,23 +335,25 @@ def update_project_colors_endpoint(
 @router.put("/{project_id}/code", response_model=ProjectOut)
 def update_project_code_endpoint(
     project_id: UUID,
-    payload: ProjectCodeNumberUpdate,
+    payload: ProjectCodeUpdate,
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
+    """
+    Proje kodunu (prefix dahil) serbest metin olarak günceller.
+    Benzersizlik Project.project_kodu üzerinden kontrol edilir.
+    """
     proj = get_project(db, project_id)
     ensure_owner_or_404(proj, current_user.id, "created_by")
 
     try:
-        updated = update_project_code_by_number(
-            db, project_id, owner_id=current_user.id, new_number=payload.number
-        )
+        updated = update_project_code(db, project_id, new_code=payload.project_kodu)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     if not updated:
         raise HTTPException(status_code=404, detail="Project not found")
-    _attach_customer_name(db, updated)  # ⬅️ EKLENDİ
+    _attach_customer_name(db, updated)
     return ProjectOut.from_orm(updated)
 
 

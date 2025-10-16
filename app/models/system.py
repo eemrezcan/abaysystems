@@ -1,12 +1,14 @@
 # app/models/system.py
 
 import uuid
-from sqlalchemy import Column, String, TEXT, Numeric, ForeignKey, Boolean
+from sqlalchemy import Column, String, TEXT, Numeric, ForeignKey, Boolean, event, update
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
-from sqlalchemy.sql import func, expression 
+from sqlalchemy.sql import func, expression
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import ARRAY
+
 from app.db.base import Base
+
 
 class System(Base):
     __tablename__ = "system"
@@ -14,7 +16,7 @@ class System(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(100), unique=True, nullable=False)
     description = Column(TEXT, nullable=True)
-    photo_url = Column(String(300), nullable=True) 
+    photo_url = Column(String(300), nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(
         TIMESTAMP(timezone=True),
@@ -25,6 +27,10 @@ class System(Base):
     # ✅ publish + soft delete
     is_published = Column(Boolean, nullable=False, server_default=expression.false())
     is_deleted   = Column(Boolean, nullable=False, server_default=expression.false())
+
+    # ✅ aktif/pasif etiketi (listelemede ayrıştırmak için)
+    #    Varsayılan: aktif (true)
+    is_active = Column(Boolean, nullable=False, server_default=expression.true())
 
     # Bir system birden fazla varyanta sahiptir
     variants = relationship(
@@ -44,8 +50,7 @@ class SystemVariant(Base):
         nullable=False
     )
     name          = Column(String(100), nullable=False)
-    photo_url = Column(String(300), nullable=True) 
-    # max_width_m ve max_height_m sütunları kaldırıldı
+    photo_url     = Column(String(300), nullable=True)
     created_at    = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at    = Column(
         TIMESTAMP(timezone=True),
@@ -56,6 +61,10 @@ class SystemVariant(Base):
     # ✅ publish + soft delete
     is_published = Column(Boolean, nullable=False, server_default=expression.false())
     is_deleted   = Column(Boolean, nullable=False, server_default=expression.false())
+
+    # ✅ aktif/pasif etiketi (listelemede ayrıştırmak için)
+    #    Varsayılan: aktif (true)
+    is_active = Column(Boolean, nullable=False, server_default=expression.true())
 
     # System ile iki yönlü ilişki
     system = relationship("System", back_populates="variants")
@@ -82,3 +91,19 @@ class SystemVariant(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Otomatik senkron: Bir System is_active = false yapılırsa, tüm varyantlarını da
+# false'a çevir. true yapılırsa varyantları zorla true yapmıyoruz (manuel kalabilir).
+# Bu mantık "model seviyesi"nde garanti edilir.
+# ─────────────────────────────────────────────────────────────────────────────
+@event.listens_for(System, "after_update")
+def system_after_update(mapper, connection, target: System):
+    # Sadece false'a geçişi zorunlu kapatma sayıyoruz
+    if target.is_active is False:
+        connection.execute(
+            update(SystemVariant)
+            .where(SystemVariant.system_id == target.id)
+            .values(is_active=False)
+        )

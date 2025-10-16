@@ -12,10 +12,13 @@ from app.models.glass_type import GlassType
 from app.models.other_material import OtherMaterial
 from app.models.remote import Remote  # 🆕
 from app.crud.project_code import issue_next_code_in_tx
+from app.crud.project_code import assign_code_to_project_in_tx
 from sqlalchemy.exc import IntegrityError
 from app.models.project_code_rule import ProjectCodeRule
 from sqlalchemy.exc import IntegrityError
 from app.models.color import Color
+from app.models.project_code_ledger import ProjectCodeLedger
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 
 from app.models.project import (
@@ -120,9 +123,12 @@ def _pdf_from_obj(obj: Any) -> dict:
 #         n = 10000
 #     return f"TALU-{n}"
 def _format_code_from_rule(rule: ProjectCodeRule, number: int) -> str:
-    if rule.padding and rule.padding > 0:
-        return f"{rule.prefix}{rule.separator}{number:0{rule.padding}d}"
-    return f"{rule.prefix}{rule.separator}{number}"
+    pad = getattr(rule, "padding", 0)
+    sep = getattr(rule, "separator", "-")
+    if pad and pad > 0:
+        return f"{rule.prefix}{sep}{number:0{pad}d}"
+    return f"{rule.prefix}{sep}{number}"
+
 
 def _get_owner_rule(db: Session, owner_id: UUID) -> ProjectCodeRule | None:
     return db.query(ProjectCodeRule).filter(
@@ -135,11 +141,12 @@ def _get_owner_rule(db: Session, owner_id: UUID) -> ProjectCodeRule | None:
 # ------------------------------------------------------------
 
 def create_project(db: Session, payload: ProjectCreate, created_by: UUID) -> Project:
-    # 1) Bir sonraki proje kodunu al (kilitli) - commit YOK
+    # 0) Sıradaki kodu üret (kilitli)
     next_n, code = issue_next_code_in_tx(db, created_by)
 
-    # 2) Proje kaydını oluştur
+    # 1) Proje objesini oluştur
     today = datetime.utcnow()
+    is_teklif_val = True if payload.is_teklif is None else bool(payload.is_teklif)
 
     project = Project(
         id=uuid4(),
@@ -147,31 +154,69 @@ def create_project(db: Session, payload: ProjectCreate, created_by: UUID) -> Pro
         project_name=payload.project_name,
         created_by=created_by,
         project_kodu=code,
-        created_at=datetime.utcnow(),
+        created_at=today,
         press_price=payload.press_price,
         painted_price=payload.painted_price,
-
-        # 🆕 Yeni alanlar
-        is_teklif=True if payload.is_teklif is None else bool(payload.is_teklif),
+        is_teklif=is_teklif_val,
         paint_status="durum belirtilmedi",
         glass_status="durum belirtilmedi",
         production_status="durum belirtilmedi",
-        approval_date=today,  # 🆕 kural: yeni proje oluşur oluşmaz bugünün tarihi
+        # teklif değilse onay tarihi şimdi, teklifse None
+        approval_date=(today if is_teklif_val is False else None),
     )
-    db.add(project)
 
-    # 3) Tek commit (unique çakışmasına karşı bir retry)
+    db.add(project)
+    db.flush()  # project.id hazır
+
+    # 2) Ledger’a UPSERT (tek yerden)
+    upsert = pg_insert(ProjectCodeLedger).values(
+        owner_id=created_by,
+        number=next_n,
+        project_id=project.id,
+        project_kodu=code,
+    ).on_conflict_do_update(
+        index_elements=[ProjectCodeLedger.owner_id, ProjectCodeLedger.number],
+        set_={
+            "project_id": project.id,
+            "project_kodu": code,
+        },
+    )
+    db.execute(upsert)
+
+    # 3) Tek commit (unique çakışmasına karşı retry)
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
+
+        # — Yeni code/number çek
         next_n, code = issue_next_code_in_tx(db, created_by)
+
+        # — Proje kodunu güncelle
         project.project_kodu = code
         db.add(project)
+        db.flush()
+
+        # — Ledger UPSERT tekrar
+        upsert2 = pg_insert(ProjectCodeLedger).values(
+            owner_id=created_by,
+            number=next_n,
+            project_id=project.id,
+            project_kodu=code,
+        ).on_conflict_do_update(
+            index_elements=[ProjectCodeLedger.owner_id, ProjectCodeLedger.number],
+            set_={
+                "project_id": project.id,
+                "project_kodu": code,
+            },
+        )
+        db.execute(upsert2)
         db.commit()
 
     db.refresh(project)
     return project
+
+
 
 
 
@@ -186,6 +231,9 @@ def get_projects(
     glass_status: Optional[str] = None,
     production_status: Optional[str] = None,
     customer_id: Optional[UUID] = None,
+    # ✅ YENİ
+    proje_sorted: Optional[bool] = None,
+    teklifler_sorted: Optional[bool] = None,
 ) -> list[Project]:
     """
     Kendi projelerini döndürür (+ customer_name).
@@ -216,14 +264,24 @@ def get_projects(
 
     # Sıralama
     if is_teklif is False:
-        query = query.order_by(Project.approval_date.desc(), Project.created_at.desc())
+        # Projeler (onaylılar) → approval_date + created_at
+        if proje_sorted is True:
+            query = query.order_by(Project.approval_date.asc(), Project.created_at.asc())
+        else:
+            # False veya None: mevcut mantık (ters = desc)
+            query = query.order_by(Project.approval_date.desc(), Project.created_at.desc())
+    elif is_teklif is True:
+        # Teklifler → created_at
+        if teklifler_sorted is True:
+            query = query.order_by(Project.created_at.asc())
+        else:
+            # False veya None: mevcut mantık (ters = desc)
+            query = query.order_by(Project.created_at.desc())
     else:
+        # is_teklif filtresi yoksa genel davranış: mevcut default’u koru (desc)
+        # (İleri geliştirme: karışık listede tür-bazlı yön ayrımı istenirse CASE ile yapılabilir.)
         query = query.order_by(Project.created_at.desc())
 
-    if offset:
-        query = query.offset(offset)
-    if limit is not None:
-        query = query.limit(limit)
 
     rows = query.all()
 
@@ -250,6 +308,9 @@ def get_projects_page(
     glass_status: Optional[str] = None,
     production_status: Optional[str] = None,
     customer_id: Optional[UUID] = None,
+    # ✅ YENİ
+    proje_sorted: Optional[bool] = None,
+    teklifler_sorted: Optional[bool] = None,
 ) -> Tuple[List[Project], int]:
     """
     Sayfalı liste (+ customer_name).
@@ -296,9 +357,21 @@ def get_projects_page(
 
     # Sıralama
     if is_teklif is False:
-        order_clause = [Project.approval_date.desc(), Project.created_at.desc()]
+        order_clause = (
+            [Project.approval_date.asc(), Project.created_at.asc()]
+            if proje_sorted is True
+            else [Project.approval_date.desc(), Project.created_at.desc()]
+        )
+    elif is_teklif is True:
+        order_clause = (
+            [Project.created_at.asc()]
+            if teklifler_sorted is True
+            else [Project.created_at.desc()]
+        )
     else:
+        # Karışık listede varsayılanı koruyoruz (mevcut davranış)
         order_clause = [Project.created_at.desc()]
+
 
     rows = (
         items_q.order_by(*order_clause)
@@ -389,21 +462,55 @@ def update_project_code_by_number(
     if not rule:
         raise ValueError("Önce proje kodu kuralınızı oluşturun.")
 
-    new_code = _format_code_from_rule(rule, new_number)
+    # Alt sınır kuralı
+    if new_number < rule.start_number:
+        raise ValueError(f"Bu kural için izin verilen en küçük sayı: {rule.start_number}")
 
-    # ✅ Global benzersizlik kontrolü (aynı kod başka projede var mı?)
+    # Ledger: bu sayı zaten kullanılmış mı?
+    used = (
+        db.query(ProjectCodeLedger)
+          .filter(ProjectCodeLedger.owner_id == owner_id,
+                  ProjectCodeLedger.number == new_number)
+          .first()
+    )
+    if used and used.project_id is not None and used.project_id != project_id:
+        # Başka projeye ait -> yasak
+        raise ValueError("Bu numara daha önce kullanılmış.")
+
+    # Yeni kodu üret
+    new_code = f"{rule.prefix}{rule.separator}{new_number}"
+
+    # Global benzersizlik (project.project_kodu UNIQUE)
     exists = (
         db.query(Project)
         .filter(Project.project_kodu == new_code, Project.id != project_id)
         .first()
     )
     if exists:
-        # kontrollü uyarı → route 400'e çeviriyor
         raise ValueError("Bu proje kodu (prefix+numara) zaten kullanılıyor.")
 
+    # Kodu uygula
     proj.project_kodu = new_code
 
-    # ✅ Ek güvenlik: muhtemel yarış/DB düzeyinde unique ihlallerinde 500 yerine 400 üretelim
+    # Ledger'ı bağla (INSERT veya UPDATE)
+    # (Kendi projemizse, reserved satır olabilir; yoksa oluştururuz.)
+    if used is None:
+        db.add(ProjectCodeLedger(
+            owner_id=owner_id,
+            number=new_number,
+            project_id=project_id,
+            project_kodu=new_code,
+        ))
+    else:
+        used.project_id = project_id
+        used.project_kodu = new_code
+        db.add(used)
+
+    # Bilgi amaçlı current_number'ı ileri al
+    if new_number > rule.current_number:
+        rule.current_number = new_number
+        db.add(rule)
+
     try:
         db.commit()
     except IntegrityError:
@@ -412,6 +519,7 @@ def update_project_code_by_number(
 
     db.refresh(proj)
     return proj
+
 
 def update_project_all(
     db: Session,
@@ -442,24 +550,29 @@ def update_project_all(
         if not cust:
             raise ValueError("Customer not found or not owned by you.")
 
-    # Proje kodu numarası güncellemesi (varsa)
-    if payload.project_number is not None:
-        rule = _get_owner_rule(db, owner_id)
-        if not rule:
-            raise ValueError("Önce proje kodu kuralınızı oluşturun.")
-        new_code = _format_code_from_rule(rule, payload.project_number)
+    # ✅ Serbest proje kodu güncellemesi (prefix dahil, ledger'a dokunmuyoruz)
+    if payload.project_code is not None:
+        new_code = payload.project_code.strip()
+        if not new_code:
+            raise ValueError("Geçerli bir project_code girin.")
+
+        # Global benzersizlik (Project.project_kodu UNIQUE)
         exists = (
             db.query(Project)
-            .filter(Project.project_kodu == new_code, Project.id != project_id)
-            .first()
+              .filter(Project.project_kodu == new_code, Project.id != project_id)
+              .first()
         )
         if exists:
-            raise ValueError("Bu proje kodu (prefix+numara) zaten kullanılıyor.")
+            raise ValueError("Bu proje kodu başka bir projede zaten kullanılıyor.")
+
+        # Projeye uygula
         proj.project_kodu = new_code
+        # Not: Ledger/Rule güncellenmez; serbest metin kodudur.
 
     # Alanları uygula
     data = payload.dict(exclude_unset=True)
-    data.pop("project_kodu", None)
+    # Serbest proje kodunu yukarıda işledik; aşağıdaki genel alandan uzak tut
+    data.pop("project_code", None)
 
     if "created_at" in data:
         proj.created_at = data["created_at"]
@@ -496,6 +609,8 @@ def update_project_all(
     db.commit()
     db.refresh(proj)
     return proj
+
+
 
 
 def delete_project(db: Session, project_id: UUID, owner_id: Optional[UUID] = None) -> bool:
