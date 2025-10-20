@@ -38,6 +38,14 @@ class GlassInProject(BaseModel):
     count: int
     area_m2: float
     order_index: Optional[int] = None
+
+    # 🔁 Çift cam rengi (her biri opsiyonel)
+    glass_color_id_1: Optional[UUID] = None
+    glass_color_1:    Optional[str]  = None  # serbest metin
+
+    glass_color_id_2: Optional[UUID] = None
+    glass_color_2:    Optional[str]  = None  # serbest metin
+
     pdf: Optional[PdfFlags] = None
 
 
@@ -99,6 +107,14 @@ class ExtraGlassIn(BaseModel):
     height_mm: float
     count: int
     unit_price: Optional[float] = None
+
+    # 🔁 Çift cam rengi
+    glass_color_id_1: Optional[UUID] = None
+    glass_color_1:    Optional[str]  = None  # serbest metin
+
+    glass_color_id_2: Optional[UUID] = None
+    glass_color_2:    Optional[str]  = None  # serbest metin
+
     pdf: Optional[PdfFlags] = None
 
 
@@ -314,13 +330,21 @@ class ExtraGlassDetailed(BaseModel):
     count: int
     unit_price: Optional[float] = None
     glass_type: GlassTypeOut
-    # 🆕 Cam rengi
-    glass_color_id: Optional[UUID] = None
-    glass_color: Optional['ColorOut'] = None
+
+    # 🔁 Çift cam rengi
+    glass_color_id_1: Optional[UUID] = None
+    glass_color_1:    Optional[str]  = None
+    glass_color_obj_1: Optional['ColorOut'] = None
+
+    glass_color_id_2: Optional[UUID] = None
+    glass_color_2:    Optional[str]  = None
+    glass_color_obj_2: Optional['ColorOut'] = None
+
     pdf: PdfFlags
 
     class Config:
         orm_mode = True
+
 
 
 class ExtraMaterialDetailed(BaseModel):    # 🆕 yeni
@@ -370,18 +394,17 @@ class ProfileInProjectOut(ProfileInProject):
         orm_mode = True
 
 class GlassInProjectOut(GlassInProject):
-    # ✅ Bu ID, ProjectSystemGlass tablosundaki satırın kimliğidir
+    # ✅ ProjectSystemGlass satırının id’si
     id: UUID
-
     glass_type: GlassTypeOut
-    # (Opsiyonel) mevcut renk ID’si — sadece response için
-    glass_color_id: Optional[UUID] = None
-    # (Opsiyonel) renk objesi
-    glass_color: Optional['ColorOut'] = None
-    pdf: PdfFlags
+
+    # 🔁 Renklere karşılık obje döndür (varsa)
+    glass_color_obj_1: Optional['ColorOut'] = None
+    glass_color_obj_2: Optional['ColorOut'] = None
 
     class Config:
         orm_mode = True
+
 
 
 
@@ -497,7 +520,15 @@ class ProjectExtraGlassCreate(BaseModel):
     height_mm: float
     count: int
     unit_price: Optional[float] = None
+
+    # 🔁 Çift cam rengi
+    glass_color_id_1: Optional[UUID] = None
+    glass_color_1:    Optional[str]  = None
+    glass_color_id_2: Optional[UUID] = None
+    glass_color_2:    Optional[str]  = None
+
     pdf: Optional[PdfFlags] = None
+
 
 
 class ProjectExtraGlassUpdate(BaseModel):
@@ -505,7 +536,15 @@ class ProjectExtraGlassUpdate(BaseModel):
     height_mm: Optional[float] = None
     count: Optional[int] = None
     unit_price: Optional[float] = None
+
+    # 🔁 Çift cam rengi
+    glass_color_id_1: Optional[UUID] = None
+    glass_color_1:    Optional[str]  = None
+    glass_color_id_2: Optional[UUID] = None
+    glass_color_2:    Optional[str]  = None
+
     pdf: Optional[PdfFlags] = None
+
 
 
 class ProjectExtraGlassOut(BaseModel):
@@ -518,13 +557,21 @@ class ProjectExtraGlassOut(BaseModel):
     area_m2: Optional[float]
     unit_price: Optional[float] = None
     created_at: datetime
-    # 🆕 Cam rengi
-    glass_color_id: Optional[UUID] = None
-    glass_color: Optional['ColorOut'] = None
+
+    # 🔁 Çift cam rengi
+    glass_color_id_1: Optional[UUID] = None
+    glass_color_1:    Optional[str]  = None
+    glass_color_obj_1: Optional['ColorOut'] = None
+
+    glass_color_id_2: Optional[UUID] = None
+    glass_color_2:    Optional[str]  = None
+    glass_color_obj_2: Optional['ColorOut'] = None
+
     pdf: PdfFlags
 
     class Config:
         orm_mode = True
+
 
 
 #  metaryal EKLE ÇIKART SİL ---------------------------------------
@@ -584,10 +631,14 @@ class ProjectExtraRemoteOut(BaseModel):
 
 class SingleGlassColorUpdate(BaseModel):
     """
-    Tek bir cam kaydının (system/extra) rengini güncellemek için.
-    glass_color_id = UUID verilirse o renge atanır, None verilirse renk temizlenir.
+    Tek bir cam kaydının (system/extra) çift renklerini güncellemek için.
+    Her iki alan da opsiyonel; None verilirse o taraf temizlenir.
     """
-    glass_color_id: Optional[UUID] = None  # null -> rengi temizle
+    glass_color_id_1: Optional[UUID] = None
+    glass_color_1:    Optional[str]  = None
+
+    glass_color_id_2: Optional[UUID] = None
+    glass_color_2:    Optional[str]  = None
 
 
 class SystemGlassColorItem(BaseModel):
@@ -595,7 +646,10 @@ class SystemGlassColorItem(BaseModel):
     Toplu güncellemede tek bir system glass (ProjectSystemGlass) satırı.
     """
     project_system_glass_id: UUID
-    glass_color_id: Optional[UUID] = None  # null -> rengi temizle
+    glass_color_id_1: Optional[UUID] = None
+    glass_color_1:    Optional[str]  = None
+    glass_color_id_2: Optional[UUID] = None
+    glass_color_2:    Optional[str]  = None
 
 
 class SystemGlassColorBulkUpdate(BaseModel):
@@ -610,7 +664,10 @@ class ExtraGlassColorItem(BaseModel):
     Toplu güncellemede tek bir extra glass (ProjectExtraGlass) satırı.
     """
     extra_glass_id: UUID
-    glass_color_id: Optional[UUID] = None  # null -> rengi temizle
+    glass_color_id_1: Optional[UUID] = None
+    glass_color_1:    Optional[str]  = None
+    glass_color_id_2: Optional[UUID] = None
+    glass_color_2:    Optional[str]  = None
 
 
 class ExtraGlassColorBulkUpdate(BaseModel):
@@ -618,6 +675,7 @@ class ExtraGlassColorBulkUpdate(BaseModel):
     Extra camlar için toplu renk güncelleme.
     """
     items: List[ExtraGlassColorItem]
+
 
 
 class SystemGlassBulkByTypeIn(BaseModel):
@@ -638,11 +696,12 @@ class ProjectGlassColorByTypeIn(BaseModel):
     glass_color_id: Optional[UUID] = None  # null → temizle
 
 # --- Pydantic forward refs fix ---
+# --- Pydantic forward refs fix ---
 try:
     GlassInProjectOut.update_forward_refs(ColorOut=ColorOut)
     ExtraGlassDetailed.update_forward_refs(ColorOut=ColorOut)
     ProjectExtraGlassOut.update_forward_refs(ColorOut=ColorOut)
 except NameError:
-    # Eğer modül import sırası nedeniyle bir şeyler daha erken okunuyorsa sessizce geç
     pass
+
 

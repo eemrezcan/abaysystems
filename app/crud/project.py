@@ -98,6 +98,14 @@ def _pdf_from_obj(obj: Any) -> dict:
         "optimizasyonDetaysizCiktisi":bool(getattr(obj, "optimizasyon_detaysiz_ciktisi", True)),
     }
 
+# ---- Sentinel (gönderilmedi / dokunma) ----
+class _SentinelType:
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "NOT_GIVEN"
+
+_SENTINEL: "_SentinelType" = _SentinelType()
 # ------------------------------------------------------------
 # Yardımcılar
 # ------------------------------------------------------------
@@ -728,9 +736,16 @@ def add_systems_to_project(
                 count=g.count,
                 area_m2=g.area_m2,
                 order_index=tpl_glasses.get(g.glass_type_id),
+
+                # 🔁 Çift cam rengi
+                glass_color_id_1=getattr(g, "glass_color_id_1", None),
+                glass_color_text_1=getattr(g, "glass_color_1", None),
+                glass_color_id_2=getattr(g, "glass_color_id_2", None),
+                glass_color_text_2=getattr(g, "glass_color_2", None),
             )
             _apply_pdf(obj, getattr(g, "pdf", None))
             db.add(obj)
+
 
 
 
@@ -922,6 +937,12 @@ def add_only_systems_to_project(
                 count=g.count,
                 area_m2=g.area_m2,
                 order_index=tpl_glasses.get(g.glass_type_id),
+
+                # 🔁 Çift cam rengi
+                glass_color_id_1=getattr(g, "glass_color_id_1", None),
+                glass_color_text_1=getattr(g, "glass_color_1", None),
+                glass_color_id_2=getattr(g, "glass_color_id_2", None),
+                glass_color_text_2=getattr(g, "glass_color_2", None),
             )
             _apply_pdf(obj, getattr(g, "pdf", None))
             db.add(obj)
@@ -1036,13 +1057,19 @@ def add_only_extras_to_project(
         area_m2 = (glass.width_mm / 1000) * (glass.height_mm / 1000)
         obj = ProjectExtraGlass(
             id=uuid4(),
-            project_id=project_id,  # 🔴 FIX
+            project_id=project_id,
             glass_type_id=glass.glass_type_id,
             width_mm=glass.width_mm,
             height_mm=glass.height_mm,
             count=glass.count,
             area_m2=area_m2,
             unit_price=getattr(glass, "unit_price", None),
+
+            # 🔁 Çift cam rengi
+            glass_color_id_1=getattr(glass, "glass_color_id_1", None),
+            glass_color_text_1=getattr(glass, "glass_color_1", None),
+            glass_color_id_2=getattr(glass, "glass_color_id_2", None),
+            glass_color_text_2=getattr(glass, "glass_color_2", None),
         )
         _apply_pdf(obj, getattr(glass, "pdf", None))
         db.add(obj)
@@ -1120,22 +1147,29 @@ def get_project_requirements_detailed(
         )
         glasses = []
         for g in glasses_raw:
-            glass_color_obj = (
-                db.query(Color).filter(Color.id == g.glass_color_id).first()
-                if getattr(g, "glass_color_id", None) else None
-            )
+            color_obj_1 = db.query(Color).filter(Color.id == g.glass_color_id_1).first() if getattr(g, "glass_color_id_1", None) else None
+            color_obj_2 = db.query(Color).filter(Color.id == g.glass_color_id_2).first() if getattr(g, "glass_color_id_2", None) else None
+
             glasses.append(
                 GlassInProjectOut(
-                    id=g.id,  # ✅ ProjectSystemGlass.id
+                    id=g.id,
                     glass_type_id=g.glass_type_id,
-                    width_mm=g.width_mm,
-                    height_mm=g.height_mm,
+                    width_mm=float(g.width_mm),
+                    height_mm=float(g.height_mm),
                     count=g.count,
-                    area_m2=g.area_m2,
+                    area_m2=float(g.area_m2) if g.area_m2 is not None else None,
                     order_index=g.order_index,
                     glass_type=db.query(GlassType).filter(GlassType.id == g.glass_type_id).first(),
-                    glass_color_id=getattr(g, "glass_color_id", None),
-                    glass_color=glass_color_obj,
+
+                    # 🔁 Çift cam rengi (id + metin + obje)
+                    glass_color_id_1=getattr(g, "glass_color_id_1", None),
+                    glass_color_1=getattr(g, "glass_color_text_1", None),
+                    glass_color_obj_1=color_obj_1,
+
+                    glass_color_id_2=getattr(g, "glass_color_id_2", None),
+                    glass_color_2=getattr(g, "glass_color_text_2", None),
+                    glass_color_obj_2=color_obj_2,
+
                     pdf=_pdf_from_obj(g),
                 )
             )
@@ -1232,7 +1266,9 @@ def get_project_requirements_detailed(
     extra_glasses = []
     for g in db.query(ProjectExtraGlass).filter(ProjectExtraGlass.project_id == project_id).all():
         gt = db.query(GlassType).filter(GlassType.id == g.glass_type_id).first()
-        glass_color_obj = db.query(Color).filter(Color.id == g.glass_color_id).first() if getattr(g, "glass_color_id", None) else None
+        color_obj_1 = db.query(Color).filter(Color.id == g.glass_color_id_1).first() if getattr(g, "glass_color_id_1", None) else None
+        color_obj_2 = db.query(Color).filter(Color.id == g.glass_color_id_2).first() if getattr(g, "glass_color_id_2", None) else None
+
         extra_glasses.append(
             ExtraGlassDetailed(
                 id=g.id,
@@ -1243,12 +1279,20 @@ def get_project_requirements_detailed(
                 count=g.count,
                 unit_price=float(g.unit_price) if g.unit_price is not None else None,
                 glass_type=gt,
-                # 🆕
-                glass_color_id=getattr(g, "glass_color_id", None),
-                glass_color=glass_color_obj,
+
+                # 🔁 Çift cam rengi
+                glass_color_id_1=getattr(g, "glass_color_id_1", None),
+                glass_color_1=getattr(g, "glass_color_text_1", None),
+                glass_color_obj_1=color_obj_1,
+
+                glass_color_id_2=getattr(g, "glass_color_id_2", None),
+                glass_color_2=getattr(g, "glass_color_text_2", None),
+                glass_color_obj_2=color_obj_2,
+
                 pdf=_pdf_from_obj(g),
             )
         )
+
 
 
     # Extra Remote (DETAY + id)
@@ -1307,85 +1351,107 @@ def update_project_colors(
 # Glass color updates (system & extra)
 # ------------------------------------------------------------
 
-def update_project_system_glass_color(
+def update_project_system_glass_colors(
     db: Session,
     project_system_glass_id: UUID,
-    glass_color_id: Optional[UUID],
+    glass_color_id_1: "UUID | None | _SentinelType" = _SENTINEL,
+    glass_color_1: "str | None | _SentinelType" = _SENTINEL,
+    glass_color_id_2: "UUID | None | _SentinelType" = _SENTINEL,
+    glass_color_2: "str | None | _SentinelType" = _SENTINEL,
 ):
-    """
-    Tek bir ProjectSystemGlass satırının cam rengini günceller (None => temizler).
-    """
-    obj = (
-        db.query(ProjectSystemGlass)
-          .filter(ProjectSystemGlass.id == project_system_glass_id)
-          .first()
-    )
+    obj = db.query(ProjectSystemGlass).filter(ProjectSystemGlass.id == project_system_glass_id).first()
     if not obj:
         return None
-    obj.glass_color_id = glass_color_id
+
+    if glass_color_id_1 is not _SENTINEL:
+        obj.glass_color_id_1 = glass_color_id_1  # None gelirse temizler
+    if glass_color_1 is not _SENTINEL:
+        obj.glass_color_text_1 = glass_color_1
+    if glass_color_id_2 is not _SENTINEL:
+        obj.glass_color_id_2 = glass_color_id_2
+    if glass_color_2 is not _SENTINEL:
+        obj.glass_color_text_2 = glass_color_2
+
     db.commit()
     db.refresh(obj)
     obj.pdf = _pdf_from_obj(obj)
     return obj
 
 
-def bulk_update_project_system_glass_colors(
+def bulk_update_project_system_glass_colors_dual(
     db: Session,
-    items: List[Tuple[UUID, Optional[UUID]]],
+    items: list[dict],
 ) -> int:
     """
-    Birden fazla ProjectSystemGlass satırını toplu günceller.
-    items: [(project_system_glass_id, glass_color_id_or_None), ...]
-    Dönen değer: başarıyla güncellenen satır sayısı.
+    items: SystemGlassColorItem listesi
     """
     updated = 0
-    for psg_id, color_id in items:
-        obj = db.query(ProjectSystemGlass).filter(ProjectSystemGlass.id == psg_id).first()
+    for it in items:
+        obj = db.query(ProjectSystemGlass).filter(ProjectSystemGlass.id == it["project_system_glass_id"]).first()
         if not obj:
             continue
-        obj.glass_color_id = color_id
+
+        if "glass_color_id_1" in it:
+            obj.glass_color_id_1 = it["glass_color_id_1"]
+        if "glass_color_1" in it:
+            obj.glass_color_text_1 = it["glass_color_1"]
+        if "glass_color_id_2" in it:
+            obj.glass_color_id_2 = it["glass_color_id_2"]
+        if "glass_color_2" in it:
+            obj.glass_color_text_2 = it["glass_color_2"]
         updated += 1
     db.commit()
     return updated
 
 
-def update_project_extra_glass_color(
+def update_project_extra_glass_colors(
     db: Session,
     extra_glass_id: UUID,
-    glass_color_id: Optional[UUID],
+    glass_color_id_1: "UUID | None | _SentinelType" = _SENTINEL,
+    glass_color_1: "str | None | _SentinelType" = _SENTINEL,
+    glass_color_id_2: "UUID | None | _SentinelType" = _SENTINEL,
+    glass_color_2: "str | None | _SentinelType" = _SENTINEL,
 ):
-    """
-    Tek bir ProjectExtraGlass satırının cam rengini günceller (None => temizler).
-    """
-    obj = (
-        db.query(ProjectExtraGlass)
-          .filter(ProjectExtraGlass.id == extra_glass_id)
-          .first()
-    )
+    obj = db.query(ProjectExtraGlass).filter(ProjectExtraGlass.id == extra_glass_id).first()
     if not obj:
         return None
-    obj.glass_color_id = glass_color_id
+
+    if glass_color_id_1 is not _SENTINEL:
+        obj.glass_color_id_1 = glass_color_id_1
+    if glass_color_1 is not _SENTINEL:
+        obj.glass_color_text_1 = glass_color_1
+    if glass_color_id_2 is not _SENTINEL:
+        obj.glass_color_id_2 = glass_color_id_2
+    if glass_color_2 is not _SENTINEL:
+        obj.glass_color_text_2 = glass_color_2
+
     db.commit()
     db.refresh(obj)
     obj.pdf = _pdf_from_obj(obj)
     return obj
 
 
-def bulk_update_project_extra_glass_colors(
+def bulk_update_project_extra_glass_colors_dual(
     db: Session,
-    items: List[Tuple[UUID, Optional[UUID]]],
+    items: list[dict],
 ) -> int:
     """
-    Birden fazla ProjectExtraGlass satırını toplu günceller.
-    items: [(extra_glass_id, glass_color_id_or_None), ...]
-    Dönen değer: başarıyla güncellenen satır sayısı.
+    items: ExtraGlassColorItem listesi
     """
     updated = 0
-    for ex_id, color_id in items:
-        obj = db.query(ProjectExtraGlass).filter(ProjectExtraGlass.id == ex_id).first()
+    for it in items:
+        obj = db.query(ProjectExtraGlass).filter(ProjectExtraGlass.id == it["extra_glass_id"]).first()
         if not obj:
             continue
-        obj.glass_color_id = color_id
+
+        if "glass_color_id_1" in it:
+            obj.glass_color_id_1 = it["glass_color_id_1"]
+        if "glass_color_1" in it:
+            obj.glass_color_text_1 = it["glass_color_1"]
+        if "glass_color_id_2" in it:
+            obj.glass_color_id_2 = it["glass_color_id_2"]
+        if "glass_color_2" in it:
+            obj.glass_color_text_2 = it["glass_color_2"]
         updated += 1
     db.commit()
     return updated
@@ -1588,6 +1654,11 @@ def create_project_extra_glass(
     height_mm: float,
     count: int,
     unit_price: Optional[float] = None,
+    # 🔁 Çift cam rengi (opsiyonel)
+    glass_color_id_1: Optional[UUID] = None,
+    glass_color_1: Optional[str] = None,
+    glass_color_id_2: Optional[UUID] = None,
+    glass_color_2: Optional[str] = None,
 ) -> ProjectExtraGlass:
     area_m2 = (width_mm / 1000) * (height_mm / 1000)
     extra = ProjectExtraGlass(
@@ -1599,6 +1670,12 @@ def create_project_extra_glass(
         count=count,
         area_m2=area_m2,
         unit_price=unit_price,
+
+        # 🔁 renkler
+        glass_color_id_1=glass_color_id_1,
+        glass_color_text_1=glass_color_1,
+        glass_color_id_2=glass_color_id_2,
+        glass_color_text_2=glass_color_2,
     )
     db.add(extra)
     db.commit()
@@ -1607,7 +1684,8 @@ def create_project_extra_glass(
     return extra
 
 
-
+# SENTINEL ile "parametre hiç verilmedi" / "None ile temizle" ayrımı
+_SENTINEL = object()
 
 def update_project_extra_glass(
     db: Session,
@@ -1616,6 +1694,11 @@ def update_project_extra_glass(
     height_mm: Optional[float] = None,
     count: Optional[int] = None,
     unit_price: Optional[float] = None,
+    # 🔁 Çift cam rengi: None => temizle, SENTINEL => dokunma
+    glass_color_id_1: Any = _SENTINEL,
+    glass_color_1: Any = _SENTINEL,
+    glass_color_id_2: Any = _SENTINEL,
+    glass_color_2: Any = _SENTINEL,
 ) -> Optional[ProjectExtraGlass]:
     extra = db.query(ProjectExtraGlass).filter(ProjectExtraGlass.id == extra_id).first()
     if not extra:
@@ -1630,8 +1713,18 @@ def update_project_extra_glass(
     if unit_price is not None:
         extra.unit_price = unit_price
 
+    # 🔁 renk alanları
+    if glass_color_id_1 is not _SENTINEL:
+        extra.glass_color_id_1 = glass_color_id_1  # None gelirse temizler
+    if glass_color_1 is not _SENTINEL:
+        extra.glass_color_text_1 = glass_color_1
+    if glass_color_id_2 is not _SENTINEL:
+        extra.glass_color_id_2 = glass_color_id_2
+    if glass_color_2 is not _SENTINEL:
+        extra.glass_color_text_2 = glass_color_2
+
     # area_m2 yeniden hesapla
-    if width_mm or height_mm:
+    if width_mm is not None or height_mm is not None:
         extra.area_m2 = (extra.width_mm / 1000) * (extra.height_mm / 1000)
 
     db.commit()
@@ -1885,9 +1978,16 @@ def update_project_system(
             count=g.count,
             area_m2=g.area_m2,
             order_index=tpl_glasses.get(g.glass_type_id),
+
+            # 🔁 Çift cam rengi
+            glass_color_id_1=getattr(g, "glass_color_id_1", None),
+            glass_color_text_1=getattr(g, "glass_color_1", None),
+            glass_color_id_2=getattr(g, "glass_color_id_2", None),
+            glass_color_text_2=getattr(g, "glass_color_2", None),
         )
         _apply_pdf(obj, getattr(g, "pdf", None))
         db.add(obj)
+
 
 
 

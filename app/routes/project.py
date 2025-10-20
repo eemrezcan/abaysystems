@@ -47,10 +47,10 @@ from app.crud.project import (
     update_project_extra_remote,   # 🆕
     delete_project_extra_remote,   # 🆕
     update_project_code_by_number,
-    update_project_system_glass_color,      # 🆕
-    bulk_update_project_system_glass_colors,# 🆕
-    update_project_extra_glass_color,       # 🆕
-    bulk_update_project_extra_glass_colors, # 🆕
+    update_project_system_glass_colors,
+    bulk_update_project_system_glass_colors_dual,
+    update_project_extra_glass_colors,
+    bulk_update_project_extra_glass_colors_dual,
     bulk_update_system_glass_color_by_type,
     bulk_update_all_glass_colors_in_project,        # ⬅️ EKLE
     bulk_update_glass_colors_by_type_in_project,    # ⬅️ EKLE
@@ -92,7 +92,10 @@ from app.schemas.project import (
     SystemGlassBulkByTypeIn,
     ProjectGlassColorAllIn,       # ⬅️ EKLE
     ProjectGlassColorByTypeIn,    # ⬅️ EKLE
+    SingleGlassColorUpdate,
+    ExtraGlassColorBulkUpdate,
 )
+from app.crud.project import _SENTINEL
 
 from app.models.project import (
     Project,
@@ -107,29 +110,6 @@ from app.models.project import (
 
 router = APIRouter(prefix="/api/projects", tags=["Projects"])
 
-# ───────── Local payload models for color updates ─────────
-from pydantic import BaseModel
-from typing import Optional
-
-class SystemGlassColorUpdateIn(BaseModel):
-    glass_color_id: Optional[UUID] = None  # None gönderilirse renk temizlenir
-
-class BulkSystemGlassColorItem(BaseModel):
-    project_system_glass_id: UUID
-    glass_color_id: Optional[UUID] = None
-
-class BulkSystemGlassColorUpdateIn(BaseModel):
-    items: List[BulkSystemGlassColorItem]
-
-class ExtraGlassColorUpdateIn(BaseModel):
-    glass_color_id: Optional[UUID] = None  # None => temizle
-
-class BulkExtraGlassColorItem(BaseModel):
-    extra_glass_id: UUID
-    glass_color_id: Optional[UUID] = None
-
-class BulkExtraGlassColorUpdateIn(BaseModel):
-    items: List[BulkExtraGlassColorItem]
 
 def _attach_customer_name(db: Session, proj: Project) -> None:
     """Project ORM objesine customer_name alanını enjekte eder."""
@@ -477,6 +457,12 @@ def list_requirements_endpoint(
                 count=g.count,
                 area_m2=float(g.area_m2) if g.area_m2 is not None else 0.0,
                 order_index=g.order_index,
+
+                # 🔁 çift renk alanları
+                glass_color_id_1=getattr(g, "glass_color_id_1", None),
+                glass_color_1=getattr(g, "glass_color_text_1", None),
+                glass_color_id_2=getattr(g, "glass_color_id_2", None),
+                glass_color_2=getattr(g, "glass_color_text_2", None),
             )
             for g in sys.glasses
         ]
@@ -699,6 +685,12 @@ def add_extra_glass_endpoint(
             height_mm=payload.height_mm,
             count=payload.count,
             unit_price=getattr(payload, "unit_price", None),
+
+            # 🔁 Çift cam rengi
+            glass_color_id_1=getattr(payload, "glass_color_id_1", None),
+            glass_color_1=getattr(payload, "glass_color_1", None),
+            glass_color_id_2=getattr(payload, "glass_color_id_2", None),
+            glass_color_2=getattr(payload, "glass_color_2", None),
         )
         return extra
     except ValueError:
@@ -721,14 +713,21 @@ def update_extra_glass_endpoint(
     )
     ensure_owner_or_404(proj, current_user.id, "created_by")
 
+    data = payload.dict(exclude_unset=True)
     updated = update_project_extra_glass(
         db,
         extra_id,
-        width_mm=payload.width_mm,
-        height_mm=payload.height_mm,
-        count=payload.count,
-        unit_price=getattr(payload, "unit_price", None),
+        width_mm=data.get("width_mm"),
+        height_mm=data.get("height_mm"),
+        count=data.get("count"),
+        unit_price=data.get("unit_price"),
+        # 🔁 çift renk
+        glass_color_id_1=data.get("glass_color_id_1", _SENTINEL),  # _SENTINEL CRUD içinde tanımlı
+        glass_color_1=data.get("glass_color_1", _SENTINEL),
+        glass_color_id_2=data.get("glass_color_id_2", _SENTINEL),
+        glass_color_2=data.get("glass_color_2", _SENTINEL),
     )
+
     if not updated:
         raise HTTPException(status_code=404, detail="Extra glass not found")
     return updated
@@ -914,14 +913,15 @@ def delete_extra_remote_endpoint(
 def update_system_glass_color_endpoint(
     project_id: UUID,
     psg_id: UUID,
-    payload: SystemGlassColorUpdateIn,
+    payload: SingleGlassColorUpdate,  # ⬅️ ortak dual payload
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
     """
-    Tek bir ProjectSystemGlass satırının cam rengini günceller (None => temizler).
+    Tek bir ProjectSystemGlass satırının çift cam renklerini günceller.
+    Gönderilmeyen alanlara dokunulmaz; None gönderilirse o taraf temizlenir.
     """
-    # Sahiplik: psg_id gerçekten bu projeye mi ait ve proje user’a mı ait?
+    # Güvenlik: kayıt gerçekten bu projeye ve kullanıcıya mı ait?
     proj = (
         db.query(Project)
         .join(ProjectSystem, ProjectSystem.project_id == Project.id)
@@ -931,15 +931,19 @@ def update_system_glass_color_endpoint(
     )
     ensure_owner_or_404(proj, current_user.id, "created_by")
 
-    updated = update_project_system_glass_color(
+    data = payload.dict(exclude_unset=True)
+    updated = update_project_system_glass_colors(
         db,
         project_system_glass_id=psg_id,
-        glass_color_id=payload.glass_color_id,
+        glass_color_id_1=data.get("glass_color_id_1", _SENTINEL),
+        glass_color_1=data.get("glass_color_1", _SENTINEL),
+        glass_color_id_2=data.get("glass_color_id_2", _SENTINEL),
+        glass_color_2=data.get("glass_color_2", _SENTINEL),
     )
     if not updated:
         raise HTTPException(status_code=404, detail="System glass not found")
 
-    return {"ok": True, "id": str(psg_id), "glass_color_id": str(payload.glass_color_id) if payload.glass_color_id else None}
+    return {"ok": True, "id": str(psg_id)}
 
 
 @router.put("/{project_id}/system-glasses/colors/bulk", response_model=dict)
@@ -972,14 +976,14 @@ def bulk_update_system_glass_colors_by_type_endpoint(
 @router.put("/extra-glasses/{extra_id}/color")
 def update_extra_glass_color_endpoint(
     extra_id: UUID,
-    payload: ExtraGlassColorUpdateIn,
+    payload: SingleGlassColorUpdate,  # ⬅️ ortak dual payload
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
     """
-    Tek bir ProjectExtraGlass satırının cam rengini günceller (None => temizler).
+    Tek bir ProjectExtraGlass satırının çift cam renklerini günceller.
+    Gönderilmeyen alanlara dokunulmaz; None gönderilirse o taraf temizlenir.
     """
-    # Sahiplik: extra_id'nin bağlı olduğu proje user’a mı ait?
     proj = (
         db.query(Project)
         .join(ProjectExtraGlass, ProjectExtraGlass.project_id == Project.id)
@@ -988,21 +992,25 @@ def update_extra_glass_color_endpoint(
     )
     ensure_owner_or_404(proj, current_user.id, "created_by")
 
-    updated = update_project_extra_glass_color(
+    data = payload.dict(exclude_unset=True)
+    updated = update_project_extra_glass_colors(
         db,
         extra_glass_id=extra_id,
-        glass_color_id=payload.glass_color_id,
+        glass_color_id_1=data.get("glass_color_id_1", _SENTINEL),
+        glass_color_1=data.get("glass_color_1", _SENTINEL),
+        glass_color_id_2=data.get("glass_color_id_2", _SENTINEL),
+        glass_color_2=data.get("glass_color_2", _SENTINEL),
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Extra glass not found")
 
-    return {"ok": True, "id": str(extra_id), "glass_color_id": str(payload.glass_color_id) if payload.glass_color_id else None}
+    return {"ok": True, "id": str(extra_id)}
 
 
 @router.put("/{project_id}/extra-glasses/colors/bulk")
 def bulk_update_extra_glass_colors_endpoint(
     project_id: UUID,
-    payload: BulkExtraGlassColorUpdateIn,
+    payload: ExtraGlassColorBulkUpdate,  # ⬅️ şemadan dual liste
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
@@ -1023,12 +1031,26 @@ def bulk_update_extra_glass_colors_endpoint(
           .all()
     )
 
-    filtered_items = [(it.extra_glass_id, it.glass_color_id) for it in payload.items if it.extra_glass_id in valid_ids]
-    if not filtered_items:
+    # Sadece geçerli kayıtları ve gönderilen alanları topla
+    items_to_apply = []
+    for it in payload.items:
+        if it.extra_glass_id not in valid_ids:
+            continue
+        d = it.dict(exclude_unset=True)
+        items_to_apply.append({
+            "extra_glass_id": d["extra_glass_id"],
+            **({ "glass_color_id_1": d["glass_color_id_1"] } if "glass_color_id_1" in d else {}),
+            **({ "glass_color_1": d["glass_color_1"] } if "glass_color_1" in d else {}),
+            **({ "glass_color_id_2": d["glass_color_id_2"] } if "glass_color_id_2" in d else {}),
+            **({ "glass_color_2": d["glass_color_2"] } if "glass_color_2" in d else {}),
+        })
+
+    if not items_to_apply:
         return {"updated": 0}
 
-    updated_count = bulk_update_project_extra_glass_colors(db, filtered_items)
+    updated_count = bulk_update_project_extra_glass_colors_dual(db, items_to_apply)
     return {"updated": updated_count}
+
 
 @router.put("/{project_id}/glasses/colors/all", response_model=dict)
 def bulk_set_all_glass_colors_in_project_endpoint(

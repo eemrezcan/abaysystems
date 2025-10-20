@@ -122,10 +122,18 @@ class ProjectSystemGlass(Base):
     height_mm          = Column(Numeric, nullable=False)
     count              = Column(Integer, nullable=False)
     area_m2            = Column(Numeric, nullable=True)
-    order_index       = Column(Integer, nullable=True)
+    order_index        = Column(Integer, nullable=True)
 
-    glass_color_id     = Column(PGUUID(as_uuid=True), ForeignKey("color.id"), nullable=True)
-    glass_color        = relationship("Color", foreign_keys=[glass_color_id])
+    # 🔁 Çift cam renk alanları (DB kolon adları birebir korunur)
+    glass_color_id_1   = Column(PGUUID(as_uuid=True), ForeignKey("color.id"), nullable=True)
+    glass_color_text_1 = Column("glass_color_1", String(50), nullable=True)  # serbest metin kolonu (DB adı: glass_color_1)
+
+    glass_color_id_2   = Column(PGUUID(as_uuid=True), ForeignKey("color.id"), nullable=True)
+    glass_color_text_2 = Column("glass_color_2", String(50), nullable=True)  # serbest metin kolonu (DB adı: glass_color_2)
+
+    # 🔗 İlişkiler — isim formatı eskiyle uyumlu (cam rengi ilişkisi)
+    glass_color_1      = relationship("Color", foreign_keys=[glass_color_id_1])
+    glass_color_2      = relationship("Color", foreign_keys=[glass_color_id_2])
 
     # --- PDF Flags ---
     cam_ciktisi                   = Column(Boolean, nullable=False, default=True)
@@ -137,6 +145,7 @@ class ProjectSystemGlass(Base):
 
     project_system = relationship("ProjectSystem", back_populates="glasses")
     glass_type     = relationship("GlassType")
+
 
 
 class ProjectSystemMaterial(Base):
@@ -236,18 +245,26 @@ class ProjectExtraProfile(Base):
 class ProjectExtraGlass(Base):
     __tablename__ = "project_extra_glass"
 
-    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    project_id = Column(PGUUID(as_uuid=True), ForeignKey("project.id", ondelete="CASCADE"), nullable=False)
-    glass_type_id = Column(PGUUID(as_uuid=True), ForeignKey("glass_type.id"), nullable=False)
-    width_mm = Column(Numeric, nullable=False)
-    height_mm = Column(Numeric, nullable=False)
-    count = Column(Integer, nullable=False)
-    area_m2 = Column(Numeric, nullable=True)
-    unit_price = Column(Numeric, nullable=True)
-    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    # 🆕 Cam rengi (opsiyonel)
-    glass_color_id = Column(PGUUID(as_uuid=True), ForeignKey("color.id"), nullable=True)
-    glass_color    = relationship("Color", foreign_keys=[glass_color_id])
+    id           = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id   = Column(PGUUID(as_uuid=True), ForeignKey("project.id", ondelete="CASCADE"), nullable=False)
+    glass_type_id= Column(PGUUID(as_uuid=True), ForeignKey("glass_type.id"), nullable=False)
+    width_mm     = Column(Numeric, nullable=False)
+    height_mm    = Column(Numeric, nullable=False)
+    count        = Column(Integer, nullable=False)
+    area_m2      = Column(Numeric, nullable=True)
+    unit_price   = Column(Numeric, nullable=True)
+    created_at   = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    # 🔁 Çift cam renk alanları (DB kolon adları birebir korunur)
+    glass_color_id_1   = Column(PGUUID(as_uuid=True), ForeignKey("color.id"), nullable=True)
+    glass_color_text_1 = Column("glass_color_1", String(50), nullable=True)  # serbest metin kolonu (DB adı: glass_color_1)
+
+    glass_color_id_2   = Column(PGUUID(as_uuid=True), ForeignKey("color.id"), nullable=True)
+    glass_color_text_2 = Column("glass_color_2", String(50), nullable=True)  # serbest metin kolonu (DB adı: glass_color_2)
+
+    # 🔗 İlişkiler — isim formatı eskiyle uyumlu
+    glass_color_1      = relationship("Color", foreign_keys=[glass_color_id_1])
+    glass_color_2      = relationship("Color", foreign_keys=[glass_color_id_2])
 
     # --- PDF Flags ---
     cam_ciktisi                   = Column(Boolean, nullable=False, default=True)
@@ -257,8 +274,9 @@ class ProjectExtraGlass(Base):
     optimizasyon_detayli_ciktisi  = Column(Boolean, nullable=False, default=True)
     optimizasyon_detaysiz_ciktisi = Column(Boolean, nullable=False, default=True)
 
-    project = relationship("Project", backref="extra_glasses")
+    project    = relationship("Project", backref="extra_glasses")
     glass_type = relationship("GlassType")
+
 
 class ProjectExtraRemote(Base):
     __tablename__ = "project_extra_remote"
