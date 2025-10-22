@@ -126,3 +126,41 @@ def set_default_glass_color(db: Session, color_id: UUID) -> Optional[Color]:
     db.commit()
     db.refresh(target)
     return target
+
+
+def get_default_glass_color2(db: Session) -> Optional[Color]:
+    return (
+        db.query(Color)
+        .filter(
+            Color.type == "glass",
+            Color.is_deleted == False,
+            Color.is_default_2 == True,
+        )
+        .one_or_none()
+    )
+
+def set_default_glass_color2(db: Session, color_id: UUID) -> Optional[Color]:
+    target = get_color(db, color_id)
+    if not target or target.is_deleted or target.type != "glass":
+        return None
+
+    # Önceki default_2'leri kapat
+    db.execute(
+        update(Color)
+        .where(
+            Color.type == "glass",
+            Color.is_deleted == False,
+            Color.is_default_2 == True,
+            Color.id != color_id,
+        )
+        .values(is_default_2=False)
+    )
+
+    # Hedefi aç
+    if not target.is_default_2:
+        target.is_default_2 = True
+        db.add(target)
+
+    db.commit()
+    db.refresh(target)
+    return target

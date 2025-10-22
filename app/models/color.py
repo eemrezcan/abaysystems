@@ -21,5 +21,8 @@ class Color(Base):
     # ✅ yeni: yalnızca type="glass" için anlamlı — varsayılan cam rengi
     is_default = Column(Boolean, nullable=False, server_default=expression.false())
 
+    # 2. default (aynı mantık)
+    is_default_2 = Column(Boolean, nullable=False, server_default=expression.false())  # ✅ YENİ
+    
     def __repr__(self):
         return f"<Color name={self.name} type={self.type} cost={self.unit_cost}>"

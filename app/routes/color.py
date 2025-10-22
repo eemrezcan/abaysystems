@@ -26,6 +26,8 @@ from app.crud.color import (
     get_colors_page,
     get_default_glass_color,      # ✅ yeni
     set_default_glass_color,      # ✅ yeni
+    get_default_glass_color2,     # ✅
+    set_default_glass_color2,     # ✅
 )
 
 router = APIRouter(prefix="/api/colors", tags=["Colors"])
@@ -125,6 +127,38 @@ def get_glass_default_endpoint(
 
     # Pydantic v1: açıkça from_orm ile serialize et
     return ColorOut.from_orm(default_color)
+
+@router.put(
+    "/glass-default2/{color_id}",
+    response_model=ColorOut,
+    summary="(ADMIN) İkinci varsayılan cam rengini ata",
+    dependencies=[Depends(get_current_admin)],
+)
+def set_glass_default2_endpoint(
+    color_id: UUID,
+    db: Session = Depends(get_db),
+):
+    updated = set_default_glass_color2(db, color_id)
+    if not updated:
+        raise HTTPException(400, detail="Geçersiz color_id veya cam rengi değil / silinmiş.")
+    return updated
+
+
+@router.get(
+    "/glass-default2",
+    response_model=ColorOut,
+    summary="(BAYİ+ADMIN) Geçerli ikinci varsayılan cam rengini getir",
+)
+def get_glass_default2_endpoint(
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    default2 = get_default_glass_color2(db)
+    if not default2:
+        raise HTTPException(404, detail="İkinci varsayılan cam rengi tanımlı değil.")
+    if current_user.role != "admin" and not default2.is_active:
+        raise HTTPException(404, detail="İkinci varsayılan cam rengi tanımlı değil.")
+    return ColorOut.from_orm(default2)
 
 # ❗️EN SONA parametreli detay rotası — aksi halde 'glass-default' UUID sanılır ve 422 verir
 @router.get("/{color_id}", response_model=ColorOut)

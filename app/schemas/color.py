@@ -26,6 +26,7 @@ class ColorUpdate(BaseModel):
 class ColorOut(ColorBase):
     id: UUID
     is_default: bool = False   # ✅ yeni
+    is_default_2: bool = False
 
     class Config:
         orm_mode = True
