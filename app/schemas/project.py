@@ -681,19 +681,22 @@ class ExtraGlassColorBulkUpdate(BaseModel):
 class SystemGlassBulkByTypeIn(BaseModel):
     system_variant_id: UUID
     glass_type_id: UUID
-    glass_color_id: Optional[UUID] = None
+    glass_color_id_1: Optional[UUID] = None
+    glass_color_id_2: Optional[UUID] = None
 
 
 # ... mevcut import ve içerikler ...
 
 # 🔹 PROJE GENELİ: tüm camları aynı renge çek
 class ProjectGlassColorAllIn(BaseModel):
-    glass_color_id: Optional[UUID] = None  # null gönderilirse renk temizlenir
+    glass_color_id_1: Optional[UUID] = None
+    glass_color_id_2: Optional[UUID] = None
 
 # 🔹 PROJE GENELİ: belirli cam tipine göre tüm camların rengini çek
 class ProjectGlassColorByTypeIn(BaseModel):
     glass_type_id: UUID
-    glass_color_id: Optional[UUID] = None  # null → temizle
+    glass_color_id_1: Optional[UUID] = None
+    glass_color_id_2: Optional[UUID] = None
 
 # --- Pydantic forward refs fix ---
 # --- Pydantic forward refs fix ---

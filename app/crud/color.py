@@ -1,6 +1,7 @@
+#app/crud/color.py
 from sqlalchemy.orm import Session
 from uuid import UUID, uuid4
-
+from sqlalchemy import update
 from typing import Optional, List, Tuple
 
 from app.models.color import Color
@@ -82,3 +83,46 @@ def delete_color(db: Session, color_id: UUID) -> bool:
     deleted = db.query(Color).filter(Color.id == color_id).delete()
     db.commit()
     return bool(deleted)
+
+
+def get_default_glass_color(db: Session) -> Optional[Color]:
+    """is_deleted = False ve is_default = True olan tek cam rengini döndürür (varsa)."""
+    return (
+        db.query(Color)
+        .filter(
+            Color.type == "glass",
+            Color.is_deleted == False,
+            Color.is_default == True,
+        )
+        .one_or_none()
+    )
+
+def set_default_glass_color(db: Session, color_id: UUID) -> Optional[Color]:
+    """
+    Verilen color_id'yi (type='glass') default yapar.
+    Varsa önceki default'u kapatır (is_default=false).
+    """
+    target = get_color(db, color_id)
+    if not target or target.is_deleted or target.type != "glass":
+        return None
+
+    # 1) Önce tüm aktif cam defaultlarını sıfırla (target hariç)
+    db.execute(
+        update(Color)
+        .where(
+            Color.type == "glass",
+            Color.is_deleted == False,
+            Color.is_default == True,
+            Color.id != color_id,
+        )
+        .values(is_default=False)
+    )
+
+    # 2) Hedefi default yap
+    if not target.is_default:
+        target.is_default = True
+        db.add(target)
+
+    db.commit()
+    db.refresh(target)
+    return target

@@ -1,3 +1,4 @@
+#app/models/color.py
 import uuid
 from sqlalchemy import Column, String, Numeric, Boolean
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -16,6 +17,9 @@ class Color(Base):
         # ✅ soft delete / aktiflik
     is_active  = Column(Boolean, nullable=False, server_default=expression.true())
     is_deleted = Column(Boolean, nullable=False, server_default=expression.false())
+
+    # ✅ yeni: yalnızca type="glass" için anlamlı — varsayılan cam rengi
+    is_default = Column(Boolean, nullable=False, server_default=expression.false())
 
     def __repr__(self):
         return f"<Color name={self.name} type={self.type} cost={self.unit_cost}>"

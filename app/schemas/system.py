@@ -463,3 +463,6 @@ class SystemVariantUpdateWithTemplates(BaseModel):
     
     class Config:
         orm_mode = True
+
+class SystemVariantReassignIn(BaseModel):
+    system_id: UUID

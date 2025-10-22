@@ -26,6 +26,7 @@ from app.crud.system_variant import (
     get_variants_for_system,        # (opsiyonel kullanım)
     get_system_variants_page,       # ✅ only_active desteği var
     get_variants_for_system_page,   # ✅ only_active desteği var
+    reassign_variant_system,   # ✅ EKLE
 )
 
 from app.crud.system import (
@@ -42,6 +43,7 @@ from app.schemas.system import (
     SystemVariantDetailOut,
     SystemVariantUpdateWithTemplates,
     SystemVariantPageOut,
+    SystemVariantReassignIn,   # ✅ EKLE
 )
 
 router = APIRouter(prefix="/api/system-variants", tags=["SystemVariants"])
@@ -218,6 +220,22 @@ def create_variant(
         os.makedirs(VARIANT_PHOTO_DIR, exist_ok=True)
     return create_system_variant(db, system_id, payload)
 
+@router.put(
+    "/{variant_id}/system",
+    response_model=SystemVariantOut,
+    summary="(ADMIN) Bir SystemVariant'ın bağlı olduğu System'i değiştir",
+    dependencies=[Depends(get_current_admin)],
+)
+def reassign_variant_system_endpoint(
+    variant_id: UUID,
+    payload: SystemVariantReassignIn,
+    db: Session = Depends(get_db),
+):
+    updated = reassign_variant_system(db, variant_id, payload.system_id)
+    if not updated:
+        # not-found / silinmiş / geçersiz hedef system
+        raise HTTPException(status_code=400, detail="Variant veya hedef system bulunamadı / silinmiş.")
+    return updated
 
 @router.put("/{variant_id}", response_model=SystemVariantOut, dependencies=[Depends(get_current_admin)])
 def update_variant(
@@ -423,3 +441,4 @@ def deactivate_variant(
     if not updated:
         raise HTTPException(status_code=404, detail="Variant not found")
     return updated
+

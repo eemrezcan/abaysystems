@@ -16,6 +16,7 @@ from app.core.security import (
     get_current_user,
 )
 from app.core.config import settings
+from app.schemas.token import TokenResponse
 
 # 🔁 refresh token CRUD yardımcıları
 from app.crud.refresh_token import (
@@ -68,17 +69,18 @@ def clear_refresh_cookie(response: Response) -> None:
 
 
 # ----- LOGIN: access + refresh(cookie) -----
-@router.post("/token", response_model=Token, summary="Login for access token (sets refresh cookie)")
+@router.post("/token", response_model=TokenResponse, summary="Login for access token (sets refresh cookie)")
 def login_for_access_token(
     response: Response,
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
-    remember_me: bool = Form(False), 
+    remember_me: bool = Form(False),
     db: Session = Depends(get_db),
 ):
     """
-    Kullanıcıyı doğrular, kısa ömürlü **access token** döner ve
-    uzun ömürlü **refresh token**'ı HttpOnly cookie olarak set eder.
+    Kullanıcıyı doğrular, kısa ömürlü access token döner ve
+    uzun ömürlü refresh token'ı HttpOnly cookie olarak set eder.
+    Ayrıca { is_admin, role } alanlarını JSON içinde döner.
     """
     user = get_user_by_username(db, form_data.username)
     if not user or user.is_deleted:
@@ -100,32 +102,37 @@ def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Access token (kısa ömür)
+    # Access token
     access_token_expires = timedelta(minutes=int(getattr(settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 30)))
     access_token = create_access_token(data={"sub": str(user.id)}, expires_delta=access_token_expires)
 
-    # Refresh (uzun ömür): remember=true ise settings gün sayısı, değilse daha kısa (ör. 1 gün)
+    # Refresh cookie
     ua = request.headers.get("User-Agent")
     ip = request.client.host if request.client else None
     refresh_days = int(getattr(settings, "REFRESH_TOKEN_EXPIRE_DAYS", 30)) if remember_me else 1
     plain_refresh, _ = mint_refresh_token(db, user.id, ua, ip, ttl_days=refresh_days)
-
-    # Cookie ömrünü saniye olarak geçir
     set_refresh_cookie(response, plain_refresh, max_age_seconds=refresh_days * 24 * 3600)
 
-    return {"access_token": access_token, "token_type": "bearer"}
+    # ✅ genişletilmiş yanıt
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "is_admin": (user.role == "admin"),
+        "role": user.role,
+    }
+
 
 
 # ----- REFRESH: access yenile + refresh rotasyon -----
-@router.post("/refresh", response_model=Token, summary="Refresh access token (rotates refresh cookie)")
+@router.post("/refresh", response_model=TokenResponse, summary="Refresh access token (rotates refresh cookie)")
 def refresh_access_token(
     response: Response,
     request: Request,
     db: Session = Depends(get_db),
 ):
     """
-    HttpOnly cookie'deki refresh token doğrulanır, **rotasyon** yapılır,
-    yeni access token ve yeni refresh cookie döner.
+    HttpOnly cookie'deki refresh token doğrulanır ve rotasyonlanır.
+    Yeni access token + { is_admin, role } döner; yeni refresh cookie set edilir.
     """
     cookie_name = getattr(settings, "REFRESH_COOKIE_NAME", "refresh_token")
     plain = request.cookies.get(cookie_name)
@@ -145,9 +152,17 @@ def refresh_access_token(
 
     minutes = int(getattr(settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 30))
     access_token = create_access_token({"sub": str(user.id)}, expires_delta=timedelta(minutes=minutes))
-    # Rotasyondan gelen orijinal kalan ömürle cookie max-age set edelim:
+
     set_refresh_cookie(response, new_plain, max_age_seconds=lifetime_seconds)
-    return {"access_token": access_token, "token_type": "bearer"}
+
+    # ✅ genişletilmiş yanıt
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "is_admin": (user.role == "admin"),
+        "role": user.role,
+    }
+
 
 
 # ----- LOGOUT: tek cihaz -----

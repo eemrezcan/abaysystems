@@ -955,9 +955,8 @@ def bulk_update_system_glass_colors_by_type_endpoint(
 ):
     """
     Bir projede, verilen system_variant_id + glass_type_id kombinasyonuna uyan TÜM
-    ProjectSystemGlass kayıtlarının cam rengini (glass_color_id) topluca günceller.
+    ProjectSystemGlass kayıtlarının çift cam rengi (glass_color_id_1/_2) topluca güncellenir.
     """
-    # Sahiplik doğrulaması
     proj = get_project(db, project_id)
     ensure_owner_or_404(proj, current_user.id, "created_by")
 
@@ -966,9 +965,11 @@ def bulk_update_system_glass_colors_by_type_endpoint(
         project_id=project_id,
         system_variant_id=payload.system_variant_id,
         glass_type_id=payload.glass_type_id,
-        glass_color_id=payload.glass_color_id,
+        glass_color_id_1=payload.glass_color_id_1,
+        glass_color_id_2=payload.glass_color_id_2,
     )
     return {"updated": affected}
+
 
 
 # ───────── Glass color updates (EXTRA) ─────────
@@ -1060,7 +1061,7 @@ def bulk_set_all_glass_colors_in_project_endpoint(
     current_user: AppUser = Depends(get_current_user),
 ):
     """
-    Projede yer alan TÜM camların (sistem + ekstra) cam rengini topluca ayarlar/temizler.
+    Projede yer alan TÜM camların (sistem + ekstra) cam renklerini topluca ayarlar/temizler.
     """
     proj = get_project(db, project_id)
     ensure_owner_or_404(proj, current_user.id, "created_by")
@@ -1068,9 +1069,11 @@ def bulk_set_all_glass_colors_in_project_endpoint(
     result = bulk_update_all_glass_colors_in_project(
         db=db,
         project_id=project_id,
-        glass_color_id=payload.glass_color_id,
+        glass_color_id_1=payload.glass_color_id_1,
+        glass_color_id_2=payload.glass_color_id_2,
     )
     return result
+
 
 
 
@@ -1082,7 +1085,7 @@ def bulk_set_glass_colors_by_type_in_project_endpoint(
     current_user: AppUser = Depends(get_current_user),
 ):
     """
-    Projede, verilen glass_type_id'ye sahip tüm camların (sistem + ekstra) rengini topluca ayarlar/temizler.
+    Projede, verilen glass_type_id'ye sahip tüm camların (sistem + ekstra) çift cam rengini ayarlar/temizler.
     """
     proj = get_project(db, project_id)
     ensure_owner_or_404(proj, current_user.id, "created_by")
@@ -1091,9 +1094,11 @@ def bulk_set_glass_colors_by_type_in_project_endpoint(
         db=db,
         project_id=project_id,
         glass_type_id=payload.glass_type_id,
-        glass_color_id=payload.glass_color_id,
+        glass_color_id_1=payload.glass_color_id_1,
+        glass_color_id_2=payload.glass_color_id_2,
     )
     return result
+
 
 
 

@@ -1,3 +1,5 @@
+#app/schemas/color.py
+
 from pydantic import BaseModel, Field
 from typing import Annotated, Optional, List
 from uuid import UUID
@@ -23,6 +25,7 @@ class ColorUpdate(BaseModel):
 
 class ColorOut(ColorBase):
     id: UUID
+    is_default: bool = False   # ✅ yeni
 
     class Config:
         orm_mode = True

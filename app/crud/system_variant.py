@@ -160,3 +160,26 @@ def get_variants_for_system(
     if only_active is True:
         q = q.filter(SystemVariant.is_active == True)
     return q.all()
+
+
+def reassign_variant_system(db: Session, variant_id: UUID, new_system_id: UUID) -> Optional[SystemVariant]:
+    """
+    Bir SystemVariant'ın bağlı olduğu System'i değiştirir.
+    Kurallar:
+    - variant mevcut ve silinmemiş olmalı
+    - hedef system mevcut ve silinmemiş olmalı
+    Not: is_active/is_published kontrolünü burada zorunlu tutmuyoruz; iş kuralına göre ekleyebilirsin.
+    """
+    variant = db.query(SystemVariant).filter(SystemVariant.id == variant_id).first()
+    if not variant or variant.is_deleted:
+        return None
+
+    system = db.query(System).filter(System.id == new_system_id).first()
+    if not system or system.is_deleted:
+        return None
+
+    variant.system_id = system.id
+    db.add(variant)
+    db.commit()
+    db.refresh(variant)
+    return variant
