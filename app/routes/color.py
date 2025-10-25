@@ -24,11 +24,13 @@ from app.crud.color import (
     update_color,
     delete_color,
     get_colors_page,
-    get_default_glass_color,      # ✅ yeni
-    set_default_glass_color,      # ✅ yeni
-    get_default_glass_color2,     # ✅
-    set_default_glass_color2,     # ✅
+    get_default_glass_color,
+    set_default_glass_color,
+    get_default_glass_color2,
+    set_default_glass_color2,
+    set_color_active,  # ✅ EKLENDİ
 )
+
 
 router = APIRouter(prefix="/api/colors", tags=["Colors"])
 
@@ -176,3 +178,19 @@ def get_color_endpoint(
         raise HTTPException(404, detail="Color not found")
 
     return color
+
+# ----------------- (ADMIN) ACTIVATE / DEACTIVATE -----------------
+
+@router.put("/{color_id}/activate", response_model=ColorOut, dependencies=[Depends(get_current_admin)])
+def activate_color_endpoint(color_id: UUID, db: Session = Depends(get_db)):
+    obj = set_color_active(db, color_id, True)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Color not found")
+    return obj
+
+@router.put("/{color_id}/deactivate", response_model=ColorOut, dependencies=[Depends(get_current_admin)])
+def deactivate_color_endpoint(color_id: UUID, db: Session = Depends(get_db)):
+    obj = set_color_active(db, color_id, False)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Color not found")
+    return obj

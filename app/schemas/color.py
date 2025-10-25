@@ -1,15 +1,12 @@
-#app/schemas/color.py
+# app/schemas/color.py
 
 from pydantic import BaseModel, Field
 from typing import Annotated, Optional, List
 from uuid import UUID
 from decimal import Decimal
-from datetime import datetime
-
 
 NameStr = Annotated[str, Field(min_length=1, max_length=50)]
 TypeStr = Annotated[str, Field(pattern="^(profile|glass)$")]
-
 
 class ColorBase(BaseModel):
     name: NameStr
@@ -25,8 +22,9 @@ class ColorUpdate(BaseModel):
 
 class ColorOut(ColorBase):
     id: UUID
-    is_default: bool = False   # ✅ yeni
+    is_default: bool = False
     is_default_2: bool = False
+    is_active: bool  # ✅ aktiflik bilgisini dışarı açtık
 
     class Config:
         orm_mode = True

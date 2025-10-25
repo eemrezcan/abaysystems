@@ -1,4 +1,4 @@
-#app/crud/color.py
+# app/crud/color.py
 from sqlalchemy.orm import Session
 from uuid import UUID, uuid4
 from sqlalchemy import update
@@ -164,3 +164,22 @@ def set_default_glass_color2(db: Session, color_id: UUID) -> Optional[Color]:
     db.commit()
     db.refresh(target)
     return target
+
+
+# ============================
+# ✅ is_active toggle (YENİ)
+# ============================
+def set_color_active(db: Session, color_id: UUID, active: bool) -> Optional[Color]:
+    color = (
+        db.query(Color)
+        .filter(Color.id == color_id, Color.is_deleted == False)
+        .first()
+    )
+    if not color:
+        return None
+
+    color.is_active = active
+    db.add(color)
+    db.commit()
+    db.refresh(color)
+    return color
