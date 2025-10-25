@@ -1,3 +1,4 @@
+#app/routes/catalog.py
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -24,13 +25,15 @@ from app.models.other_material import OtherMaterial
 from app.crud import catalog as crud
 from app.schemas.catalog import (                  # 🟢
     ProfileCreate, ProfileOut, ProfilePageOut,
-    GlassTypeCreate, GlassTypeOut, GlassTypePageOut,
+    GlassTypeCreate, GlassTypeUpdate, GlassTypeOut, GlassTypePageOut,
     OtherMaterialCreate, OtherMaterialOut, OtherMaterialPageOut,
     RemoteCreate, RemoteOut, RemotePageOut
 )
-from app.crud.catalog import (                     # 🟢
-    get_profiles_page, get_glass_types_page, get_other_materials_page, get_remotes_page
+from app.crud.catalog import (
+    get_profiles_page, get_glass_types_page, get_other_materials_page, get_remotes_page,
+    set_profile_active, set_glass_type_active, set_other_material_active, set_remote_active  # ✅ eklendi
 )
+
 
 router = APIRouter(prefix="/api/catalog", tags=["Catalog"])
 
@@ -174,6 +177,22 @@ def delete_profile_image(profile_id: UUID, db: Session = Depends(get_db)):
     db.commit()
     return
 
+# ----- PROFILE ACTIVATE/DEACTIVATE -----
+
+@router.put("/profiles/{profile_id}/activate", response_model=ProfileOut, dependencies=[Depends(get_current_admin)])
+def activate_profile(profile_id: UUID, db: Session = Depends(get_db)):
+    obj = set_profile_active(db, profile_id, True)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return obj
+
+@router.put("/profiles/{profile_id}/deactivate", response_model=ProfileOut, dependencies=[Depends(get_current_admin)])
+def deactivate_profile(profile_id: UUID, db: Session = Depends(get_db)):
+    obj = set_profile_active(db, profile_id, False)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return obj
+
 # ----- GLASS TYPE CRUD -----
 
 @router.post("/glass-types", response_model=GlassTypeOut, status_code=201, dependencies=[Depends(get_current_admin)])
@@ -225,7 +244,7 @@ def get_glass_type(
     return obj
 
 @router.put("/glass-types/{glass_type_id}", response_model=GlassTypeOut, dependencies=[Depends(get_current_admin)])
-def update_glass_type(glass_type_id: UUID, payload: GlassTypeCreate, db: Session = Depends(get_db)):
+def update_glass_type(glass_type_id: UUID, payload: GlassTypeUpdate, db: Session = Depends(get_db)):
     obj = crud.update_glass_type(db, glass_type_id, payload)
     if not obj:
         raise HTTPException(status_code=404, detail="Glass type not found")
@@ -237,6 +256,22 @@ def delete_glass_type(glass_type_id: UUID, db: Session = Depends(get_db)):
     if not deleted:
         raise HTTPException(status_code=404, detail="Glass type not found")
     return
+
+# ----- GLASS TYPE ACTIVATE/DEACTIVATE -----
+
+@router.put("/glass-types/{glass_type_id}/activate", response_model=GlassTypeOut, dependencies=[Depends(get_current_admin)])
+def activate_glass_type(glass_type_id: UUID, db: Session = Depends(get_db)):
+    obj = set_glass_type_active(db, glass_type_id, True)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Glass type not found")
+    return obj
+
+@router.put("/glass-types/{glass_type_id}/deactivate", response_model=GlassTypeOut, dependencies=[Depends(get_current_admin)])
+def deactivate_glass_type(glass_type_id: UUID, db: Session = Depends(get_db)):
+    obj = set_glass_type_active(db, glass_type_id, False)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Glass type not found")
+    return obj
 
 # ----- OTHER MATERIAL CRUD -----
 
@@ -302,6 +337,21 @@ def delete_other_material(material_id: UUID, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Material not found")
     return
 
+# ----- OTHER MATERIAL ACTIVATE/DEACTIVATE -----
+
+@router.put("/other-materials/{material_id}/activate", response_model=OtherMaterialOut, dependencies=[Depends(get_current_admin)])
+def activate_other_material(material_id: UUID, db: Session = Depends(get_db)):
+    obj = set_other_material_active(db, material_id, True)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Material not found")
+    return obj
+
+@router.put("/other-materials/{material_id}/deactivate", response_model=OtherMaterialOut, dependencies=[Depends(get_current_admin)])
+def deactivate_other_material(material_id: UUID, db: Session = Depends(get_db)):
+    obj = set_other_material_active(db, material_id, False)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Material not found")
+    return obj
 
 # ----- REMOTE (KUMANDA) CRUD -----
 
@@ -370,3 +420,19 @@ def delete_remote(remote_id: UUID, db: Session = Depends(get_db)):
     if not deleted:
         raise HTTPException(status_code=404, detail="Remote not found")
     return
+
+# ----- REMOTE ACTIVATE/DEACTIVATE -----
+
+@router.put("/remotes/{remote_id}/activate", response_model=RemoteOut, dependencies=[Depends(get_current_admin)])
+def activate_remote(remote_id: UUID, db: Session = Depends(get_db)):
+    obj = set_remote_active(db, remote_id, True)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Remote not found")
+    return obj
+
+@router.put("/remotes/{remote_id}/deactivate", response_model=RemoteOut, dependencies=[Depends(get_current_admin)])
+def deactivate_remote(remote_id: UUID, db: Session = Depends(get_db)):
+    obj = set_remote_active(db, remote_id, False)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Remote not found")
+    return obj

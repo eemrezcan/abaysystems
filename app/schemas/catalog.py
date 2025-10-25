@@ -1,3 +1,4 @@
+# app/schemas/catalog.py
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from uuid import UUID
@@ -19,6 +20,7 @@ class ProfileOut(ProfileBase):
     id: UUID
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
+    is_active: bool  # ✅ eklendi
 
     class Config:
         orm_mode = True
@@ -37,14 +39,27 @@ class GlassTypeBase(BaseModel):
     cam_isim: str = Field(..., min_length=1)
     thickness_mm: float
     # birim_agirlik alanı kaldırıldı
+    # ↓↓↓ yeni: opsiyonel belirteç alanları
+    belirtec_1: Optional[int] = None
+    belirtec_2: Optional[int] = None
 
 class GlassTypeCreate(GlassTypeBase):
     pass
+
+# İsteğe bağlı: update senaryoları için kısmi güncelleme şeması
+class GlassTypeUpdate(BaseModel):
+    cam_isim: Optional[str] = Field(None, min_length=1)
+    thickness_mm: Optional[float] = None
+    belirtec_1: Optional[int] = None
+    belirtec_2: Optional[int] = None
 
 class GlassTypeOut(GlassTypeBase):
     id: UUID
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
+    belirtec_1: Optional[int] = None
+    belirtec_2: Optional[int] = None
+    is_active: bool  # ✅ eklendi
 
     class Config:
         orm_mode = True
@@ -73,6 +88,7 @@ class OtherMaterialOut(OtherMaterialBase):
     id: UUID
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
+    is_active: bool  # ✅ eklendi
 
     class Config:
         orm_mode = True
@@ -100,6 +116,7 @@ class RemoteOut(RemoteBase):
     id: UUID
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
+    is_active: bool  # ✅ eklendi
 
     class Config:
         orm_mode = True

@@ -4,7 +4,7 @@ from uuid import uuid4
 from datetime import datetime, date
 from uuid import UUID
 from typing import List, Optional, Tuple, Any
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import func
 from app.models.system import SystemVariant, System
 from app.models.profile import Profile
@@ -1080,7 +1080,8 @@ def add_only_extras_to_project(
         unit_price = getattr(r, "unit_price", None)
         if unit_price is None:
             rem = db.query(Remote).filter(Remote.id == r.remote_id).first()
-            unit_price = float(rem.unit_price) if rem and rem.unit_price is not None else None
+            unit_price = float(rem.price) if rem and rem.price is not None else None
+
 
         obj = ProjectExtraRemote(
             id=uuid4(),
@@ -1109,9 +1110,14 @@ def get_project_requirements_detailed(
         raise ValueError("Project not found")
 
     customer = db.query(Customer).filter(Customer.id == project.customer_id).first()
-
     project_systems = (
         db.query(ProjectSystem)
+        .options(
+            selectinload(ProjectSystem.glasses).selectinload(ProjectSystemGlass.glass_type),  # 👈 GlassType hazır gelsin
+            selectinload(ProjectSystem.profiles),
+            selectinload(ProjectSystem.materials),
+            selectinload(ProjectSystem.remotes),
+        )
         .filter(ProjectSystem.project_id == project_id)
         .all()
     )
@@ -1150,29 +1156,33 @@ def get_project_requirements_detailed(
             color_obj_1 = db.query(Color).filter(Color.id == g.glass_color_id_1).first() if getattr(g, "glass_color_id_1", None) else None
             color_obj_2 = db.query(Color).filter(Color.id == g.glass_color_id_2).first() if getattr(g, "glass_color_id_2", None) else None
 
-            glasses.append(
-                GlassInProjectOut(
-                    id=g.id,
-                    glass_type_id=g.glass_type_id,
-                    width_mm=float(g.width_mm),
-                    height_mm=float(g.height_mm),
-                    count=g.count,
-                    area_m2=float(g.area_m2) if g.area_m2 is not None else None,
-                    order_index=g.order_index,
-                    glass_type=db.query(GlassType).filter(GlassType.id == g.glass_type_id).first(),
+        glasses.append(
+            GlassInProjectOut(
+                id=g.id,
+                glass_type_id=g.glass_type_id,
+                width_mm=float(g.width_mm),
+                height_mm=float(g.height_mm),
+                count=g.count,
+                area_m2=float(g.area_m2) if g.area_m2 is not None else None,
+                order_index=g.order_index,
+                glass_type=db.query(GlassType).filter(GlassType.id == g.glass_type_id).first(),
 
-                    # 🔁 Çift cam rengi (id + metin + obje)
-                    glass_color_id_1=getattr(g, "glass_color_id_1", None),
-                    glass_color_1=getattr(g, "glass_color_text_1", None),
-                    glass_color_obj_1=color_obj_1,
+                # 🔁 Çift cam rengi (id + metin + obje)
+                glass_color_id_1=getattr(g, "glass_color_id_1", None),
+                glass_color_1=getattr(g, "glass_color_text_1", None),
+                glass_color_obj_1=color_obj_1,
 
-                    glass_color_id_2=getattr(g, "glass_color_id_2", None),
-                    glass_color_2=getattr(g, "glass_color_text_2", None),
-                    glass_color_obj_2=color_obj_2,
+                glass_color_id_2=getattr(g, "glass_color_id_2", None),
+                glass_color_2=getattr(g, "glass_color_text_2", None),
+                glass_color_obj_2=color_obj_2,
 
-                    pdf=_pdf_from_obj(g),
-                )
+                # 🔎 GlassType üzerinden gelen read-only belirteçler
+                belirtec_1_value=getattr(g, "belirtec_1_value", None),
+                belirtec_2_value=getattr(g, "belirtec_2_value", None),
+
+                pdf=_pdf_from_obj(g),
             )
+        )
 
 
         materials_raw = (
@@ -1268,30 +1278,34 @@ def get_project_requirements_detailed(
         gt = db.query(GlassType).filter(GlassType.id == g.glass_type_id).first()
         color_obj_1 = db.query(Color).filter(Color.id == g.glass_color_id_1).first() if getattr(g, "glass_color_id_1", None) else None
         color_obj_2 = db.query(Color).filter(Color.id == g.glass_color_id_2).first() if getattr(g, "glass_color_id_2", None) else None
+ 
+    extra_glasses.append(
+        ExtraGlassDetailed(
+            id=g.id,
+            project_extra_glass_id=g.id,
+            glass_type_id=g.glass_type_id,
+            width_mm=float(g.width_mm),
+            height_mm=float(g.height_mm),
+            count=g.count,
+            unit_price=float(g.unit_price) if g.unit_price is not None else None,
+            glass_type=gt,
 
-        extra_glasses.append(
-            ExtraGlassDetailed(
-                id=g.id,
-                project_extra_glass_id=g.id,
-                glass_type_id=g.glass_type_id,
-                width_mm=float(g.width_mm),
-                height_mm=float(g.height_mm),
-                count=g.count,
-                unit_price=float(g.unit_price) if g.unit_price is not None else None,
-                glass_type=gt,
+            # 🔁 Çift cam rengi
+            glass_color_id_1=getattr(g, "glass_color_id_1", None),
+            glass_color_1=getattr(g, "glass_color_text_1", None),
+            glass_color_obj_1=color_obj_1,
 
-                # 🔁 Çift cam rengi
-                glass_color_id_1=getattr(g, "glass_color_id_1", None),
-                glass_color_1=getattr(g, "glass_color_text_1", None),
-                glass_color_obj_1=color_obj_1,
+            glass_color_id_2=getattr(g, "glass_color_id_2", None),
+            glass_color_2=getattr(g, "glass_color_text_2", None),
+            glass_color_obj_2=color_obj_2,
 
-                glass_color_id_2=getattr(g, "glass_color_id_2", None),
-                glass_color_2=getattr(g, "glass_color_text_2", None),
-                glass_color_obj_2=color_obj_2,
+            # 🔎 GlassType üzerinden gelen read-only belirteçler
+            belirtec_1_value=getattr(g, "belirtec_1_value", None),
+            belirtec_2_value=getattr(g, "belirtec_2_value", None),
 
-                pdf=_pdf_from_obj(g),
-            )
+            pdf=_pdf_from_obj(g),
         )
+    )
 
 
 

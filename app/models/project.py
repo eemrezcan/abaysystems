@@ -8,6 +8,7 @@ from sqlalchemy.orm import relationship
 from app.models.color import Color
 from app.models.app_user import AppUser
 from app.db.base import Base
+from sqlalchemy.ext.hybrid import hybrid_property
 
 
 class Project(Base):
@@ -146,6 +147,15 @@ class ProjectSystemGlass(Base):
     project_system = relationship("ProjectSystem", back_populates="glasses")
     glass_type     = relationship("GlassType")
 
+    # --- Derived fields from related GlassType (read-only) ---
+    @hybrid_property
+    def belirtec_1_value(self):
+        return self.glass_type.belirtec_1 if self.glass_type else None
+
+    @hybrid_property
+    def belirtec_2_value(self):
+        return self.glass_type.belirtec_2 if self.glass_type else None
+
 
 
 class ProjectSystemMaterial(Base):
@@ -276,6 +286,15 @@ class ProjectExtraGlass(Base):
 
     project    = relationship("Project", backref="extra_glasses")
     glass_type = relationship("GlassType")
+
+    # --- Derived fields from related GlassType (read-only) ---
+    @hybrid_property
+    def belirtec_1_value(self):
+        return self.glass_type.belirtec_1 if self.glass_type else None
+
+    @hybrid_property
+    def belirtec_2_value(self):
+        return self.glass_type.belirtec_2 if self.glass_type else None
 
 
 class ProjectExtraRemote(Base):

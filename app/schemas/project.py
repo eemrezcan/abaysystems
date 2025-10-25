@@ -340,6 +340,10 @@ class ExtraGlassDetailed(BaseModel):
     glass_color_2:    Optional[str]  = None
     glass_color_obj_2: Optional['ColorOut'] = None
 
+    # 🔎 GlassType üzerinden gelen read-only belirteçler
+    belirtec_1_value: Optional[int] = None
+    belirtec_2_value: Optional[int] = None
+
     pdf: PdfFlags
 
     class Config:
@@ -402,8 +406,13 @@ class GlassInProjectOut(GlassInProject):
     glass_color_obj_1: Optional['ColorOut'] = None
     glass_color_obj_2: Optional['ColorOut'] = None
 
+    # 🔎 GlassType üzerinden gelen read-only belirteçler
+    belirtec_1_value: Optional[int] = None
+    belirtec_2_value: Optional[int] = None
+
     class Config:
         orm_mode = True
+
 
 
 
@@ -566,6 +575,10 @@ class ProjectExtraGlassOut(BaseModel):
     glass_color_id_2: Optional[UUID] = None
     glass_color_2:    Optional[str]  = None
     glass_color_obj_2: Optional['ColorOut'] = None
+
+    # 🔎 GlassType üzerinden gelen read-only belirteçler
+    belirtec_1_value: Optional[int] = None
+    belirtec_2_value: Optional[int] = None
 
     pdf: PdfFlags
 

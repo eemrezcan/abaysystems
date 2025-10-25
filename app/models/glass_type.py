@@ -1,7 +1,7 @@
 # app/models/glass_type.py
 
 import uuid
-from sqlalchemy import Column, String, Numeric, Boolean
+from sqlalchemy import Column, String, Numeric, Boolean, Integer
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
 from sqlalchemy.sql import func, expression
 
@@ -14,6 +14,11 @@ class GlassType(Base):
     cam_isim     = Column(String(100), nullable=False)
     thickness_mm = Column(Numeric, nullable=False)
     # birim_agirlik sütunu kaldırıldı
+
+    # ↓↓↓ YENİ: isteğe bağlı iki tamsayı belirteç
+    belirtec_1   = Column(Integer, nullable=True)
+    belirtec_2   = Column(Integer, nullable=True)
+
     created_at   = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at   = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
 

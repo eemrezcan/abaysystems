@@ -11,8 +11,10 @@ from app.models.other_material import OtherMaterial
 from app.schemas.catalog       import (
     ProfileCreate,
     GlassTypeCreate,
+    GlassTypeUpdate,
     OtherMaterialCreate
 )
+from app.crud.active import set_active_state  # ✅ is_active toggle helper
 
 from app.models.remote import Remote
 from app.schemas.catalog import RemoteCreate
@@ -73,11 +75,13 @@ def get_glass_type(db: Session, glass_type_id: UUID) -> Optional[GlassType]:
     return db.query(GlassType).filter(GlassType.id == glass_type_id).first()
 
 
-def update_glass_type(db: Session, glass_type_id: UUID, payload: GlassTypeCreate) -> Optional[GlassType]:
+def update_glass_type(db: Session, glass_type_id: UUID, payload: GlassTypeUpdate) -> Optional[GlassType]:
     obj = get_glass_type(db, glass_type_id)
     if not obj:
         return None
-    for field, value in payload.dict().items():
+
+    # Sadece gönderilen alanları güncelle (None gönderildiyse None’a çekilir)
+    for field, value in payload.dict(exclude_unset=True).items():
         setattr(obj, field, value)
     db.commit()
     db.refresh(obj)
@@ -304,3 +308,21 @@ def delete_remote(db: Session, remote_id: UUID) -> bool:
 
     db.commit()
     return True
+
+# ------------------------------
+
+# ✅ PROFILE is_active toggle
+def set_profile_active(db: Session, profile_id: UUID, active: bool):
+    return set_active_state(db, Profile, profile_id, active)
+
+# ✅ GLASS TYPE is_active toggle
+def set_glass_type_active(db: Session, glass_type_id: UUID, active: bool):
+    return set_active_state(db, GlassType, glass_type_id, active)
+
+# ✅ OTHER MATERIAL is_active toggle
+def set_other_material_active(db: Session, material_id: UUID, active: bool):
+    return set_active_state(db, OtherMaterial, material_id, active)
+
+# ✅ REMOTE is_active toggle
+def set_remote_active(db: Session, remote_id: UUID, active: bool):
+    return set_active_state(db, Remote, remote_id, active)
