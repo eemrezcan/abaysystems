@@ -1,10 +1,8 @@
-# app/crud/system_variant.py
-
 from uuid import uuid4, UUID
 from typing import Optional, Tuple, List
 
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, asc
 
 from app.models.system import System, SystemVariant
 from app.schemas.system import (
@@ -19,9 +17,9 @@ from app.schemas.system import (
 def create_system_variant(db: Session, payload: SystemVariantCreate) -> SystemVariant:
     """
     Create a new SystemVariant record and return it.
-    is_active alanı payload'dan gelebilir.
+    is_active / sort_index alanları payload'dan gelebilir.
     """
-    obj = SystemVariant(id=uuid4(), **payload.dict(exclude_unset=True))  # ✅ is_active gelebilir
+    obj = SystemVariant(id=uuid4(), **payload.dict(exclude_unset=True))  # ✅ is_active, sort_index gelebilir
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -30,7 +28,12 @@ def create_system_variant(db: Session, payload: SystemVariantCreate) -> SystemVa
 
 def get_system_variants(db: Session) -> List[SystemVariant]:
     """List all system variants."""
-    return db.query(SystemVariant).all()
+    return (
+        db.query(SystemVariant)
+        .filter(SystemVariant.is_deleted == False)
+        .order_by(asc(SystemVariant.sort_index), asc(SystemVariant.name), asc(SystemVariant.created_at))
+        .all()
+    )
 
 
 def get_system_variants_page(
@@ -66,7 +69,11 @@ def get_system_variants_page(
 
     total = base_q.order_by(None).count()
 
-    q_items = base_q.order_by(SystemVariant.created_at.desc())
+    q_items = base_q.order_by(
+        asc(SystemVariant.sort_index),
+        asc(SystemVariant.name),
+        asc(SystemVariant.created_at),
+    )
     if limit is None:
         items = q_items.all()
     else:
@@ -112,7 +119,11 @@ def get_variants_for_system_page(
 
     total = base_q.order_by(None).count()
 
-    q_items = base_q.order_by(SystemVariant.created_at.desc())
+    q_items = base_q.order_by(
+        asc(SystemVariant.sort_index),
+        asc(SystemVariant.name),
+        asc(SystemVariant.created_at),
+    )
     if limit is None:
         items = q_items.all()
     else:
@@ -131,7 +142,7 @@ def update_system_variant(db: Session, variant_id: UUID, payload: SystemVariantU
     obj = get_system_variant(db, variant_id)
     if not obj:
         return None
-    for field, value in payload.dict(exclude_unset=True).items():
+    for field, value in payload.dict(exclude_unset=True).items():  # sort_index dahil
         setattr(obj, field, value)
     db.commit()
     db.refresh(obj)
@@ -156,10 +167,17 @@ def get_variants_for_system(
     Verilen system_id'ye ait tüm SystemVariant kayıtlarını döner.
     only_active=True ise sadece aktif varyantlar.
     """
-    q = db.query(SystemVariant).filter(SystemVariant.system_id == system_id)
+    q = db.query(SystemVariant).filter(
+        SystemVariant.system_id == system_id,
+        SystemVariant.is_deleted == False,
+    )
     if only_active is True:
         q = q.filter(SystemVariant.is_active == True)
-    return q.all()
+    return q.order_by(
+        asc(SystemVariant.sort_index),
+        asc(SystemVariant.name),
+        asc(SystemVariant.created_at),
+    ).all()
 
 
 def reassign_variant_system(db: Session, variant_id: UUID, new_system_id: UUID) -> Optional[SystemVariant]:

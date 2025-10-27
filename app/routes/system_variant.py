@@ -7,6 +7,7 @@ import os, shutil
 from fastapi.responses import FileResponse
 from pathlib import Path
 from math import ceil
+from sqlalchemy import asc, desc
 
 from app.db.session import get_db
 
@@ -43,7 +44,8 @@ from app.schemas.system import (
     SystemVariantDetailOut,
     SystemVariantUpdateWithTemplates,
     SystemVariantPageOut,
-    SystemVariantReassignIn,   # ✅ EKLE
+    SystemVariantReassignIn,   
+    SystemVariantReorderIn, 
 )
 
 router = APIRouter(prefix="/api/system-variants", tags=["SystemVariants"])
@@ -442,3 +444,103 @@ def deactivate_variant(
         raise HTTPException(status_code=404, detail="Variant not found")
     return updated
 
+@router.put("/system/{system_id}/reorder", dependencies=[Depends(get_current_admin)])
+def reorder_variants_of_system(
+    system_id: UUID,
+    payload: SystemVariantReorderIn,
+    db: Session = Depends(get_db),
+):
+    """
+    Admin: Belirli bir system'e ait varyantların sıralamasını toplu günceller.
+    payload.items = [{id: UUID, sort_index: int}, ...]
+    (İsteğe bağlı) payload.system_id gönderilmişse path param ile eşleşmeli.
+    """
+    if payload.system_id and payload.system_id != system_id:
+        raise HTTPException(status_code=400, detail="Payload.system_id path ile uyuşmuyor")
+
+    if not payload.items:
+        raise HTTPException(status_code=400, detail="Boş liste gönderilemez")
+
+    ids = [it.id for it in payload.items]
+
+    # Varlık ve sahiplik doğrulaması (hepsi aynı system'e ait ve silinmemiş olmalı)
+    rows = (
+        db.query(SystemVariant.id, SystemVariant.system_id)
+        .filter(
+            SystemVariant.id.in_(ids),
+            SystemVariant.is_deleted == False,
+        )
+        .all()
+    )
+    found = {r[0]: r[1] for r in rows}
+    missing = [str(i) for i in ids if i not in found]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"Bulunamadı/silinmiş varyant id'ler: {', '.join(missing)}")
+
+    wrong_parent = [str(i) for i in ids if found.get(i) != system_id]
+    if wrong_parent:
+        raise HTTPException(status_code=400, detail=f"Bu varyantlar verilen system'e ait değil: {', '.join(wrong_parent)}")
+
+    # Güncelleme (transaction)
+    for it in payload.items:
+        db.query(SystemVariant).filter(SystemVariant.id == it.id).update(
+            {"sort_index": int(it.sort_index)},
+            synchronize_session=False
+        )
+    db.commit()
+
+    return {"message": "Varyant sıralaması güncellendi", "updated": len(payload.items)}
+
+@router.put("/{variant_id}/move", response_model=SystemVariantOut, dependencies=[Depends(get_current_admin)])
+def move_variant(
+    variant_id: UUID,
+    direction: str = Query(..., regex="^(up|down)$", description='"up": bir üst sıradaki varyantla, "down": bir alt sıradaki ile yer değiştir'),
+    steps: int = Query(1, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    v = get_system_variant(db, variant_id)
+    if not v or v.is_deleted:
+        raise HTTPException(status_code=404, detail="Variant not found")
+
+    # Sıralama aynı system içinde
+    system_id = v.system_id
+
+    for _ in range(steps):
+        cur_idx = v.sort_index
+
+        if direction == "up":
+            neighbor = (
+                db.query(SystemVariant)
+                .filter(
+                    SystemVariant.system_id == system_id,
+                    SystemVariant.is_deleted == False,
+                    SystemVariant.sort_index < cur_idx,
+                )
+                .order_by(desc(SystemVariant.sort_index))
+                .first()
+            )
+        else:  # "down"
+            neighbor = (
+                db.query(SystemVariant)
+                .filter(
+                    SystemVariant.system_id == system_id,
+                    SystemVariant.is_deleted == False,
+                    SystemVariant.sort_index > cur_idx,
+                )
+                .order_by(asc(SystemVariant.sort_index))
+                .first()
+            )
+
+        if not neighbor:
+            # En üst/en alt, daha fazla hareket yok
+            break
+
+        neighbor_idx = neighbor.sort_index
+        db.query(SystemVariant).filter(SystemVariant.id == v.id).update({"sort_index": neighbor_idx}, synchronize_session=False)
+        db.query(SystemVariant).filter(SystemVariant.id == neighbor.id).update({"sort_index": cur_idx}, synchronize_session=False)
+        db.flush()
+        db.refresh(v)
+
+    db.commit()
+    db.refresh(v)
+    return v

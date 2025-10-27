@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 from fastapi.responses import FileResponse
 from pathlib import Path
+from sqlalchemy import asc, desc
 
 from app.db.session import get_db
 
@@ -63,7 +64,8 @@ from app.schemas.system import (
     RemoteTemplateOut,
     SystemRemoteTemplateCreate,
     SystemRemoteTemplateUpdate,
-    PdfFlags
+    PdfFlags,
+    SystemReorderIn,
 )
 
 router = APIRouter(prefix="/api", tags=["Systems"])
@@ -637,3 +639,84 @@ def deactivate_system(
     if not updated:
         raise HTTPException(status_code=404, detail="System not found")
     return updated
+
+@router.put("/systems/reorder", dependencies=[Depends(get_current_admin)])
+def reorder_systems(
+    payload: SystemReorderIn,
+    db: Session = Depends(get_db),
+):
+    """
+    Admin: Sistemin sıralamasını toplu günceller.
+    payload.items = [{id: UUID, sort_index: int}, ...]
+    """
+    if not payload.items:
+        raise HTTPException(status_code=400, detail="Boş liste gönderilemez")
+
+    # Doğrulama: tüm id'ler var mı ve silinmemiş mi?
+    ids = [it.id for it in payload.items]
+    existing = (
+        db.query(System.id)
+        .filter(System.id.in_(ids), System.is_deleted == False)
+        .all()
+    )
+    found_ids = {row[0] for row in existing}
+    missing = [str(i) for i in ids if i not in found_ids]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"Bulunamadı/silinmiş id'ler: {', '.join(missing)}")
+
+    # Güncelleme (transaction)
+    for it in payload.items:
+        db.query(System).filter(System.id == it.id).update(
+            {"sort_index": int(it.sort_index)},
+            synchronize_session=False
+        )
+    db.commit()
+
+    return {"message": "Sıralama güncellendi", "updated": len(payload.items)}
+
+@router.put("/systems/{system_id}/move", response_model=SystemOut, dependencies=[Depends(get_current_admin)])
+def move_system(
+    system_id: UUID,
+    direction: str = Query(..., regex="^(up|down)$", description='"up" → bir üst sıradaki ile, "down" → bir alt sıradaki ile yer değiştirir'),
+    steps: int = Query(1, ge=1, le=50, description="Kaç adım taşınacağı (varsayılan 1)"),
+    db: Session = Depends(get_db),
+):
+    obj = get_system(db, system_id)
+    if not obj or obj.is_deleted:
+        raise HTTPException(404, "System not found")
+
+    # Her adımda komşu ile yer değiştir
+    for _ in range(steps):
+        cur_idx = obj.sort_index
+
+        if direction == "up":
+            neighbor = (
+                db.query(System)
+                .filter(System.is_deleted == False, System.sort_index < cur_idx)
+                .order_by(desc(System.sort_index))
+                .first()
+            )
+        else:  # "down"
+            neighbor = (
+                db.query(System)
+                .filter(System.is_deleted == False, System.sort_index > cur_idx)
+                .order_by(asc(System.sort_index))
+                .first()
+            )
+
+        if not neighbor:
+            # En üstte/en altta ise daha ileri hareket yok
+            break
+
+        # swap
+        neighbor_idx = neighbor.sort_index
+        db.query(System).filter(System.id == obj.id).update({"sort_index": neighbor_idx}, synchronize_session=False)
+        db.query(System).filter(System.id == neighbor.id).update({"sort_index": cur_idx}, synchronize_session=False)
+        db.flush()
+
+        # obj’nin güncel değerini çek
+        db.refresh(obj)
+
+    db.commit()
+    db.refresh(obj)
+    return obj

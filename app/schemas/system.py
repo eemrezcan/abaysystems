@@ -27,6 +27,8 @@ class SystemBase(BaseModel):
 class SystemCreate(SystemBase):
     """Fields for creating a new System"""
     is_active: Optional[bool] = True  # ✅ is_active (opsiyonel, varsayılan true)
+    # ✅ Yeni: başlangıç sırası (opsiyonel)
+    sort_index: Optional[int] = 0
 
 class SystemUpdate(BaseModel):
     """Fields for updating an existing System"""
@@ -37,6 +39,8 @@ class SystemUpdate(BaseModel):
     is_published: Optional[bool] = None
     # ✅ aktif/pasif etiketi
     is_active: Optional[bool] = None   # ✅ is_active
+    # ✅ Yeni: sıralama güncelleme (opsiyonel)
+    sort_index: Optional[int] = None
 
 class SystemOut(SystemBase):
     id: UUID
@@ -47,6 +51,8 @@ class SystemOut(SystemBase):
     is_published: bool
     # ✅ aktif/pasif durumu
     is_active: bool  # ✅ is_active
+    # ✅ Yeni: sıralama bilgisi
+    sort_index: int
 
     class Config:
         orm_mode = True
@@ -64,6 +70,8 @@ class SystemVariantBase(BaseModel):
 class SystemVariantCreate(SystemVariantBase):
     """Fields for creating a System Variant"""
     is_active: Optional[bool] = True  # ✅ is_active (opsiyonel, varsayılan true)
+    # ✅ Yeni: başlangıç sırası (opsiyonel)
+    sort_index: Optional[int] = 0
 
 class SystemVariantUpdate(BaseModel):
     """Fields for updating a System Variant"""
@@ -73,6 +81,8 @@ class SystemVariantUpdate(BaseModel):
     is_published: Optional[bool] = None
     # ✅ aktif/pasif etiketi
     is_active: Optional[bool] = None   # ✅ is_active
+    # ✅ Yeni: sıralama güncelleme (opsiyonel)
+    sort_index: Optional[int] = None
 
     class Config:
         orm_mode = True
@@ -86,6 +96,8 @@ class SystemVariantOut(SystemVariantBase):
     is_published: bool
     # ✅ aktif/pasif durumu
     is_active: bool  # ✅ is_active
+    # ✅ Yeni: sıralama bilgisi
+    sort_index: int
 
     class Config:
         orm_mode = True
@@ -121,12 +133,16 @@ class VariantConfig(BaseModel):
     name: str = Field(..., min_length=1)
     photo_url: Optional[str] = None
     is_active: Optional[bool] = True  # ✅ is_active (opsiyonel)
+    # ✅ Yeni: başlangıç sırası (opsiyonel)
+    sort_index: Optional[int] = 0
 
 class SystemFullCreate(BaseModel):
     name: str = Field(..., min_length=1)
     description: Optional[str] = None
     photo_url: Optional[str] = None
     is_active: Optional[bool] = True  # ✅ is_active (opsiyonel)
+    # ✅ Yeni: system başlangıç sırası (opsiyonel)
+    sort_index: Optional[int] = 0
     variant: VariantConfig
     glass_configs: Optional[List[GlassConfig]] = []
 
@@ -177,6 +193,7 @@ class SystemBasicOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     is_active: bool  # ✅ is_active (detay view’larda gösterim için)
+    # (İsteğe bağlı) sort_index burada gerekmez; gerekirse eklenebilir.
 
     class Config:
         orm_mode = True
@@ -236,7 +253,7 @@ class SystemGlassTemplateUpdate(BaseModel):
     pdf: Optional[PdfFlags] = None
 
 
-class SystemGlassTemplateOut(SystemGlassTemplateBase):
+class SystemGlassTemplateOut(BaseModel):
     id: UUID
     created_at: datetime
     pdf: PdfFlags
@@ -442,6 +459,8 @@ class SystemVariantCreateWithTemplates(BaseModel):
     system_id: UUID = Field(..., alias="systemId")
     name: str = Field(..., min_length=1)
     is_active: Optional[bool] = True  # ✅ is_active (opsiyonel)
+    # ✅ Yeni: varyant başlangıç sırası (opsiyonel)
+    sort_index: Optional[int] = 0
     profile_templates: List[ProfileTemplateIn] = Field(default_factory=list)
     glass_templates: List[GlassTemplateIn] = Field(default_factory=list)
     material_templates: List[MaterialTemplateIn] = Field(default_factory=list)
@@ -456,6 +475,8 @@ class SystemVariantCreateWithTemplates(BaseModel):
 class SystemVariantUpdateWithTemplates(BaseModel):
     name: Optional[str] = None
     is_active: Optional[bool] = None  # ✅ is_active
+    # ✅ Yeni: varyant sırası (opsiyonel)
+    sort_index: Optional[int] = None
     profile_templates: List[ProfileTemplateIn] = Field(default_factory=list)
     glass_templates: List[GlassTemplateIn] = Field(default_factory=list)
     material_templates: List[MaterialTemplateIn] = Field(default_factory=list)
@@ -466,3 +487,18 @@ class SystemVariantUpdateWithTemplates(BaseModel):
 
 class SystemVariantReassignIn(BaseModel):
     system_id: UUID
+
+
+# ——————————————————————
+# (Opsiyonel) Toplu sıralama (reorder) inputları
+class ReorderItem(BaseModel):
+    id: UUID
+    sort_index: int
+
+class SystemReorderIn(BaseModel):
+    items: List[ReorderItem]
+
+class SystemVariantReorderIn(BaseModel):
+    # İsteğe bağlı güvenlik/validasyon için system_id gönderebilirsin; route tarafında doğrularız.
+    system_id: Optional[UUID] = None
+    items: List[ReorderItem]

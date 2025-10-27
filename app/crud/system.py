@@ -1,14 +1,14 @@
-# app/crud/system.py
-
 from uuid import uuid4, UUID
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import joinedload
+from sqlalchemy import asc
 from typing import Optional, List, Tuple, Any
+
 from app.models.system import System, SystemVariant
 from app.models.system_profile_template import SystemProfileTemplate
 from app.models.system_glass_template import SystemGlassTemplate
 from app.models.system_material_template import SystemMaterialTemplate
-from app.models.system_remote_template import SystemRemoteTemplate 
+from app.models.system_remote_template import SystemRemoteTemplate
 from app.schemas.system import (
     SystemCreate,
     SystemUpdate,
@@ -76,7 +76,7 @@ def _attach_pdf_many(seq):
 # ————— System CRUD —————
 
 def create_system(db: Session, payload: SystemCreate) -> System:
-    data = payload.dict(exclude_unset=True)  # is_active dahil
+    data = payload.dict(exclude_unset=True)  # is_active, sort_index dahil gelebilir
     obj = System(id=uuid4(), **data)
     db.add(obj)
     db.commit()
@@ -85,7 +85,12 @@ def create_system(db: Session, payload: SystemCreate) -> System:
 
 
 def get_systems(db: Session) -> list[System]:
-    return db.query(System).all()
+    return (
+        db.query(System)
+        .filter(System.is_deleted == False)
+        .order_by(asc(System.sort_index), asc(System.name), asc(System.created_at))
+        .all()
+    )
 
 def get_systems_page(
     db: Session,
@@ -109,7 +114,7 @@ def get_systems_page(
 
     total = base_q.order_by(None).count()
 
-    q_items = base_q.order_by(System.created_at.desc())
+    q_items = base_q.order_by(asc(System.sort_index), asc(System.name), asc(System.created_at))
     if limit is None:
         items = q_items.all()
     else:
@@ -127,7 +132,7 @@ def update_system(db: Session, system_id: UUID, payload: SystemUpdate) -> System
     obj = get_system(db, system_id)
     if not obj:
         return None
-    data = payload.dict(exclude_unset=True)
+    data = payload.dict(exclude_unset=True)  # sort_index dahil gelebilir
     for k, v in data.items():
         setattr(obj, k, v)
     db.commit()
@@ -144,7 +149,7 @@ def delete_system(db: Session, system_id: UUID) -> bool:
 # ————— SystemVariant CRUD —————
 
 def create_system_variant(db: Session, system_id: UUID, payload: SystemVariantCreate) -> SystemVariant:
-    data = payload.dict(by_alias=True, exclude={"system_id"}, exclude_unset=True)  # ✅ is_active gelebilir
+    data = payload.dict(by_alias=True, exclude={"system_id"}, exclude_unset=True)  # is_active, sort_index gelebilir
     obj = SystemVariant(
         id=uuid4(),
         system_id=system_id,
@@ -157,7 +162,12 @@ def create_system_variant(db: Session, system_id: UUID, payload: SystemVariantCr
 
 
 def get_system_variants(db: Session) -> list[SystemVariant]:
-    return db.query(SystemVariant).all()
+    return (
+        db.query(SystemVariant)
+        .filter(SystemVariant.is_deleted == False)
+        .order_by(asc(SystemVariant.sort_index), asc(SystemVariant.name), asc(SystemVariant.created_at))
+        .all()
+    )
 
 
 def get_system_variant(db: Session, variant_id: UUID) -> SystemVariant | None:
@@ -168,7 +178,7 @@ def update_system_variant(db: Session, variant_id: UUID, payload: SystemVariantU
     obj = get_system_variant(db, variant_id)
     if not obj:
         return None
-    for k, v in payload.dict(exclude_unset=True, by_alias=True).items():
+    for k, v in payload.dict(exclude_unset=True, by_alias=True).items():  # sort_index dahil
         setattr(obj, k, v)
     db.commit()
     db.refresh(obj)
@@ -196,6 +206,11 @@ def get_profile_templates(db: Session, variant_id: UUID) -> list[SystemProfileTe
     items = (
         db.query(SystemProfileTemplate)
         .filter_by(system_variant_id=variant_id)
+        .order_by(
+            SystemProfileTemplate.order_index.asc().nulls_last(),
+            SystemProfileTemplate.created_at.asc(),
+        )
+
         .all()
     )
     return _attach_pdf_many(items)
@@ -235,6 +250,11 @@ def get_glass_templates(db: Session, variant_id: UUID) -> list[SystemGlassTempla
     items = (
         db.query(SystemGlassTemplate)
         .filter_by(system_variant_id=variant_id)
+        .order_by(
+            SystemGlassTemplate.order_index.asc().nulls_last(),
+            SystemGlassTemplate.created_at.asc(),
+        )
+
         .all()
     )
     return _attach_pdf_many(items)
@@ -273,6 +293,11 @@ def get_material_templates(db: Session, variant_id: UUID) -> list[SystemMaterial
     items = (
         db.query(SystemMaterialTemplate)
         .filter_by(system_variant_id=variant_id)
+        .order_by(
+            SystemMaterialTemplate.order_index.asc().nulls_last(),
+            SystemMaterialTemplate.created_at.asc(),
+        )
+
         .all()
     )
     return _attach_pdf_many(items)
@@ -314,8 +339,11 @@ def get_remote_templates(db: Session, variant_id: UUID) -> list[SystemRemoteTemp
         db.query(SystemRemoteTemplate)
         .options(joinedload(SystemRemoteTemplate.remote))
         .filter_by(system_variant_id=variant_id)
-        .order_by(SystemRemoteTemplate.order_index.asc().nulls_last(),
-                  SystemRemoteTemplate.created_at.asc())
+        .order_by(
+            SystemRemoteTemplate.order_index.asc().nulls_last(),
+            SystemRemoteTemplate.created_at.asc(),
+        )
+
         .all()
     )
     return _attach_pdf_many(items)
@@ -347,8 +375,10 @@ def get_system_templates(db: Session, variant_id: UUID):
         db.query(SystemProfileTemplate)
         .options(joinedload(SystemProfileTemplate.profile))
         .filter(SystemProfileTemplate.system_variant_id == variant_id)
-        .order_by(SystemProfileTemplate.order_index.asc().nulls_last(),
-                  SystemProfileTemplate.created_at.asc())
+        .order_by(
+            asc(SystemProfileTemplate.order_index).nulls_last(),
+            asc(SystemProfileTemplate.created_at),
+        )
         .all()
     )
     _attach_pdf_many(profiles)
@@ -357,8 +387,10 @@ def get_system_templates(db: Session, variant_id: UUID):
         db.query(SystemGlassTemplate)
         .options(joinedload(SystemGlassTemplate.glass_type))
         .filter(SystemGlassTemplate.system_variant_id == variant_id)
-        .order_by(SystemGlassTemplate.order_index.asc().nulls_last(),
-                  SystemGlassTemplate.created_at.asc())
+        .order_by(
+            asc(SystemGlassTemplate.order_index).nulls_last(),
+            asc(SystemGlassTemplate.created_at),
+        )
         .all()
     )
     _attach_pdf_many(glasses)
@@ -367,8 +399,10 @@ def get_system_templates(db: Session, variant_id: UUID):
         db.query(SystemMaterialTemplate)
         .options(joinedload(SystemMaterialTemplate.material))
         .filter(SystemMaterialTemplate.system_variant_id == variant_id)
-        .order_by(SystemMaterialTemplate.order_index.asc().nulls_last(),
-                  SystemMaterialTemplate.created_at.asc())
+        .order_by(
+            asc(SystemMaterialTemplate.order_index).nulls_last(),
+            asc(SystemMaterialTemplate.created_at),
+        )
         .all()
     )
     _attach_pdf_many(materials)
@@ -377,8 +411,10 @@ def get_system_templates(db: Session, variant_id: UUID):
         db.query(SystemRemoteTemplate)
         .options(joinedload(SystemRemoteTemplate.remote))
         .filter(SystemRemoteTemplate.system_variant_id == variant_id)
-        .order_by(SystemRemoteTemplate.order_index.asc().nulls_last(),
-                  SystemRemoteTemplate.created_at.asc())
+        .order_by(
+            asc(SystemRemoteTemplate.order_index).nulls_last(),
+            asc(SystemRemoteTemplate.created_at),
+        )
         .all()
     )
     _attach_pdf_many(remotes)
@@ -397,6 +433,7 @@ def create_system_full(db: Session, payload: SystemFullCreate):
         description=payload.description,
         photo_url=payload.photo_url,
         is_active=(payload.is_active if payload.is_active is not None else True),  # ✅
+        sort_index=(payload.sort_index if payload.sort_index is not None else 0),  # ✅
     )
     db.add(system)
     db.flush()
@@ -409,6 +446,7 @@ def create_system_full(db: Session, payload: SystemFullCreate):
         name=variant_data["name"],
         photo_url=variant_data.get("photo_url"),
         is_active=(variant_data.get("is_active", True)),  # ✅
+        sort_index=(variant_data.get("sort_index", 0)),   # ✅
     )
     db.add(variant)
     db.flush()
@@ -463,6 +501,7 @@ def create_system_variant_with_templates(db: Session, payload: SystemVariantCrea
         system_id=payload.system_id,
         name=payload.name,
         is_active=(payload.is_active if payload.is_active is not None else True),  # ✅
+        sort_index=(payload.sort_index if payload.sort_index is not None else 0),  # ✅
     )
     db.add(variant)
     db.flush()
@@ -538,6 +577,8 @@ def update_system_variant_with_templates(db: Session, variant_id: UUID, payload:
         variant.name = payload.name
     if payload.is_active is not None:   # ✅ is_active güncelle
         variant.is_active = bool(payload.is_active)
+    if payload.sort_index is not None:  # ✅ sıralama güncelle
+        variant.sort_index = int(payload.sort_index)
 
     # Eski şablonları temizle
     db.query(SystemProfileTemplate).filter_by(system_variant_id=variant_id).delete(synchronize_session=False)
@@ -604,4 +645,3 @@ def update_system_variant_with_templates(db: Session, variant_id: UUID, payload:
     db.commit()
     db.refresh(variant)
     return variant
-

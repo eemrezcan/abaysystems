@@ -1,11 +1,10 @@
 # app/models/system.py
 
 import uuid
-from sqlalchemy import Column, String, TEXT, Numeric, ForeignKey, Boolean, event, update
+from sqlalchemy import Column, String, TEXT, Numeric, ForeignKey, Boolean, event, update, Integer, Index
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
 from sqlalchemy.sql import func, expression
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import ARRAY
 
 from app.db.base import Base
 
@@ -28,15 +27,24 @@ class System(Base):
     is_published = Column(Boolean, nullable=False, server_default=expression.false())
     is_deleted   = Column(Boolean, nullable=False, server_default=expression.false())
 
-    # ✅ aktif/pasif etiketi (listelemede ayrıştırmak için)
-    #    Varsayılan: aktif (true)
+    # ✅ aktif/pasif etiketi
     is_active = Column(Boolean, nullable=False, server_default=expression.true())
+
+    # ✅ Liste sırası (küçük -> önce). Varsayılan 0
+    sort_index = Column(Integer, nullable=False, server_default="0")
 
     # Bir system birden fazla varyanta sahiptir
     variants = relationship(
         "SystemVariant",
         back_populates="system",
-        cascade="all, delete-orphan"
+        cascade="all, delete-orphan",
+        order_by=lambda: SystemVariant.sort_index.asc()  # ✅ güvenli
+    )
+
+
+    # DB indeksleri
+    __table_args__ = (
+        Index("ix_system_sort_index", "sort_index"),
     )
 
 
@@ -62,9 +70,11 @@ class SystemVariant(Base):
     is_published = Column(Boolean, nullable=False, server_default=expression.false())
     is_deleted   = Column(Boolean, nullable=False, server_default=expression.false())
 
-    # ✅ aktif/pasif etiketi (listelemede ayrıştırmak için)
-    #    Varsayılan: aktif (true)
+    # ✅ aktif/pasif etiketi
     is_active = Column(Boolean, nullable=False, server_default=expression.true())
+
+    # ✅ Aynı system içindeki liste sırası (küçük -> önce). Varsayılan 0
+    sort_index = Column(Integer, nullable=False, server_default="0")
 
     # System ile iki yönlü ilişki
     system = relationship("System", back_populates="variants")
@@ -90,6 +100,11 @@ class SystemVariant(Base):
         back_populates="variant",
         cascade="all, delete-orphan",
         passive_deletes=True,
+    )
+
+    # DB indeksleri
+    __table_args__ = (
+        Index("ix_system_variant_system_sort_index", "system_id", "sort_index"),
     )
 
 
