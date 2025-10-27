@@ -1151,38 +1151,49 @@ def get_project_requirements_detailed(
             .filter(ProjectSystemGlass.project_system_id == ps.id)
             .all()
         )
+
         glasses = []
         for g in glasses_raw:
             color_obj_1 = db.query(Color).filter(Color.id == g.glass_color_id_1).first() if getattr(g, "glass_color_id_1", None) else None
             color_obj_2 = db.query(Color).filter(Color.id == g.glass_color_id_2).first() if getattr(g, "glass_color_id_2", None) else None
+            glass_type_obj = db.query(GlassType).filter(GlassType.id == g.glass_type_id).first()
 
-        glasses.append(
-            GlassInProjectOut(
-                id=g.id,
-                glass_type_id=g.glass_type_id,
-                width_mm=float(g.width_mm),
-                height_mm=float(g.height_mm),
-                count=g.count,
-                area_m2=float(g.area_m2) if g.area_m2 is not None else None,
-                order_index=g.order_index,
-                glass_type=db.query(GlassType).filter(GlassType.id == g.glass_type_id).first(),
+            # unit_price sütunu opsiyonel; yoksa None döner (modelde ekledik)
+            unit_price = float(g.unit_price) if getattr(g, "unit_price", None) is not None else None
 
-                # 🔁 Çift cam rengi (id + metin + obje)
-                glass_color_id_1=getattr(g, "glass_color_id_1", None),
-                glass_color_1=getattr(g, "glass_color_text_1", None),
-                glass_color_obj_1=color_obj_1,
+            # area_m2 yoksa mm’den m² hesapla
+            area_m2_val = float(g.area_m2) if g.area_m2 is not None else None
 
-                glass_color_id_2=getattr(g, "glass_color_id_2", None),
-                glass_color_2=getattr(g, "glass_color_text_2", None),
-                glass_color_obj_2=color_obj_2,
+            glasses.append(
+                GlassInProjectOut(
+                    id=g.id,
+                    glass_type_id=g.glass_type_id,
+                    width_mm=float(g.width_mm),
+                    height_mm=float(g.height_mm),
+                    count=g.count,
+                    area_m2=area_m2_val,
+                    order_index=g.order_index,
+                    glass_type=glass_type_obj,
 
-                # 🔎 GlassType üzerinden gelen read-only belirteçler
-                belirtec_1_value=getattr(g, "belirtec_1_value", None),
-                belirtec_2_value=getattr(g, "belirtec_2_value", None),
+                    # 🔁 Çift cam rengi (id + metin + obje)
+                    glass_color_id_1=getattr(g, "glass_color_id_1", None),
+                    glass_color_1=getattr(g, "glass_color_text_1", None),
+                    glass_color_obj_1=color_obj_1,
 
-                pdf=_pdf_from_obj(g),
+                    glass_color_id_2=getattr(g, "glass_color_id_2", None),
+                    glass_color_2=getattr(g, "glass_color_text_2", None),
+                    glass_color_obj_2=color_obj_2,
+
+                    # 🔎 GlassType üzerinden gelen read-only belirteçler
+                    belirtec_1_value=getattr(g, "belirtec_1_value", None),
+                    belirtec_2_value=getattr(g, "belirtec_2_value", None),
+
+                    pdf=_pdf_from_obj(g),
+                    # Not: Şemanın desteklemesi halinde unit_price alanını da ekleyebilirsin
+                    # unit_price=unit_price,
+                )
             )
-        )
+
 
 
         materials_raw = (
@@ -1278,34 +1289,34 @@ def get_project_requirements_detailed(
         gt = db.query(GlassType).filter(GlassType.id == g.glass_type_id).first()
         color_obj_1 = db.query(Color).filter(Color.id == g.glass_color_id_1).first() if getattr(g, "glass_color_id_1", None) else None
         color_obj_2 = db.query(Color).filter(Color.id == g.glass_color_id_2).first() if getattr(g, "glass_color_id_2", None) else None
- 
-    extra_glasses.append(
-        ExtraGlassDetailed(
-            id=g.id,
-            project_extra_glass_id=g.id,
-            glass_type_id=g.glass_type_id,
-            width_mm=float(g.width_mm),
-            height_mm=float(g.height_mm),
-            count=g.count,
-            unit_price=float(g.unit_price) if g.unit_price is not None else None,
-            glass_type=gt,
 
-            # 🔁 Çift cam rengi
-            glass_color_id_1=getattr(g, "glass_color_id_1", None),
-            glass_color_1=getattr(g, "glass_color_text_1", None),
-            glass_color_obj_1=color_obj_1,
+        extra_glasses.append(
+            ExtraGlassDetailed(
+                id=g.id,
+                project_extra_glass_id=g.id,
+                glass_type_id=g.glass_type_id,
+                width_mm=float(g.width_mm),
+                height_mm=float(g.height_mm),
+                count=g.count,
+                unit_price=float(g.unit_price) if g.unit_price is not None else None,
+                glass_type=gt,
 
-            glass_color_id_2=getattr(g, "glass_color_id_2", None),
-            glass_color_2=getattr(g, "glass_color_text_2", None),
-            glass_color_obj_2=color_obj_2,
+                # 🔁 Çift cam rengi
+                glass_color_id_1=getattr(g, "glass_color_id_1", None),
+                glass_color_1=getattr(g, "glass_color_text_1", None),
+                glass_color_obj_1=color_obj_1,
 
-            # 🔎 GlassType üzerinden gelen read-only belirteçler
-            belirtec_1_value=getattr(g, "belirtec_1_value", None),
-            belirtec_2_value=getattr(g, "belirtec_2_value", None),
+                glass_color_id_2=getattr(g, "glass_color_id_2", None),
+                glass_color_2=getattr(g, "glass_color_text_2", None),
+                glass_color_obj_2=color_obj_2,
 
-            pdf=_pdf_from_obj(g),
+                # 🔎 GlassType üzerinden gelen read-only belirteçler
+                belirtec_1_value=getattr(g, "belirtec_1_value", None),
+                belirtec_2_value=getattr(g, "belirtec_2_value", None),
+
+                pdf=_pdf_from_obj(g),
+            )
         )
-    )
 
 
 
