@@ -124,6 +124,8 @@ class ProjectSystemGlass(Base):
     count              = Column(Integer, nullable=False)
     area_m2            = Column(Numeric, nullable=True)
     order_index        = Column(Integer, nullable=True)
+    unit_price        = Column(Numeric, nullable=True)   # 💲 opsiyonel: proje anındaki birim fiyat snapshot
+
 
     # 🔁 Çift cam renk alanları (DB kolon adları birebir korunur)
     glass_color_id_1   = Column(PGUUID(as_uuid=True), ForeignKey("color.id"), nullable=True)
