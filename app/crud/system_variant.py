@@ -1,7 +1,7 @@
 from uuid import uuid4, UUID
 from typing import Optional, Tuple, List
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import or_, asc
 
 from app.models.system import System, SystemVariant
@@ -30,8 +30,13 @@ def get_system_variants(db: Session) -> List[SystemVariant]:
     """List all system variants."""
     return (
         db.query(SystemVariant)
+        .options(selectinload(SystemVariant.system))  # ✅ system ilişkisinin adı
         .filter(SystemVariant.is_deleted == False)
-        .order_by(asc(SystemVariant.sort_index), asc(SystemVariant.name), asc(SystemVariant.created_at))
+        .order_by(
+            asc(SystemVariant.sort_index),
+            asc(SystemVariant.name),
+            asc(SystemVariant.created_at),
+        )
         .all()
     )
 
@@ -42,7 +47,7 @@ def get_system_variants_page(
     q: Optional[str],
     limit: Optional[int],
     offset: int,
-    only_active: Optional[bool] = None,  # ✅ eklendi
+    only_active: Optional[bool] = None,
 ) -> Tuple[List[SystemVariant], int]:
     """
     Tüm varyantlar için sayfalama:
@@ -55,13 +60,20 @@ def get_system_variants_page(
         db.query(SystemVariant)
         .join(System, SystemVariant.system_id == System.id)
         .filter(SystemVariant.is_deleted == False, System.is_deleted == False)
+        .options(selectinload(SystemVariant.system))  # ✅ eager load
     )
 
     if not is_admin:
-        base_q = base_q.filter(SystemVariant.is_published == True, System.is_published == True)
+        base_q = base_q.filter(
+            SystemVariant.is_published == True,
+            System.is_published == True
+        )
 
     if only_active is True:
-        base_q = base_q.filter(SystemVariant.is_active == True, System.is_active == True)  # ✅
+        base_q = base_q.filter(
+            SystemVariant.is_active == True,
+            System.is_active == True
+        )
 
     if q:
         like = f"%{q}%"
@@ -74,11 +86,7 @@ def get_system_variants_page(
         asc(SystemVariant.name),
         asc(SystemVariant.created_at),
     )
-    if limit is None:
-        items = q_items.all()
-    else:
-        items = q_items.offset(offset).limit(limit).all()
-
+    items = q_items.all() if limit is None else q_items.offset(offset).limit(limit).all()
     return items, total
 
 
@@ -89,7 +97,7 @@ def get_variants_for_system_page(
     q: Optional[str],
     limit: Optional[int],
     offset: int,
-    only_active: Optional[bool] = None,  # ✅ eklendi
+    only_active: Optional[bool] = None,
 ) -> Tuple[List[SystemVariant], int]:
     """
     Belirli bir sistem için varyantları sayfalı döndürür.
@@ -105,13 +113,20 @@ def get_variants_for_system_page(
             SystemVariant.is_deleted == False,
             System.is_deleted == False,
         )
+        .options(selectinload(SystemVariant.system))  # ✅ eager load
     )
 
     if not is_admin:
-        base_q = base_q.filter(SystemVariant.is_published == True, System.is_published == True)
+        base_q = base_q.filter(
+            SystemVariant.is_published == True,
+            System.is_published == True
+        )
 
     if only_active is True:
-        base_q = base_q.filter(SystemVariant.is_active == True, System.is_active == True)  # ✅
+        base_q = base_q.filter(
+            SystemVariant.is_active == True,
+            System.is_active == True
+        )
 
     if q:
         like = f"%{q}%"
@@ -124,17 +139,20 @@ def get_variants_for_system_page(
         asc(SystemVariant.name),
         asc(SystemVariant.created_at),
     )
-    if limit is None:
-        items = q_items.all()
-    else:
-        items = q_items.offset(offset).limit(limit).all()
-
+    items = q_items.all() if limit is None else q_items.offset(offset).limit(limit).all()
     return items, total
+
 
 
 def get_system_variant(db: Session, variant_id: UUID) -> SystemVariant | None:
     """Get a single system variant by ID."""
-    return db.query(SystemVariant).filter_by(id=variant_id).first()
+    return (
+        db.query(SystemVariant)
+        .options(selectinload(SystemVariant.system))  # ✅ eager load
+        .filter_by(id=variant_id)
+        .first()
+    )
+
 
 
 def update_system_variant(db: Session, variant_id: UUID, payload: SystemVariantUpdate) -> SystemVariant | None:
@@ -161,23 +179,29 @@ def delete_system_variant(db: Session, variant_id: UUID) -> bool:
 def get_variants_for_system(
     db: Session,
     system_id: UUID,
-    only_active: Optional[bool] = None,  # ✅ opsiyonel aktif filtresi
+    only_active: Optional[bool] = None,
 ) -> List[SystemVariant]:
     """
     Verilen system_id'ye ait tüm SystemVariant kayıtlarını döner.
     only_active=True ise sadece aktif varyantlar.
     """
-    q = db.query(SystemVariant).filter(
-        SystemVariant.system_id == system_id,
-        SystemVariant.is_deleted == False,
+    q = (
+        db.query(SystemVariant)
+        .options(selectinload(SystemVariant.system))  # ✅ eager load
+        .filter(
+            SystemVariant.system_id == system_id,
+            SystemVariant.is_deleted == False,
+        )
     )
     if only_active is True:
         q = q.filter(SystemVariant.is_active == True)
+
     return q.order_by(
         asc(SystemVariant.sort_index),
         asc(SystemVariant.name),
         asc(SystemVariant.created_at),
     ).all()
+
 
 
 def reassign_variant_system(db: Session, variant_id: UUID, new_system_id: UUID) -> Optional[SystemVariant]:

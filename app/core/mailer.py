@@ -2,8 +2,13 @@
 import smtplib
 import ssl
 from email.message import EmailMessage
+from email.utils import formataddr
 from typing import Iterable
 from app.core.settings import settings
+
+def brand_subject(subject_core: str) -> str:
+    """Konu satırını 'X - {BRAND_NAME}' formatında üretir."""
+    return f"{subject_core} - {settings.BRAND_NAME}"
 
 def send_email(to: str | Iterable[str], subject: str, html: str):
     if isinstance(to, str):
@@ -13,7 +18,8 @@ def send_email(to: str | Iterable[str], subject: str, html: str):
 
     msg = EmailMessage()
     msg["Subject"] = subject
-    msg["From"] = settings.SMTP_FROM
+    # Gönderici: "Tümen Alüminyum <no-reply@...>"
+    msg["From"] = formataddr((settings.BRAND_NAME, settings.SMTP_FROM))
     msg["To"] = ", ".join(recipients)
     msg.set_content("HTML içerik desteklenmiyor.")
     msg.add_alternative(html, subtype="html")
@@ -29,9 +35,9 @@ def send_email(to: str | Iterable[str], subject: str, html: str):
             server.starttls(context=context)
 
     try:
-        # Kullanıcı adı verilmişse login dene; yoksa doğrudan gönder
+        # Kullanıcı adı verilmişse login; yoksa doğrudan gönder
         if getattr(settings, "SMTP_USER", ""):
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)  # ✅ düzeltildi
         server.send_message(msg)
     finally:
         server.quit()

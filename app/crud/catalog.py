@@ -1,25 +1,25 @@
-# app/crud/catalog.py
-
 from sqlalchemy.orm import Session
-from typing import List, Optional, Tuple  # 🟢 Tuple ekle
-from sqlalchemy import or_  
+from typing import List, Optional, Tuple
+from sqlalchemy import or_
 from uuid import UUID
 
-from app.models.profile        import Profile
-from app.models.glass_type     import GlassType
+from app.models.profile import Profile
+from app.models.glass_type import GlassType
 from app.models.other_material import OtherMaterial
-from app.schemas.catalog       import (
+from app.schemas.catalog import (
     ProfileCreate,
     GlassTypeCreate,
     GlassTypeUpdate,
-    OtherMaterialCreate
+    OtherMaterialCreate,
 )
 from app.crud.active import set_active_state  # ✅ is_active toggle helper
 
 from app.models.remote import Remote
 from app.schemas.catalog import RemoteCreate
 
-# ----- PROFILE CRUD (unchanged) -----
+
+# ----- PROFILE CRUD -----
+
 def get_profile_by_code(db: Session, code: str) -> Optional[Profile]:
     return db.query(Profile).filter(Profile.profil_kodu == code).first()
 
@@ -33,11 +33,21 @@ def create_profile(db: Session, payload: ProfileCreate) -> Profile:
 
 
 def get_profiles(db: Session) -> List[Profile]:
-    return db.query(Profile).all()
+    return (
+        db.query(Profile)
+        .filter(Profile.is_deleted == False, Profile.is_active == True)  # noqa: E712
+        .order_by(Profile.profil_isim.asc())
+        .all()
+    )
 
 
 def get_profile(db: Session, profile_id: UUID) -> Optional[Profile]:
-    return db.query(Profile).filter(Profile.id == profile_id).first()
+    # Tekil getirirken is_active filtresi uygulanmaz (silinmemiş olması yeterli)
+    return (
+        db.query(Profile)
+        .filter(Profile.id == profile_id, Profile.is_deleted == False)  # noqa: E712
+        .first()
+    )
 
 
 def update_profile(db: Session, profile_id: UUID, payload: ProfileCreate) -> Optional[Profile]:
@@ -57,7 +67,6 @@ def delete_profile(db: Session, profile_id: UUID) -> None:
 
 
 # ----- GLASS TYPE CRUD -----
-# Note: 'birim_agirlik' field removed from model and schema
 
 def create_glass_type(db: Session, payload: GlassTypeCreate) -> GlassType:
     obj = GlassType(**payload.dict())
@@ -68,19 +77,27 @@ def create_glass_type(db: Session, payload: GlassTypeCreate) -> GlassType:
 
 
 def get_glass_types(db: Session) -> List[GlassType]:
-    return db.query(GlassType).all()
+    return (
+        db.query(GlassType)
+        .filter(GlassType.is_deleted == False, GlassType.is_active == True)  # noqa: E712
+        .order_by(GlassType.cam_isim.asc())
+        .all()
+    )
 
 
 def get_glass_type(db: Session, glass_type_id: UUID) -> Optional[GlassType]:
-    return db.query(GlassType).filter(GlassType.id == glass_type_id).first()
+    # Tekil getirirken is_active filtresi uygulanmaz (silinmemiş olması yeterli)
+    return (
+        db.query(GlassType)
+        .filter(GlassType.id == glass_type_id, GlassType.is_deleted == False)  # noqa: E712
+        .first()
+    )
 
 
 def update_glass_type(db: Session, glass_type_id: UUID, payload: GlassTypeUpdate) -> Optional[GlassType]:
     obj = get_glass_type(db, glass_type_id)
     if not obj:
         return None
-
-    # Sadece gönderilen alanları güncelle (None gönderildiyse None’a çekilir)
     for field, value in payload.dict(exclude_unset=True).items():
         setattr(obj, field, value)
     db.commit()
@@ -94,7 +111,8 @@ def delete_glass_type(db: Session, glass_type_id: UUID) -> bool:
     return bool(deleted)
 
 
-# ----- OTHER MATERIAL CRUD (unchanged) -----
+# ----- OTHER MATERIAL CRUD -----
+
 def create_other_material(db: Session, payload: OtherMaterialCreate) -> OtherMaterial:
     obj = OtherMaterial(**payload.dict())
     db.add(obj)
@@ -104,11 +122,21 @@ def create_other_material(db: Session, payload: OtherMaterialCreate) -> OtherMat
 
 
 def get_other_materials(db: Session) -> List[OtherMaterial]:
-    return db.query(OtherMaterial).all()
+    return (
+        db.query(OtherMaterial)
+        .filter(OtherMaterial.is_deleted == False, OtherMaterial.is_active == True)  # noqa: E712
+        .order_by(OtherMaterial.diger_malzeme_isim.asc())
+        .all()
+    )
 
 
 def get_other_material(db: Session, material_id: UUID) -> Optional[OtherMaterial]:
-    return db.query(OtherMaterial).filter(OtherMaterial.id == material_id).first()
+    # Tekil getirirken is_active filtresi uygulanmaz (silinmemiş olması yeterli)
+    return (
+        db.query(OtherMaterial)
+        .filter(OtherMaterial.id == material_id, OtherMaterial.is_deleted == False)  # noqa: E712
+        .first()
+    )
 
 
 def update_other_material(db: Session, material_id: UUID, payload: OtherMaterialCreate) -> Optional[OtherMaterial]:
@@ -128,8 +156,8 @@ def delete_other_material(db: Session, material_id: UUID) -> bool:
     return bool(deleted)
 
 
-
 # ------- PROFILE (paginated) -------
+
 def get_profiles_page(
     db: Session,
     is_admin: bool,
@@ -138,14 +166,13 @@ def get_profiles_page(
     offset: int,
 ) -> Tuple[List[Profile], int]:
     """
-    - is_deleted = False zorunlu
-    - admin değilse is_active = True
-    - q varsa profil_isim veya profil_kodu içinde arar (ILIKE)
+    Liste ucu: her zaman is_deleted = False ve is_active = True
+    q varsa profil_isim veya profil_kodu ILIKE ile aranır.
     """
-    base_q = db.query(Profile).filter(Profile.is_deleted == False)
-
-    if not is_admin:
-        base_q = base_q.filter(Profile.is_active == True)
+    base_q = db.query(Profile).filter(
+        Profile.is_deleted == False,  # noqa: E712
+        Profile.is_active == True,    # noqa: E712
+    )
 
     if q:
         like = f"%{q}%"
@@ -156,13 +183,15 @@ def get_profiles_page(
     total = base_q.order_by(None).count()
     items = (
         base_q.order_by(Profile.profil_isim.asc())
-              .offset(offset)
-              .limit(limit)
-              .all()
+        .offset(offset)
+        .limit(limit)
+        .all()
     )
     return items, total
 
+
 # ------- GLASS TYPE (paginated) -------
+
 def get_glass_types_page(
     db: Session,
     is_admin: bool,
@@ -171,14 +200,13 @@ def get_glass_types_page(
     offset: int,
 ) -> Tuple[List[GlassType], int]:
     """
-    - is_deleted = False zorunlu
-    - admin değilse is_active = True
-    - q varsa cam_isim içinde arar (ILIKE)
+    Liste ucu: her zaman is_deleted = False ve is_active = True
+    q varsa cam_isim ILIKE ile aranır.
     """
-    base_q = db.query(GlassType).filter(GlassType.is_deleted == False)
-
-    if not is_admin:
-        base_q = base_q.filter(GlassType.is_active == True)
+    base_q = db.query(GlassType).filter(
+        GlassType.is_deleted == False,  # noqa: E712
+        GlassType.is_active == True,    # noqa: E712
+    )
 
     if q:
         like = f"%{q}%"
@@ -187,13 +215,15 @@ def get_glass_types_page(
     total = base_q.order_by(None).count()
     items = (
         base_q.order_by(GlassType.cam_isim.asc())
-              .offset(offset)
-              .limit(limit)
-              .all()
+        .offset(offset)
+        .limit(limit)
+        .all()
     )
     return items, total
 
+
 # ------- OTHER MATERIAL (paginated) -------
+
 def get_other_materials_page(
     db: Session,
     is_admin: bool,
@@ -202,14 +232,13 @@ def get_other_materials_page(
     offset: int,
 ) -> Tuple[List[OtherMaterial], int]:
     """
-    - is_deleted = False zorunlu
-    - admin değilse is_active = True
-    - q varsa diger_malzeme_isim içinde arar (ILIKE)
+    Liste ucu: her zaman is_deleted = False ve is_active = True
+    q varsa diger_malzeme_isim ILIKE ile aranır.
     """
-    base_q = db.query(OtherMaterial).filter(OtherMaterial.is_deleted == False)
-
-    if not is_admin:
-        base_q = base_q.filter(OtherMaterial.is_active == True)
+    base_q = db.query(OtherMaterial).filter(
+        OtherMaterial.is_deleted == False,  # noqa: E712
+        OtherMaterial.is_active == True,    # noqa: E712
+    )
 
     if q:
         like = f"%{q}%"
@@ -218,12 +247,11 @@ def get_other_materials_page(
     total = base_q.order_by(None).count()
     items = (
         base_q.order_by(OtherMaterial.diger_malzeme_isim.asc())
-              .offset(offset)
-              .limit(limit)
-              .all()
+        .offset(offset)
+        .limit(limit)
+        .all()
     )
     return items, total
-
 
 
 # ---------------------------
@@ -232,9 +260,9 @@ def get_other_materials_page(
 
 def create_remote(db: Session, payload: RemoteCreate) -> Remote:
     obj = Remote(
-        kumanda_isim = payload.kumanda_isim,
-        price        = payload.price,
-        kapasite     = payload.kapasite,
+        kumanda_isim=payload.kumanda_isim,
+        price=payload.price,
+        kapasite=payload.kapasite,
     )
     db.add(obj)
     db.commit()
@@ -250,25 +278,21 @@ def get_remotes_page(
     offset: int,
 ) -> Tuple[List[Remote], int]:
     """
-    Sayfalı liste:
-    - is_deleted = False
-    - admin değilse: is_active=True
-    - q varsa: kumanda_isim ILIKE %q%
+    Liste ucu: her zaman is_deleted = False ve is_active = True
+    q varsa kumanda_isim ILIKE ile aranır.
     """
-    base_q = db.query(Remote).filter(Remote.is_deleted == False)
-
-    if not is_admin:
-        base_q = base_q.filter(Remote.is_active == True)
+    base_q = db.query(Remote).filter(
+        Remote.is_deleted == False,  # noqa: E712
+        Remote.is_active == True,    # noqa: E712
+    )
 
     if q:
         like = f"%{q}%"
         base_q = base_q.filter(Remote.kumanda_isim.ilike(like))
 
     total = base_q.order_by(None).count()
-
     items = (
-        base_q
-        .order_by(Remote.created_at.desc())
+        base_q.order_by(Remote.created_at.desc())
         .offset(offset)
         .limit(limit)
         .all()
@@ -278,17 +302,22 @@ def get_remotes_page(
 
 
 def get_remote(db: Session, remote_id: UUID) -> Optional[Remote]:
-    return db.query(Remote).filter(Remote.id == remote_id).first()
+    # Tekil getirirken is_active filtresi uygulanmaz (silinmemiş olması yeterli)
+    return (
+        db.query(Remote)
+        .filter(Remote.id == remote_id, Remote.is_deleted == False)  # noqa: E712
+        .first()
+    )
 
 
 def update_remote(db: Session, remote_id: UUID, payload: RemoteCreate) -> Optional[Remote]:
-    obj = db.query(Remote).filter(Remote.id == remote_id, Remote.is_deleted == False).first()
+    obj = db.query(Remote).filter(Remote.id == remote_id, Remote.is_deleted == False).first()  # noqa: E712
     if not obj:
         return None
 
     obj.kumanda_isim = payload.kumanda_isim
-    obj.price        = payload.price
-    obj.kapasite     = payload.kapasite
+    obj.price = payload.price
+    obj.kapasite = payload.kapasite
 
     db.commit()
     db.refresh(obj)
@@ -299,30 +328,32 @@ def delete_remote(db: Session, remote_id: UUID) -> bool:
     """
     Soft delete: is_deleted=True, is_active=False
     """
-    obj = db.query(Remote).filter(Remote.id == remote_id, Remote.is_deleted == False).first()
+    obj = db.query(Remote).filter(Remote.id == remote_id, Remote.is_deleted == False).first()  # noqa: E712
     if not obj:
         return False
 
     obj.is_deleted = True
-    obj.is_active  = False
+    obj.is_active = False
 
     db.commit()
     return True
 
+
+# ------------------------------
+# ✅ is_active toggle helpers
 # ------------------------------
 
-# ✅ PROFILE is_active toggle
 def set_profile_active(db: Session, profile_id: UUID, active: bool):
     return set_active_state(db, Profile, profile_id, active)
 
-# ✅ GLASS TYPE is_active toggle
+
 def set_glass_type_active(db: Session, glass_type_id: UUID, active: bool):
     return set_active_state(db, GlassType, glass_type_id, active)
 
-# ✅ OTHER MATERIAL is_active toggle
+
 def set_other_material_active(db: Session, material_id: UUID, active: bool):
     return set_active_state(db, OtherMaterial, material_id, active)
 
-# ✅ REMOTE is_active toggle
+
 def set_remote_active(db: Session, remote_id: UUID, active: bool):
     return set_active_state(db, Remote, remote_id, active)

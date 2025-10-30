@@ -1,4 +1,3 @@
-# app/routes/auth_extra.py
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -7,13 +6,11 @@ from app.db.session import get_db
 from app.crud.user import get_user_by_email, get_user_by_username
 from app.models.app_user import AppUser
 from app.services.tokens import verify_token, consume_token, create_user_token
-from app.core.security import get_password_hash
-from app.core.mailer import send_email
+from app.core.security import get_password_hash, verify_password
+from app.core.mailer import send_email, brand_subject
 from app.core.settings import settings
+from app.api.deps import get_current_dealer  # ya da get_current_user
 from app.schemas.user import AcceptInviteIn, ForgotPasswordIn, ResetPasswordIn, ChangePasswordIn
-
-from app.core.security import verify_password, get_password_hash
-from app.api.deps import get_current_dealer # ya da get_current_user
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
@@ -47,12 +44,12 @@ def forgot_password(payload: ForgotPasswordIn, db: Session = Depends(get_db)):
         ut, plain = create_user_token(db, user_id=user.id, token_type="reset", ttl_minutes=60)  # 60 dk geçerli
         link = f"{settings.FRONTEND_URL}/reset-password?token={plain}"
         html = f"""
-            <h3>Şifre Sıfırlama</h3>
+            <h3>{settings.BRAND_NAME} - Şifre Sıfırlama</h3>
             <p>Şifrenizi sıfırlamak için aşağıdaki bağlantıya tıklayın. 60 dakika geçerlidir:</p>
             <p><a href="{link}">{link}</a></p>
         """
         try:
-            send_email(user.email, "Şifre Sıfırlama - Abay Systems", html)
+            send_email(user.email, brand_subject("Şifre Sıfırlama"), html)
         except Exception:
             # e-posta hatasını kullanıcıya çaktırmayın
             pass
@@ -75,10 +72,6 @@ def reset_password(payload: ResetPasswordIn, db: Session = Depends(get_db)):
     db.commit()
     consume_token(db, ut)
     return {"message": "Şifre güncellendi. Giriş yapabilirsiniz."}
-
-
-from app.core.security import verify_password, get_password_hash
-from app.api.deps import get_current_dealer  # ya da get_current_user
 
 @router.post("/change-password", status_code=200)
 def change_password(payload: ChangePasswordIn, current=Depends(get_current_dealer), db: Session = Depends(get_db)):

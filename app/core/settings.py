@@ -1,8 +1,13 @@
-# app/core/settings.py
 from pydantic import BaseSettings, AnyUrl, EmailStr, Field
 
 class Settings(BaseSettings):
-    database_url: AnyUrl
+    # ---- Brand / App ----
+    BRAND_NAME: str = Field("Tümen Alüminyum", env="BRAND_NAME")
+
+    # ---- Database ----
+    database_url: AnyUrl  # ör: postgresql+psycopg2://user:pass@host:5432/dbname
+
+    # ---- SMTP ----
     SMTP_HOST: str = "localhost"
     SMTP_PORT: int = 1025
     SMTP_USER: str = ""                 # yerelde boş kalsın → login yapılmaz
@@ -12,10 +17,11 @@ class Settings(BaseSettings):
     SMTP_USE_SSL: bool = False          # 465 ise True
     SMTP_STARTTLS: bool = False         # 587 ise True
 
+    # ---- URLs ----
     FRONTEND_URL: AnyUrl = "http://localhost:5173"
-    
+
+    # ---- Auth / Security ----
     DEBUG: bool = False
-    
     access_token_expire_minutes: int = Field(30, env="ACCESS_TOKEN_EXPIRE_MINUTES")
     refresh_token_expire_days: int = Field(30, env="REFRESH_TOKEN_EXPIRE_DAYS")
     refresh_cookie_name: str = Field("refresh_token", env="REFRESH_COOKIE_NAME")

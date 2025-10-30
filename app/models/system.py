@@ -101,7 +101,12 @@ class SystemVariant(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-
+    # --- UI için: bağlı olduğu System'in adı ---
+    @property
+    def system_name(self) -> str:
+        # FK not null olduğu için normalde her zaman bir System vardır.
+        # Yine de None koruması ekliyoruz.
+        return self.system.name if self.system is not None else ""
     # DB indeksleri
     __table_args__ = (
         Index("ix_system_variant_system_sort_index", "system_id", "sort_index"),

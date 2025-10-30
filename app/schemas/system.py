@@ -99,6 +99,8 @@ class SystemVariantOut(SystemVariantBase):
     # ✅ Yeni: sıralama bilgisi
     sort_index: int
 
+    system_name: str  # ilgili System kaydının name alanı
+
     class Config:
         orm_mode = True
 

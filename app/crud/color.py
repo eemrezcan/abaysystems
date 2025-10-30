@@ -1,4 +1,3 @@
-# app/crud/color.py
 from sqlalchemy.orm import Session
 from uuid import UUID, uuid4
 from sqlalchemy import update
@@ -13,7 +12,7 @@ def create_color(db: Session, payload: ColorCreate) -> Color:
         id=uuid4(),
         name=payload.name,
         type=payload.type,
-        unit_cost=payload.unit_cost
+        unit_cost=payload.unit_cost,
     )
     db.add(color)
     db.commit()
@@ -21,11 +20,12 @@ def create_color(db: Session, payload: ColorCreate) -> Color:
     return color
 
 
-def get_colors(db: Session, type_filter: str | None = None) -> list[Color]:
-    query = db.query(Color)
+def get_colors(db: Session, type_filter: str | None = None) -> List[Color]:
+    query = db.query(Color).filter(Color.is_deleted == False, Color.is_active == True)  # noqa: E712
     if type_filter:
         query = query.filter(Color.type == type_filter)
-    return query.order_by(Color.name).all()
+    return query.order_by(Color.name.asc()).all()
+
 
 def get_colors_page(
     db: Session,
@@ -36,16 +36,16 @@ def get_colors_page(
     offset: int,
 ) -> Tuple[List[Color], int]:
     """
-    Renkleri sayfalı döndürür.
-    - Her zaman is_deleted = False
-    - Admin değilse ayrıca is_active = True
-    - type_filter verilirse (profile|glass) filtrelenir
-    - q verilirse name ILIKE '%q%' filtrelenir
+    Liste ucu:
+    - is_deleted = False
+    - is_active  = True
+    - type_filter (profile|glass) opsiyonel
+    - q varsa name ILIKE
     """
-    base_q = db.query(Color).filter(Color.is_deleted == False)
-
-    if not is_admin:
-        base_q = base_q.filter(Color.is_active == True)
+    base_q = db.query(Color).filter(
+        Color.is_deleted == False,  # noqa: E712
+        Color.is_active == True,    # noqa: E712
+    )
 
     if type_filter:
         base_q = base_q.filter(Color.type == type_filter)
@@ -55,20 +55,25 @@ def get_colors_page(
         base_q = base_q.filter(Color.name.ilike(like))
 
     total = base_q.order_by(None).count()
-
     items = (
         base_q.order_by(Color.name.asc())
-              .offset(offset)
-              .limit(limit)
-              .all()
+        .offset(offset)
+        .limit(limit)
+        .all()
     )
     return items, total
 
-def get_color(db: Session, color_id: UUID) -> Color | None:
-    return db.query(Color).filter(Color.id == color_id).first()
+
+def get_color(db: Session, color_id: UUID) -> Optional[Color]:
+    # Tekil getirirken is_active filtresi uygulanmaz (silinmemiş olması yeterli)
+    return (
+        db.query(Color)
+        .filter(Color.id == color_id, Color.is_deleted == False)  # noqa: E712
+        .first()
+    )
 
 
-def update_color(db: Session, color_id: UUID, payload: ColorUpdate) -> Color | None:
+def update_color(db: Session, color_id: UUID, payload: ColorUpdate) -> Optional[Color]:
     color = get_color(db, color_id)
     if not color:
         return None
@@ -91,28 +96,29 @@ def get_default_glass_color(db: Session) -> Optional[Color]:
         db.query(Color)
         .filter(
             Color.type == "glass",
-            Color.is_deleted == False,
-            Color.is_default == True,
+            Color.is_deleted == False,  # noqa: E712
+            Color.is_default == True,   # noqa: E712
         )
         .one_or_none()
     )
 
+
 def set_default_glass_color(db: Session, color_id: UUID) -> Optional[Color]:
     """
     Verilen color_id'yi (type='glass') default yapar.
-    Varsa önceki default'u kapatır (is_default=false).
+    Varsa önceki default'u kapatır (is_default=False).
     """
     target = get_color(db, color_id)
     if not target or target.is_deleted or target.type != "glass":
         return None
 
-    # 1) Önce tüm aktif cam defaultlarını sıfırla (target hariç)
+    # 1) Önceki default'u sıfırla (target hariç)
     db.execute(
         update(Color)
         .where(
             Color.type == "glass",
-            Color.is_deleted == False,
-            Color.is_default == True,
+            Color.is_deleted == False,  # noqa: E712
+            Color.is_default == True,   # noqa: E712
             Color.id != color_id,
         )
         .values(is_default=False)
@@ -133,11 +139,12 @@ def get_default_glass_color2(db: Session) -> Optional[Color]:
         db.query(Color)
         .filter(
             Color.type == "glass",
-            Color.is_deleted == False,
-            Color.is_default_2 == True,
+            Color.is_deleted == False,   # noqa: E712
+            Color.is_default_2 == True,  # noqa: E712
         )
         .one_or_none()
     )
+
 
 def set_default_glass_color2(db: Session, color_id: UUID) -> Optional[Color]:
     target = get_color(db, color_id)
@@ -149,8 +156,8 @@ def set_default_glass_color2(db: Session, color_id: UUID) -> Optional[Color]:
         update(Color)
         .where(
             Color.type == "glass",
-            Color.is_deleted == False,
-            Color.is_default_2 == True,
+            Color.is_deleted == False,   # noqa: E712
+            Color.is_default_2 == True,  # noqa: E712
             Color.id != color_id,
         )
         .values(is_default_2=False)
@@ -167,12 +174,13 @@ def set_default_glass_color2(db: Session, color_id: UUID) -> Optional[Color]:
 
 
 # ============================
-# ✅ is_active toggle (YENİ)
+# ✅ is_active toggle
 # ============================
+
 def set_color_active(db: Session, color_id: UUID, active: bool) -> Optional[Color]:
     color = (
         db.query(Color)
-        .filter(Color.id == color_id, Color.is_deleted == False)
+        .filter(Color.id == color_id, Color.is_deleted == False)  # noqa: E712
         .first()
     )
     if not color:

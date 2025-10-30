@@ -1,5 +1,5 @@
 from uuid import uuid4, UUID
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm import joinedload
 from sqlalchemy import asc
 from typing import Optional, List, Tuple, Any

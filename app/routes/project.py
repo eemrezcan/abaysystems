@@ -1062,17 +1062,33 @@ def bulk_set_all_glass_colors_in_project_endpoint(
 ):
     """
     Projede yer alan TÜM camların (sistem + ekstra) cam renklerini topluca ayarlar/temizler.
+
+    KURAL:
+    - payload.glass_color_id_1 GÖNDERİLDİ ise (None olabilir): 1. renk KURULUR/Temizlenir.
+    - payload.glass_color_id_1 GÖNDERİLMEDİ ise: 1. renge DOKUNULMAZ.
+    - payload.glass_color_id_2 için de aynı mantık.
     """
     proj = get_project(db, project_id)
     ensure_owner_or_404(proj, current_user.id, "created_by")
 
+    data = payload.dict(exclude_unset=True)
+    touch_1 = ("glass_color_id_1" in data)
+    touch_2 = ("glass_color_id_2" in data)
+
+    # Her iki alan da gelmediyse yapılacak iş yok
+    if not touch_1 and not touch_2:
+        return {"system_updated": 0, "extra_updated": 0, "total": 0}
+
     result = bulk_update_all_glass_colors_in_project(
         db=db,
         project_id=project_id,
-        glass_color_id_1=payload.glass_color_id_1,
-        glass_color_id_2=payload.glass_color_id_2,
+        update_1=touch_1,
+        glass_color_id_1=data.get("glass_color_id_1", None),  # gönderildiyse değer (None=temizle)
+        update_2=touch_2,
+        glass_color_id_2=data.get("glass_color_id_2", None),  # gönderildiyse değer (None=temizle)
     )
     return result
+
 
 
 

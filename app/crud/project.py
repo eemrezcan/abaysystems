@@ -1524,12 +1524,32 @@ def bulk_update_system_glass_color_by_type(
 def bulk_update_all_glass_colors_in_project(
     db: Session,
     project_id: UUID,
+    update_1: bool,
     glass_color_id_1: Optional[UUID],
+    update_2: bool,
     glass_color_id_2: Optional[UUID],
 ) -> dict:
     """
-    Projedeki TÜM camların (System + Extra) glass_color_id_1 / _2 alanlarını günceller.
+    Projedeki TÜM camların (System + Extra) renklerini günceller.
+    Yalnızca 'update_1' / 'update_2' True olan kolonlara dokunur.
+    - glass_color_id_X None ise: ilgili renk TEMİZLENİR.
+    - glass_color_id_X bir UUID ise: ilgili renk O DEĞERE AYARLANIR.
+    - update_X False ise: O kolona DOKUNULMAZ.
     """
+    # Hangi kolonlar güncellenecek?
+    sys_update_cols = {}
+    extra_update_cols = {}
+    if update_1:
+        sys_update_cols[ProjectSystemGlass.glass_color_id_1] = glass_color_id_1
+        extra_update_cols[ProjectExtraGlass.glass_color_id_1] = glass_color_id_1
+    if update_2:
+        sys_update_cols[ProjectSystemGlass.glass_color_id_2] = glass_color_id_2
+        extra_update_cols[ProjectExtraGlass.glass_color_id_2] = glass_color_id_2
+
+    if not sys_update_cols:  # hiçbir şeye dokunma
+        return {"system_updated": 0, "extra_updated": 0, "total": 0}
+
+    # System içindeki camlar
     sys_ids_subq = (
         db.query(ProjectSystemGlass.id)
           .join(ProjectSystem, ProjectSystemGlass.project_system_id == ProjectSystem.id)
@@ -1539,25 +1559,14 @@ def bulk_update_all_glass_colors_in_project(
     sys_updated = (
         db.query(ProjectSystemGlass)
           .filter(ProjectSystemGlass.id.in_(db.query(sys_ids_subq.c.id)))
-          .update(
-              {
-                  ProjectSystemGlass.glass_color_id_1: glass_color_id_1,
-                  ProjectSystemGlass.glass_color_id_2: glass_color_id_2,
-              },
-              synchronize_session=False,
-          )
+          .update(sys_update_cols, synchronize_session=False)
     )
 
+    # Extra camlar
     extra_updated = (
         db.query(ProjectExtraGlass)
           .filter(ProjectExtraGlass.project_id == project_id)
-          .update(
-              {
-                  ProjectExtraGlass.glass_color_id_1: glass_color_id_1,
-                  ProjectExtraGlass.glass_color_id_2: glass_color_id_2,
-              },
-              synchronize_session=False,
-          )
+          .update(extra_update_cols, synchronize_session=False)
     )
 
     db.commit()
@@ -1566,6 +1575,7 @@ def bulk_update_all_glass_colors_in_project(
         "extra_updated": int(extra_updated or 0),
         "total": int((sys_updated or 0) + (extra_updated or 0)),
     }
+
 
 
 
