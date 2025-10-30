@@ -48,6 +48,11 @@ class ProjectCodeRuleUpdate(BaseModel):
         ge=0,
         description="Yeni başlangıç sayısı (opsiyonel; alt sınır)."
     )
+    # ✅ YENİ: Sayaç sıfırlama bayrağı (ledger temizlenmez)
+    reset_sequence: Optional[bool] = Field(
+        False,
+        description="True ise current_number = (start_number ya da mevcut kuralın start_number'ı) - 1 yapılır."
+    )
 
 class ProjectCodeRuleOut(ProjectCodeRuleBase):
     id: UUID = Field(...)

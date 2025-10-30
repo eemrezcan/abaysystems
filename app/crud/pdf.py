@@ -7,18 +7,20 @@ from sqlalchemy import or_
 from app.models.pdf import PdfTitleTemplate, PdfBrand
 
 # ------------------ DEFAULT TITLES ------------------
+# ------------------ DEFAULT TITLES ------------------
 DEFAULT_TITLES: List[dict] = [
     {
-        "key": "pdf.optimize.detayli",
+        "key": "pdf.optimize.detayli0",
         "config_json": {
             "theme": "default",
             "title": "Optimizasyon (Detaylı)",
             "infoRows": [
-                {"label": "Proje Adı",   "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "projectName"},
-                {"label": "Müşteri",     "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "requirements.customer.name"},
-                {"label": "Tarih",       "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueExpr": "date(proje.created_at)"},
-                {"label": "Renk",        "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "requirements.profile_color.name"},
-                {"label": "Proforma No", "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "proje.project_kodu"},
+                {"label": "Proje Adı",   "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueField": "projectName"},
+                {"label": "Müşteri",     "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueField": "requirements.customer.name"},
+                {"label": "Tarih",       "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueExpr":  "date(proje.created_at)"},
+                {"label": "İlgili",      "hAlign": "left", "vAlign": "middle", "enabled": False, "labelMode": "inline", "valueField": "requirements.contact_person"},
+                {"label": "Renk",        "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueField": "requirements.profile_color.name"},
+                {"label": "Proforma No", "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueField": "proje.project_kodu"},
             ],
             "schemaVersion": 1,
             "headerBrandKey": "brand.default",
@@ -26,16 +28,17 @@ DEFAULT_TITLES: List[dict] = [
         },
     },
     {
-        "key": "pdf.optimize.detaysiz",
+        "key": "pdf.optimize.detaysiz0",
         "config_json": {
             "theme": "default",
             "title": "Optimizasyon (Detaysız)",
             "infoRows": [
-                {"label": "Proje Adı",   "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "projectName"},
-                {"label": "Müşteri",     "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "requirements.customer.name"},
-                {"label": "Tarih",       "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueExpr": "date(proje.created_at)"},
-                {"label": "Renk",        "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "requirements.profile_color.name"},
-                {"label": "Proforma No", "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "proje.project_kodu"},
+                {"label": "Proje Adı",   "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueField": "projectName"},
+                {"label": "Müşteri",     "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueField": "requirements.customer.name"},
+                {"label": "Tarih",       "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueExpr":  "date(proje.created_at)"},
+                {"label": "İlgili",      "hAlign": "left", "vAlign": "middle", "enabled": False, "labelMode": "inline", "valueField": "requirements.contact_person"},
+                {"label": "Renk",        "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueField": "requirements.profile_color.name"},
+                {"label": "Proforma No", "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueField": "proje.project_kodu"},
             ],
             "schemaVersion": 1,
             "headerBrandKey": "brand.default",
@@ -43,16 +46,17 @@ DEFAULT_TITLES: List[dict] = [
         },
     },
     {
-        "key": "pdf.profileAccessory",
+        "key": "pdf.profileAccessory0",
         "config_json": {
             "theme": "default",
             "title": "Profil Aksesuar Listesi",
             "infoRows": [
-                {"label": "Proje Adı",   "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "projectName"},
-                {"label": "Müşteri",     "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "requirements.customer.name"},
-                {"label": "Tarih",       "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueExpr": "date(proje.created_at)"},
-                {"label": "Renk",        "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "requirements.profile_color.name"},
-                {"label": "Proforma No", "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "proje.project_kodu"},
+                {"label": "Proje Adı",   "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueField": "projectName"},
+                {"label": "Müşteri",     "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueField": "requirements.customer.name"},
+                {"label": "Tarih",       "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueExpr":  "date(proje.created_at)"},
+                {"label": "İlgili",      "hAlign": "left", "vAlign": "middle", "enabled": False, "labelMode": "inline", "valueField": "requirements.contact_person"},
+                {"label": "Renk",        "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueField": "requirements.profile_color.name"},
+                {"label": "Proforma No", "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueField": "proje.project_kodu"},
             ],
             "schemaVersion": 1,
             "headerBrandKey": "brand.default",
@@ -60,16 +64,17 @@ DEFAULT_TITLES: List[dict] = [
         },
     },
     {
-        "key": "pdf.paint",
+        "key": "pdf.paint0",
         "config_json": {
             "theme": "default",
             "title": "Boya Çıktısı",
             "infoRows": [
-                {"label": "Proje Adı",   "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "projectName"},
-                {"label": "Müşteri",     "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "requirements.customer.name"},
-                {"label": "Tarih",       "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueExpr": "date(proje.created_at)"},
-                {"label": "Renk",        "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "requirements.profile_color.name"},
-                {"label": "Proforma No", "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "proje.project_kodu"},
+                {"label": "Proje Adı",   "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueField": "projectName"},
+                {"label": "Müşteri",     "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueField": "requirements.customer.name"},
+                {"label": "Tarih",       "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueExpr":  "date(proje.created_at)"},
+                {"label": "İlgili",      "hAlign": "left", "vAlign": "middle", "enabled": False, "labelMode": "inline", "valueField": "requirements.contact_person"},
+                {"label": "Renk",        "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueField": "requirements.profile_color.name"},
+                {"label": "Proforma No", "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueField": "proje.project_kodu"},
             ],
             "schemaVersion": 1,
             "headerBrandKey": "brand.default",
@@ -77,33 +82,33 @@ DEFAULT_TITLES: List[dict] = [
         },
     },
     {
-        "key": "pdf.order",
-        "config_json": {
-            "theme": "default",
-            "title": "Sipariş Çıktısı",
-            "infoRows": [
-                {"label": "Proje Adı",   "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "projectName"},
-                {"label": "Müşteri",     "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "requirements.customer.name"},
-                {"label": "Tarih",       "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueExpr": "date(proje.created_at)"},
-                {"label": "Renk",        "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "requirements.profile_color.name"},
-                {"label": "Proforma No", "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "proje.project_kodu"},
-            ],
-            "schemaVersion": 1,
-            "headerBrandKey": "brand.default",
-            "infoRowsLayout": {"cellPaddingX": 6, "cellPaddingY": 6, "columnsPerRow": 3},
-        },
-    },
-    {
-        "key": "pdf.glass",
+        "key": "pdf.glass0",
         "config_json": {
             "theme": "default",
             "title": "Cam Çıktısı",
             "infoRows": [
-                {"label": "Proje Adı",   "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "projectName"},
-                {"label": "Müşteri",     "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "requirements.customer.name"},
-                {"label": "Tarih",       "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueExpr": "date(proje.created_at)"},
-                {"label": "Renk",        "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "requirements.profile_color.name"},
-                {"label": "Proforma No", "hAlign": "center", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "proje.project_kodu"},
+                {"label": "Proje Adı",   "hAlign": "left", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "projectName"},
+                {"label": "Müşteri",     "hAlign": "left", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "requirements.customer.name"},
+                {"label": "Tarih",       "hAlign": "left", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueExpr":  "date(proje.created_at)"},
+                {"label": "Proforma No", "hAlign": "left", "vAlign": "middle", "enabled": True, "labelMode": "inline", "valueField": "proje.project_kodu"},
+            ],
+            "schemaVersion": 1,
+            "headerBrandKey": "brand.default",
+            "infoRowsLayout": {"cellPaddingX": 6, "cellPaddingY": 6, "columnsPerRow": 3},
+        },
+    },
+    {
+        "key": "pdf.order0",
+        "config_json": {
+            "theme": "default",
+            "title": "Sipariş Çıktısı",
+            "infoRows": [
+                {"label": "Proje Adı",   "hAlign": "left", "vAlign": "middle", "enabled": False, "labelMode": "inline", "valueField": "projectName"},
+                {"label": "Müşteri",     "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueField": "requirements.customer.name"},
+                {"label": "Tarih",       "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueExpr":  "date(proje.created_at)"},
+                {"label": "İlgili",      "hAlign": "left", "vAlign": "middle", "enabled": False, "labelMode": "inline", "valueField": "requirements.contact_person"},
+                {"label": "Renk",        "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueField": "requirements.profile_color.name"},
+                {"label": "Proforma No", "hAlign": "left", "vAlign": "middle", "enabled": True,  "labelMode": "inline", "valueField": "proje.project_kodu"},
             ],
             "schemaVersion": 1,
             "headerBrandKey": "brand.default",
@@ -147,16 +152,30 @@ def title_update(db: Session, obj: PdfTitleTemplate, *, key: Optional[str]=None,
 def title_delete(db: Session, obj: PdfTitleTemplate) -> None:
     db.delete(obj); db.commit()
 
-def titles_ensure_defaults(db: Session, owner_id: UUID) -> None:
+def titles_ensure_defaults_verbose(db: Session, owner_id: UUID) -> list[str]:
     """
-    Kullanıcıda default 6 title yoksa eksik olanları ekler.
-    Var olanları (aynı key) dokunmadan geçer.
+    Eksik default title'ları ekler ve eklenen key'leri döner.
+    Eklenecek bir şey yoksa boş liste döner.
     """
     existing = {t.key for t in titles_list(db, owner_id)}
+    created_keys: list[str] = []
     for tpl in DEFAULT_TITLES:
         if tpl["key"] not in existing:
             db.add(PdfTitleTemplate(owner_id=owner_id, key=tpl["key"], config_json=tpl["config_json"]))
-    db.commit()
+            created_keys.append(tpl["key"])
+    if created_keys:
+        db.commit()
+    return created_keys
+
+
+def titles_ensure_defaults(db: Session, owner_id: UUID) -> None:
+    """
+    Geriye uyumlu kısa sürüm: sadece verbose fonksiyonunu çağırır.
+    Dönen listeyi kullanmaz; behavior aynı kalır.
+    """
+    _ = titles_ensure_defaults_verbose(db, owner_id)
+    return None
+
 
 # ---------- Brands (tekil) ----------
 

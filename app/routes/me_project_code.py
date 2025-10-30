@@ -14,15 +14,17 @@ from app.crud import project_code as crud_pc
 
 router = APIRouter(prefix="/api/me/project-code", tags=["me-project-code"])
 
+# app/routes/me_project_code.py — get_my_rule (TAMAMINI BU HALİYLE DEĞİŞTİR)
+
 @router.get("/rule", response_model=ProjectCodeRuleOut)
 def get_my_rule(
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    rule = crud_pc.get_rule_by_owner(db, current_user.id)
-    if not rule:
-        raise HTTPException(status_code=404, detail="Kural bulunamadı.")
+    # Varsayılan "PROFORMA-1" kuralını otomatik sağla
+    rule = crud_pc.get_or_create_default_rule(db, current_user.id)
     return rule
+
 
 @router.post("/rule", response_model=ProjectCodeRuleOut, status_code=201)
 def create_my_rule(
@@ -55,18 +57,18 @@ def update_my_rule(
     if not rule:
         raise HTTPException(status_code=404, detail="Kural bulunamadı.")
 
-    # start_number dahil tüm alanlar opsiyonel; alt sınır mantığı geçerli
     try:
         return crud_pc.update_rule(
             db, rule,
             prefix=payload.prefix,
             separator=payload.separator,
-            start_number=payload.start_number,  # ⬅️ padding yok
+            start_number=payload.start_number,
+            reset_sequence=(payload.reset_sequence or False),   # ✅ eklendi
         )
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Kural güncellenirken bir hata oluştu.")
-
+    
 @router.get("/next", response_model=NextProjectCodeOut)
 def preview_next_code(
     db: Session = Depends(get_db),

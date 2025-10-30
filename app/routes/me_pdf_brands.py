@@ -4,6 +4,7 @@ from uuid import UUID
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
+import time
 
 from app.db.session import get_db
 from app.core.security import get_current_user
@@ -39,8 +40,17 @@ def _save_upload(upload: UploadFile, dest: Path):
             f.write(chunk)
 
 def _static_url(path: Path) -> str:
+    # Query param eklemeden baz yol
     rel = path.relative_to(MEDIA_ROOT).as_posix()
     return f"/static/{rel}"
+
+def _static_url_with_version(path: Path) -> str:
+    base = _static_url(path)
+    try:
+        ver = int(path.stat().st_mtime)
+    except Exception:
+        ver = int(time.time())
+    return f"{base}?v={ver}"
 
 def _remove_file_safely(path: Path):
     try:
@@ -58,6 +68,13 @@ def _content_type_from_path(path: Path) -> str:
     if ext == ".webp":
         return "image/webp"
     return "application/octet-stream"
+
+def _strip_static_and_query(url: str) -> str:
+    """
+    '/static/brands/..../logo.png?v=1234'  -> 'brands/..../logo.png'
+    """
+    no_query = url.split("?", 1)[0]
+    return no_query.replace("/static/", "")
 
 
 # --------- Tekil Brand (me) ---------
@@ -102,7 +119,7 @@ def create_my_brand_logo(file: UploadFile = File(...), db: Session = Depends(get
     ext = _pick_ext(file)
     dest = _brand_dir(obj.id) / f"logo{ext}"
     _save_upload(file, dest)
-    url = _static_url(dest)
+    url = _static_url_with_version(dest)
     obj = crud.brand_set_logo(db, obj, url)
     return {"brand_id": obj.id, "logo_url": obj.logo_url}
 
@@ -112,17 +129,18 @@ def update_my_brand_logo(file: UploadFile = File(...), db: Session = Depends(get
 
     old_path: Optional[Path] = None
     if obj.logo_url:
-        rel = obj.logo_url.replace("/static/", "")
+        rel = _strip_static_and_query(obj.logo_url)
         old_path = Path(MEDIA_ROOT) / Path(rel)
 
     ext = _pick_ext(file)
     dest = _brand_dir(obj.id) / f"logo{ext}"
     _save_upload(file, dest)
 
+    # Farklı uzantıya geçtiyse eski dosyayı sil
     if old_path and old_path.resolve() != dest.resolve():
         _remove_file_safely(old_path)
 
-    url = _static_url(dest)
+    url = _static_url_with_version(dest)
     obj = crud.brand_set_logo(db, obj, url)
     return {"brand_id": obj.id, "logo_url": obj.logo_url}
 
@@ -132,7 +150,7 @@ def delete_my_brand_logo(db: Session = Depends(get_db), current_user: AppUser = 
     if not obj:
         return
     if obj.logo_url:
-        rel = obj.logo_url.replace("/static/", "")
+        rel = _strip_static_and_query(obj.logo_url)
         fpath = Path(MEDIA_ROOT) / Path(rel)
         _remove_file_safely(fpath)
     crud.brand_clear_logo(db, obj)
@@ -149,7 +167,7 @@ def get_my_brand_logo_file(db: Session = Depends(get_db), current_user: AppUser 
     if not obj.logo_url:
         raise HTTPException(status_code=404, detail="Bu brand için logo yok")
 
-    rel = obj.logo_url.replace("/static/", "")
+    rel = _strip_static_and_query(obj.logo_url)
     fpath = Path(MEDIA_ROOT) / Path(rel)
 
     if not fpath.exists():
@@ -165,4 +183,5 @@ def get_my_brand_logo_file(db: Session = Depends(get_db), current_user: AppUser 
     return FileResponse(
         path=fpath,
         media_type=_content_type_from_path(fpath),
+        headers={"Cache-Control": "no-store, max-age=0"}
     )

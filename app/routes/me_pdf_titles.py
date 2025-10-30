@@ -57,3 +57,12 @@ def delete_my_title(id: UUID, db: Session = Depends(get_db), current_user: AppUs
         return
     crud.title_delete(db, obj)   # HARD DELETE
     return
+
+@router.post("/ensure-defaults", response_model=List[str])
+def ensure_defaults_now(db: Session = Depends(get_db), current_user: AppUser = Depends(get_current_user)):
+    """
+    Varsayılan title şablonlarını şimdi yükler.
+    Yanıt: Eklenen key listesi (boş ise zaten yüklü demektir).
+    """
+    created = crud.titles_ensure_defaults_verbose(db, current_user.id)
+    return created
