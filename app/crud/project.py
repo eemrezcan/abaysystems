@@ -1486,13 +1486,20 @@ def bulk_update_system_glass_color_by_type(
     project_id: UUID,
     system_variant_id: UUID,
     glass_type_id: UUID,
+    update_1: bool,
     glass_color_id_1: Optional[UUID],
+    update_2: bool,
     glass_color_id_2: Optional[UUID],
 ) -> int:
     """
     Verilen project_id içinde, system_variant_id + glass_type_id eşleşen TÜM ProjectSystemGlass
     kayıtlarının glass_color_id_1 / glass_color_id_2 değerlerini günceller.
+
+    Yalnızca update_1 / update_2 True olan kolonlara dokunur.
+    - glass_color_id_X None ise: ilgili renk TEMİZLENİR.
+    - glass_color_id_X UUID ise: ilgili renge AYARLANIR.
     """
+    # 1) Etkilenecek satırların ID'lerini alt-sorgu ile çek
     id_subq = (
         db.query(ProjectSystemGlass.id)
           .join(ProjectSystem, ProjectSystemGlass.project_system_id == ProjectSystem.id)
@@ -1504,20 +1511,26 @@ def bulk_update_system_glass_color_by_type(
           .subquery()
     )
 
+    # 2) Hangi kolonlara dokunacağımızı belirle
+    update_cols = {}
+    if update_1:
+        update_cols[ProjectSystemGlass.glass_color_id_1] = glass_color_id_1
+    if update_2:
+        update_cols[ProjectSystemGlass.glass_color_id_2] = glass_color_id_2
+
+    if not update_cols:
+        return 0
+
+    # 3) IN (subquery) ile güvenli bulk update
     updated = (
         db.query(ProjectSystemGlass)
           .filter(ProjectSystemGlass.id.in_(db.query(id_subq.c.id)))
-          .update(
-              {
-                  ProjectSystemGlass.glass_color_id_1: glass_color_id_1,
-                  ProjectSystemGlass.glass_color_id_2: glass_color_id_2,
-              },
-              synchronize_session=False,
-          )
+          .update(update_cols, synchronize_session=False)
     )
 
     db.commit()
     return int(updated or 0)
+
 
 
 

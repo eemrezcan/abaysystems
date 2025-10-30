@@ -694,6 +694,7 @@ class ExtraGlassColorBulkUpdate(BaseModel):
 class SystemGlassBulkByTypeIn(BaseModel):
     system_variant_id: UUID
     glass_type_id: UUID
+    # ⬇️ İKİ RENK — alan GÖNDERİLİRSE işlem yap, gönderilmezse DOKUNMA
     glass_color_id_1: Optional[UUID] = None
     glass_color_id_2: Optional[UUID] = None
 

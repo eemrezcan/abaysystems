@@ -955,20 +955,36 @@ def bulk_update_system_glass_colors_by_type_endpoint(
 ):
     """
     Bir projede, verilen system_variant_id + glass_type_id kombinasyonuna uyan TÜM
-    ProjectSystemGlass kayıtlarının çift cam rengi (glass_color_id_1/_2) topluca güncellenir.
+    ProjectSystemGlass kayıtlarının 1. ve/veya 2. cam rengini topluca günceller.
+
+    KURAL:
+    - payload.glass_color_id_1 GÖNDERİLDİ ise (None olabilir): 1. renk set/temizle.
+    - payload.glass_color_id_1 GÖNDERİLMEDİ ise: 1. renge DOKUNMA.
+    - 2. renk için de aynı mantık.
     """
+    # Sahiplik doğrulaması
     proj = get_project(db, project_id)
     ensure_owner_or_404(proj, current_user.id, "created_by")
+
+    data = payload.dict(exclude_unset=True)
+    touch_1 = ("glass_color_id_1" in data)
+    touch_2 = ("glass_color_id_2" in data)
+
+    if not touch_1 and not touch_2:
+        return {"updated": 0}
 
     affected = bulk_update_system_glass_color_by_type(
         db=db,
         project_id=project_id,
         system_variant_id=payload.system_variant_id,
         glass_type_id=payload.glass_type_id,
-        glass_color_id_1=payload.glass_color_id_1,
-        glass_color_id_2=payload.glass_color_id_2,
+        update_1=touch_1,
+        glass_color_id_1=data.get("glass_color_id_1", None),
+        update_2=touch_2,
+        glass_color_id_2=data.get("glass_color_id_2", None),
     )
     return {"updated": affected}
+
 
 
 
