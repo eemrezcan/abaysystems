@@ -10,7 +10,7 @@ class Profile(Base):
     __tablename__ = "profile"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    profil_kodu = Column(String(50), unique=True, nullable=False)
+    profil_kodu = Column(String(50), nullable=False)
     profil_isim = Column(String(100), nullable=False)
     profil_kesit_fotograf = Column(TEXT, nullable=True)
     birim_agirlik = Column(Numeric, nullable=False)
@@ -22,4 +22,3 @@ class Profile(Base):
     # ✅ soft delete / aktiflik
     is_active  = Column(Boolean, nullable=False, server_default=expression.true())
     is_deleted = Column(Boolean, nullable=False, server_default=expression.false())
-
