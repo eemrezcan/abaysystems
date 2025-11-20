@@ -112,12 +112,15 @@ router = APIRouter(prefix="/api/projects", tags=["Projects"])
 
 
 def _attach_customer_name(db: Session, proj: Project) -> None:
-    """Project ORM objesine customer_name alanını enjekte eder."""
+    """Project ORM objesine customer_name ve company_name alanlarını enjekte eder."""
     cust_name = None
+    company_name = None
     if getattr(proj, "customer_id", None):
         cust = db.query(Customer).filter(Customer.id == proj.customer_id).first()
         cust_name = getattr(cust, "name", None)
+        company_name = getattr(cust, "company_name", None)
     setattr(proj, "customer_name", cust_name or "")
+    setattr(proj, "company_name", company_name or "")
 
 # ───────── Project CRUD ─────────
 

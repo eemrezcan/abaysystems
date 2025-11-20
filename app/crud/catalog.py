@@ -1,3 +1,4 @@
+import os
 from sqlalchemy.orm import Session
 from typing import List, Optional, Tuple
 from sqlalchemy import or_
@@ -8,6 +9,7 @@ from app.models.glass_type import GlassType
 from app.models.other_material import OtherMaterial
 from app.schemas.catalog import (
     ProfileCreate,
+    ProfileUpdate,
     GlassTypeCreate,
     GlassTypeUpdate,
     OtherMaterialCreate,
@@ -50,12 +52,32 @@ def get_profile(db: Session, profile_id: UUID) -> Optional[Profile]:
     )
 
 
-def update_profile(db: Session, profile_id: UUID, payload: ProfileCreate) -> Optional[Profile]:
+def update_profile(db: Session, profile_id: UUID, payload: ProfileUpdate) -> Optional[Profile]:
     obj = get_profile(db, profile_id)
     if not obj:
         return None
-    for field, value in payload.dict().items():
+    old_code = obj.profil_kodu
+    old_photo_path = obj.profil_kesit_fotograf
+    data = payload.dict(exclude_unset=True)
+    for field, value in data.items():
         setattr(obj, field, value)
+
+    # Profil kodu değişmişse varsa mevcut fotoğrafı yeni ada taşı
+    new_code = getattr(obj, "profil_kodu", old_code)
+    if (
+        old_photo_path
+        and new_code
+        and old_code != new_code
+    ):
+        directory = os.path.dirname(old_photo_path) or "."
+        _, ext = os.path.splitext(old_photo_path)
+        new_photo_path = os.path.join(directory, f"{new_code}{ext}")
+        try:
+            if os.path.exists(old_photo_path):
+                os.rename(old_photo_path, new_photo_path)
+                obj.profil_kesit_fotograf = new_photo_path
+        except OSError:
+            pass
     db.commit()
     db.refresh(obj)
     return obj

@@ -16,6 +16,14 @@ class ProfileBase(BaseModel):
 class ProfileCreate(ProfileBase):
     pass
 
+class ProfileUpdate(BaseModel):
+    profil_kodu: Optional[str] = Field(None, min_length=1)
+    profil_isim: Optional[str] = Field(None, min_length=1)
+    profil_kesit_fotograf: Optional[str] = None
+    birim_agirlik: Optional[float] = None
+    boy_uzunluk: Optional[float] = None
+    unit_price: Optional[float] = None
+
 class ProfileOut(ProfileBase):
     id: UUID
     created_at: Optional[datetime]

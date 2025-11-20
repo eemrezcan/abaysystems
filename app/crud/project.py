@@ -158,7 +158,7 @@ def create_project(db: Session, payload: ProjectCreate, created_by: UUID) -> Pro
 
     project = Project(
         id=uuid4(),
-        customer_id=payload.customer_id,
+        customer_id=None,
         project_name=payload.project_name,
         created_by=created_by,
         project_kodu=code,
@@ -248,9 +248,13 @@ def get_projects(
     """
     # 🔹 Project + Customer.name (LEFT JOIN)
     query = (
-        db.query(Project, Customer.name.label("customer_name"))
-          .join(Customer, Customer.id == Project.customer_id, isouter=True)
-          .filter(Project.created_by == owner_id)
+        db.query(
+            Project,
+            Customer.name.label("customer_name"),
+            Customer.company_name.label("company_name"),
+        )
+        .join(Customer, Customer.id == Project.customer_id, isouter=True)
+        .filter(Project.created_by == owner_id)
     )
 
     # Arama
@@ -295,8 +299,9 @@ def get_projects(
 
     # 🔹 Pydantic'in görmesi için attribute enjekte et
     projects: list[Project] = []
-    for proj, cust_name in rows:
+    for proj, cust_name, company_name in rows:
         setattr(proj, "customer_name", cust_name or "")
+        setattr(proj, "company_name", company_name or "")
         projects.append(proj)
 
     return projects
@@ -325,9 +330,13 @@ def get_projects_page(
     """
     # 🔹 Items için JOIN'lı sorgu
     items_q = (
-        db.query(Project, Customer.name.label("customer_name"))
-          .join(Customer, Customer.id == Project.customer_id, isouter=True)
-          .filter(Project.created_by == owner_id)
+        db.query(
+            Project,
+            Customer.name.label("customer_name"),
+            Customer.company_name.label("company_name"),
+        )
+        .join(Customer, Customer.id == Project.customer_id, isouter=True)
+        .filter(Project.created_by == owner_id)
     )
 
     # 🔹 Count için JOIN'siz, sade Project sorgusu (çoğalmayı önlemek için)
@@ -390,8 +399,9 @@ def get_projects_page(
 
     # 🔹 customer_name'i attribute olarak enjekte et
     projects: List[Project] = []
-    for proj, cust_name in rows:
+    for proj, cust_name, company_name in rows:
         setattr(proj, "customer_name", cust_name or "")
+        setattr(proj, "company_name", company_name or "")
         projects.append(proj)
 
     return projects, total

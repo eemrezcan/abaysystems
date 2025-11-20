@@ -157,8 +157,9 @@ class ProjectMeta(BaseModel):
     project_name: str
     created_by: UUID
 
-class ProjectCreate(ProjectMeta):
+class ProjectCreate(BaseModel):
     """Payload for creating a new Project (meta only)"""
+    project_name: str
     # 🆕 NEW (opsiyonel, üst bilgi fiyat alanları)
     press_price: Optional[float] = None
     painted_price: Optional[float] = None
@@ -210,6 +211,7 @@ class ProjectOut(ProjectMeta):
     press_price: Optional[float] = None
     painted_price: Optional[float] = None
     customer_name: Optional[str] = None  # ✅ customer_id olmayabilir
+    company_name: Optional[str] = None   # ✅ müşteri firma ismi de opsiyonel
     is_teklif: bool
     paint_status: str
     glass_status: str
@@ -720,5 +722,3 @@ try:
     ProjectExtraGlassOut.update_forward_refs(ColorOut=ColorOut)
 except NameError:
     pass
-
-

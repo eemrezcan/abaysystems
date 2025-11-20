@@ -24,7 +24,7 @@ from app.models.other_material import OtherMaterial
 
 from app.crud import catalog as crud
 from app.schemas.catalog import (                  # 🟢
-    ProfileCreate, ProfileOut, ProfilePageOut,
+    ProfileCreate, ProfileUpdate, ProfileOut, ProfilePageOut,
     GlassTypeCreate, GlassTypeUpdate, GlassTypeOut, GlassTypePageOut,
     OtherMaterialCreate, OtherMaterialOut, OtherMaterialPageOut,
     RemoteCreate, RemoteOut, RemotePageOut
@@ -102,7 +102,7 @@ def get_profile(
     return obj
 
 @router.put("/profiles/{profile_id}", response_model=ProfileOut, dependencies=[Depends(get_current_admin)])
-def update_profile(profile_id: UUID, payload: ProfileCreate, db: Session = Depends(get_db)):
+def update_profile(profile_id: UUID, payload: ProfileUpdate, db: Session = Depends(get_db)):
     obj = crud.update_profile(db, profile_id, payload)
     if not obj:
         raise HTTPException(status_code=404, detail="Profile not found")
