@@ -20,7 +20,7 @@ class Project(Base):
     )
 
     id             = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    project_kodu   = Column(String(50), unique=True, nullable=False)
+    project_kodu   = Column(String(50), nullable=False)
     # YENİ
     customer_id    = Column(
         PGUUID(as_uuid=True),
@@ -319,4 +319,3 @@ class ProjectExtraRemote(Base):
 
     project = relationship("Project", back_populates="extra_remotes")
     remote  = relationship("Remote")
-
