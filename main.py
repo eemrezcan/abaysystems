@@ -40,12 +40,13 @@ app.mount("/static", StaticFiles(directory=MEDIA_ROOT), name="static")
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "https://www.tumenaluminyum.com",
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,      # Geliştirme için sadece bu kökenlere izin
-    allow_origin_regex=r"^https://(www\.)?denemesoftwareapp\.xyz$",
+    allow_origin_regex=r"^https://(bayi\.)?tumenaluminyum\.com$",
     allow_credentials=True,
     allow_methods=["*"],        # Tüm HTTP metodları
     allow_headers=["*"],
