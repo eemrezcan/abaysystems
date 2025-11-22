@@ -361,7 +361,7 @@ def delete_variant_photo(
     return {"message": "Fotoğraf silindi"}
 
 
-@router.post("/{variant_id}/pdf-photo", summary="Variant PDF foto çıktısı yükle/güncelle", dependencies=[Depends(get_current_admin)])
+@router.put("/{variant_id}/pdf-photo", summary="Variant PDF foto çıktısı yükle/güncelle", dependencies=[Depends(get_current_admin)])
 def upload_or_replace_variant_pdf_photo(
     variant_id: UUID,
     file: UploadFile = File(...),
