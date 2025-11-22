@@ -54,6 +54,15 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 VARIANT_PHOTO_DIR = os.path.join(BASE_DIR, "variant_photos")
 
 
+def _media_type_for_image(path: Path) -> str:
+    ext = path.suffix.lower()
+    if ext in (".png",):
+        return "image/png"
+    if ext in (".webp",):
+        return "image/webp"
+    return "image/jpeg"
+
+
 # -----------------------------------------------------------------------------
 # GET uçları: bayi + admin (bayi → sadece published & not-deleted)
 # -----------------------------------------------------------------------------
@@ -205,6 +214,35 @@ def get_variant_photo_file(
     return FileResponse(path=str(photo_path), media_type="image/jpeg")
 
 
+@router.get("/{variant_id}/pdf-photo", summary="Variant'a ait PDF foto çıktısını döner")
+def get_variant_pdf_photo_file(
+    variant_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    obj = get_system_variant(db, variant_id)
+    if not obj or not obj.pdf_foto_cikti:
+        raise HTTPException(404, "Variant için PDF foto bilgisi bulunamadı")
+
+    if current_user.role != "admin":
+        if obj.is_deleted or not obj.is_published:
+            raise HTTPException(404, "Variant için PDF foto bilgisi bulunamadı")
+        sys = getattr(obj, "system", None)
+        if not sys or sys.is_deleted or not sys.is_published:
+            raise HTTPException(404, "Variant için PDF foto bilgisi bulunamadı")
+
+    BASE_DIR_LOCAL = Path(__file__).resolve().parent.parent.parent
+    VARIANT_PHOTO_DIR_LOCAL = BASE_DIR_LOCAL / "variant_photos"
+
+    filename = Path(obj.pdf_foto_cikti).name
+    photo_path = VARIANT_PHOTO_DIR_LOCAL / filename
+
+    if not photo_path.exists():
+        raise HTTPException(404, f"PDF fotoğraf dosyası bulunamadı: {photo_path}")
+
+    return FileResponse(path=str(photo_path), media_type=_media_type_for_image(photo_path))
+
+
 # -----------------------------------------------------------------------------
 # Mutasyon uçları: ADMIN-ONLY
 # -----------------------------------------------------------------------------
@@ -321,6 +359,57 @@ def delete_variant_photo(
     update_system_variant(db, variant_id, SystemVariantUpdate(photo_url=None))
 
     return {"message": "Fotoğraf silindi"}
+
+
+@router.post("/{variant_id}/pdf-photo", summary="Variant PDF foto çıktısı yükle/güncelle", dependencies=[Depends(get_current_admin)])
+def upload_or_replace_variant_pdf_photo(
+    variant_id: UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    obj = get_system_variant(db, variant_id)
+    if not obj:
+        raise HTTPException(404, "Variant not found")
+
+    if obj.pdf_foto_cikti:
+        old_path = os.path.join(BASE_DIR, obj.pdf_foto_cikti)
+        if os.path.exists(old_path):
+            os.remove(old_path)
+
+    if not os.path.exists(VARIANT_PHOTO_DIR):
+        os.makedirs(VARIANT_PHOTO_DIR, exist_ok=True)
+
+    ext = os.path.splitext(file.filename)[-1]
+    filename = f"{variant_id}_pdf{ext}"
+    full_path = os.path.join(VARIANT_PHOTO_DIR, filename)
+
+    with open(full_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    pdf_photo_url = f"variant_photos/{filename}"
+    update_system_variant(db, variant_id, SystemVariantUpdate(pdf_foto_cikti=pdf_photo_url))
+
+    return {
+        "message": "PDF fotoğraf yüklendi/güncellendi",
+        "pdf_foto_cikti": pdf_photo_url
+    }
+
+
+@router.delete("/{variant_id}/pdf-photo", summary="Variant PDF foto çıktısını sil", dependencies=[Depends(get_current_admin)])
+def delete_variant_pdf_photo(
+    variant_id: UUID,
+    db: Session = Depends(get_db),
+):
+    obj = get_system_variant(db, variant_id)
+    if not obj or not obj.pdf_foto_cikti:
+        raise HTTPException(404, "PDF fotoğraf bulunamadı")
+
+    photo_path = os.path.join(BASE_DIR, obj.pdf_foto_cikti)
+    if os.path.exists(photo_path):
+        os.remove(photo_path)
+
+    update_system_variant(db, variant_id, SystemVariantUpdate(pdf_foto_cikti=None))
+    return {"message": "PDF fotoğraf silindi"}
 
 
 @router.post("/", response_model=SystemVariantDetailOut, status_code=201, dependencies=[Depends(get_current_admin)])

@@ -63,6 +63,7 @@ class SystemVariantBase(BaseModel):
     system_id: UUID
     name: str = Field(..., min_length=1)
     photo_url: Optional[str] = None
+    pdf_foto_cikti: Optional[str] = None
 
     class Config:
         orm_mode = True
@@ -77,6 +78,7 @@ class SystemVariantUpdate(BaseModel):
     """Fields for updating a System Variant"""
     name: Optional[str] = None
     photo_url: Optional[str] = None
+    pdf_foto_cikti: Optional[str] = None
     # ✅ publish/unpublish için
     is_published: Optional[bool] = None
     # ✅ aktif/pasif etiketi
@@ -90,6 +92,7 @@ class SystemVariantUpdate(BaseModel):
 class SystemVariantOut(SystemVariantBase):
     id: UUID
     photo_url: Optional[str] = None
+    pdf_foto_cikti: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     # ✅ publish durumu
@@ -134,6 +137,7 @@ class GlassConfig(BaseModel):
 class VariantConfig(BaseModel):
     name: str = Field(..., min_length=1)
     photo_url: Optional[str] = None
+    pdf_foto_cikti: Optional[str] = None
     is_active: Optional[bool] = True  # ✅ is_active (opsiyonel)
     # ✅ Yeni: başlangıç sırası (opsiyonel)
     sort_index: Optional[int] = 0
@@ -401,6 +405,7 @@ class SystemVariantDetailOut(BaseModel):
     id: UUID
     name: str
     photo_url: Optional[str] = None
+    pdf_foto_cikti: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     is_active: bool  # ✅ is_active (detay)
@@ -460,6 +465,7 @@ class RemoteTemplateIn(BaseModel):
 class SystemVariantCreateWithTemplates(BaseModel):
     system_id: UUID = Field(..., alias="systemId")
     name: str = Field(..., min_length=1)
+    pdf_foto_cikti: Optional[str] = None
     is_active: Optional[bool] = True  # ✅ is_active (opsiyonel)
     # ✅ Yeni: varyant başlangıç sırası (opsiyonel)
     sort_index: Optional[int] = 0
@@ -476,6 +482,7 @@ class SystemVariantCreateWithTemplates(BaseModel):
 # New: Update a SystemVariant + templates
 class SystemVariantUpdateWithTemplates(BaseModel):
     name: Optional[str] = None
+    pdf_foto_cikti: Optional[str] = None
     is_active: Optional[bool] = None  # ✅ is_active
     # ✅ Yeni: varyant sırası (opsiyonel)
     sort_index: Optional[int] = None

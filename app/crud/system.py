@@ -500,6 +500,7 @@ def create_system_variant_with_templates(db: Session, payload: SystemVariantCrea
         id=uuid4(),
         system_id=payload.system_id,
         name=payload.name,
+        pdf_foto_cikti=payload.pdf_foto_cikti,
         is_active=(payload.is_active if payload.is_active is not None else True),  # ✅
         sort_index=(payload.sort_index if payload.sort_index is not None else 0),  # ✅
     )
@@ -575,6 +576,8 @@ def update_system_variant_with_templates(db: Session, variant_id: UUID, payload:
 
     if payload.name is not None:
         variant.name = payload.name
+    if payload.pdf_foto_cikti is not None:
+        variant.pdf_foto_cikti = payload.pdf_foto_cikti
     if payload.is_active is not None:   # ✅ is_active güncelle
         variant.is_active = bool(payload.is_active)
     if payload.sort_index is not None:  # ✅ sıralama güncelle

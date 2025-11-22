@@ -59,6 +59,7 @@ class SystemVariant(Base):
     )
     name          = Column(String(100), nullable=False)
     photo_url     = Column(String(300), nullable=True)
+    pdf_foto_cikti = Column(String(300), nullable=True)
     created_at    = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at    = Column(
         TIMESTAMP(timezone=True),
