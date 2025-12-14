@@ -56,26 +56,14 @@ class DealerPageOut(BaseModel):
     has_next: bool
     has_prev: bool
 
-# ---- Admin: bayi davet / kullanıcı adı-şifre atama ----
+# ---- Admin: bayi kullanıcı adı-şifre atama ----
 class DealerAdminSetupIn(BaseModel):
-    mode: Literal["invite", "credentials"]
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=8)
     send_email: bool = False
-    username: Optional[str] = Field(None, min_length=3, max_length=50)
-    password: Optional[str] = Field(None, min_length=8)
-
-    @root_validator(pre=True)
-    def _validate_mode_fields(cls, values):
-        mode = values.get("mode")
-        if mode == "credentials":
-            if not values.get("username") or not values.get("password"):
-                raise ValueError("credentials modunda username ve password zorunludur.")
-        return values
 
 class DealerAdminSetupOut(BaseModel):
     dealer_id: UUID
-    mode: Literal["invite", "credentials"]
-    invite_link: Optional[str] = None
-    expires_at: Optional[datetime] = None
     email_sent: bool
     username: Optional[str] = None
     password: Optional[str] = None
@@ -106,3 +94,10 @@ class DealerReactivateIn(BaseModel):
         if not values.get("id") and not values.get("email"):
             raise ValueError("id veya email alanlarından en az biri zorunludur.")
         return values
+
+
+class ChangeUsernameIn(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+
+class ChangeUsernameOut(BaseModel):
+    username: str

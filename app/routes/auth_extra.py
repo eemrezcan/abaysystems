@@ -10,7 +10,14 @@ from app.core.security import get_password_hash, verify_password
 from app.core.mailer import send_email, brand_subject
 from app.core.settings import settings
 from app.api.deps import get_current_dealer  # ya da get_current_user
-from app.schemas.user import AcceptInviteIn, ForgotPasswordIn, ResetPasswordIn, ChangePasswordIn
+from app.schemas.user import (
+    AcceptInviteIn,
+    ForgotPasswordIn,
+    ResetPasswordIn,
+    ChangePasswordIn,
+    ChangeUsernameIn,
+    ChangeUsernameOut,
+)
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
@@ -84,3 +91,17 @@ def change_password(payload: ChangePasswordIn, current=Depends(get_current_deale
     current.password_set_at = datetime.now(timezone.utc)
     db.commit()
     return {"message": "Şifre güncellendi"}
+
+@router.post("/change-username", response_model=ChangeUsernameOut, status_code=200)
+def change_username(payload: ChangeUsernameIn, current=Depends(get_current_dealer), db: Session = Depends(get_db)):
+    if current.username == payload.username:
+        return ChangeUsernameOut(username=current.username)
+
+    existing = get_user_by_username(db, payload.username)
+    if existing and existing.id != current.id:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Bu kullanıcı adı kullanımda")
+
+    current.username = payload.username
+    db.commit()
+    db.refresh(current)
+    return ChangeUsernameOut(username=current.username)
