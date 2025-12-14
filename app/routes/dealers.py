@@ -10,11 +10,20 @@ from app.db.session import get_db
 from app.api.deps import get_current_admin
 from app.models.app_user import AppUser
 from app.models.user_token import UserToken
-from app.schemas.user import DealerInviteCreate, DealerUpdate, DealerOut, DealerReactivateIn, DealerPageOut
+from app.schemas.user import (
+    DealerInviteCreate,
+    DealerUpdate,
+    DealerOut,
+    DealerReactivateIn,
+    DealerPageOut,
+    DealerAdminSetupIn,
+    DealerAdminSetupOut,
+)
 from app.crud.user import get_user_by_email, get_user_by_username, get_dealers_page
 from app.core.settings import settings
 from app.core.mailer import send_email, brand_subject
 from app.services.tokens import create_user_token
+from app.core.security import get_password_hash
 
 from math import ceil
 
@@ -329,7 +338,7 @@ def get_dealer_invite_token(dealer_id: UUID, db: Session = Depends(get_db)):
 @router.post("/{dealer_id}/invite-link", status_code=200, dependencies=[Depends(get_current_admin)])
 def issue_invite_link(
     dealer_id: UUID,
-    send_email: bool = Query(False, description="True ise link mail olarak da gönderilir"),
+    send_email_flag: bool = Query(False, description="True ise link mail olarak da gönderilir"),
     db: Session = Depends(get_db),
 ):
     """
@@ -364,7 +373,7 @@ def issue_invite_link(
 
     invite_link = f"{settings.FRONTEND_URL}/set-password?token={plain}"
 
-    if send_email:
+    if send_email_flag:
         html = f"""
             <h3>{settings.BRAND_NAME} - Bayi Daveti</h3>
             <p>Merhaba {user.name},</p>
@@ -381,5 +390,114 @@ def issue_invite_link(
         "dealer_id": str(user.id),
         "invite_link": invite_link,
         "expires_at": ut.expires_at,
-        "email_sent": send_email
+        "email_sent": send_email_flag
     }
+
+@router.post("/{dealer_id}/admin-setup", response_model=DealerAdminSetupOut, status_code=200, dependencies=[Depends(get_current_admin)])
+def admin_setup_dealer(
+    dealer_id: UUID,
+    payload: DealerAdminSetupIn,
+    db: Session = Depends(get_db),
+):
+    """
+    Admin için iki seçenek:
+    - mode=invite: yeni davet linki üret (opsiyonel mail)
+    - mode=credentials: kullanıcı adı/şifreyi doğrudan ayarla (opsiyonel mail)
+    """
+    user = db.query(AppUser).filter(
+        AppUser.id == dealer_id,
+        AppUser.role == "dealer",
+        AppUser.is_deleted == False
+    ).first()
+    if not user:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Bayi bulunamadı")
+
+    if payload.mode == "invite":
+        db.query(UserToken).filter(
+            UserToken.user_id == user.id,
+            UserToken.type == "invite",
+            UserToken.used_at.is_(None)
+        ).delete(synchronize_session=False)
+        db.commit()
+
+        ut, plain = create_user_token(
+            db,
+            user_id=user.id,
+            token_type="invite",
+            ttl_minutes=60 * 48
+        )
+        invite_link = f"{settings.FRONTEND_URL}/set-password?token={plain}"
+
+        email_sent = False
+        if payload.send_email:
+            html = f"""
+                <h3>{settings.BRAND_NAME} - Bayi Daveti</h3>
+                <p>Merhaba {user.name},</p>
+                <p>Hesabınızı etkinleştirmek için aşağıdaki bağlantıya tıklayın ve kullanıcı adı/şifrenizi belirleyin:</p>
+                <p><a href="{invite_link}">{invite_link}</a></p>
+                <p>Bağlantı 48 saat geçerlidir.</p>
+            """
+            try:
+                send_email(user.email, brand_subject("Bayi Daveti"), html)
+                email_sent = True
+            except Exception as e:
+                raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Davet maili gönderilemedi: {e}")
+
+        return DealerAdminSetupOut(
+            dealer_id=user.id,
+            mode="invite",
+            invite_link=invite_link,
+            expires_at=ut.expires_at,
+            email_sent=email_sent,
+            username=user.username,
+            password=None,
+        )
+
+    if payload.mode == "credentials":
+        if payload.username:
+            existing = get_user_by_username(db, payload.username)
+            if existing and existing.id != user.id:
+                raise HTTPException(status.HTTP_409_CONFLICT, detail="Bu kullanıcı adı kullanımda")
+
+        db.query(UserToken).filter(
+            UserToken.user_id == user.id,
+            UserToken.type.in_(["invite", "reset"]),
+            UserToken.used_at.is_(None)
+        ).delete(synchronize_session=False)
+
+        user.username = payload.username
+        user.password_hash = get_password_hash(payload.password)
+        user.password_set_at = datetime.now(timezone.utc)
+        user.status = "active"
+
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        email_sent = False
+        if payload.send_email:
+            html = f"""
+                <h3>{settings.BRAND_NAME} - Bayi Giriş Bilgileri</h3>
+                <p>Merhaba {user.name},</p>
+                <p>Hesabınız aktifleştirildi. Giriş bilgileri:</p>
+                <p>Kullanıcı adı: <b>{payload.username}</b><br/>Şifre: <b>{payload.password}</b></p>
+            """
+            try:
+                send_email(user.email, brand_subject("Bayi Giriş Bilgileri"), html)
+                email_sent = True
+            except Exception as e:
+                raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Giriş bilgileri maili gönderilemedi: {e}")
+
+        password_out = None if payload.send_email else payload.password
+
+        return DealerAdminSetupOut(
+            dealer_id=user.id,
+            mode="credentials",
+            invite_link=None,
+            expires_at=None,
+            email_sent=email_sent,
+            username=user.username,
+            password=password_out,
+        )
+
+    raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Geçersiz mod")

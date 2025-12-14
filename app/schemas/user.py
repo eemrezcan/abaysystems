@@ -55,6 +55,30 @@ class DealerPageOut(BaseModel):
     total_pages: int
     has_next: bool
     has_prev: bool
+
+# ---- Admin: bayi davet / kullanıcı adı-şifre atama ----
+class DealerAdminSetupIn(BaseModel):
+    mode: Literal["invite", "credentials"]
+    send_email: bool = False
+    username: Optional[str] = Field(None, min_length=3, max_length=50)
+    password: Optional[str] = Field(None, min_length=8)
+
+    @root_validator(pre=True)
+    def _validate_mode_fields(cls, values):
+        mode = values.get("mode")
+        if mode == "credentials":
+            if not values.get("username") or not values.get("password"):
+                raise ValueError("credentials modunda username ve password zorunludur.")
+        return values
+
+class DealerAdminSetupOut(BaseModel):
+    dealer_id: UUID
+    mode: Literal["invite", "credentials"]
+    invite_link: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    email_sent: bool
+    username: Optional[str] = None
+    password: Optional[str] = None
 # ---- Auth akış şemaları ----
 class AcceptInviteIn(BaseModel):
     token: str = Field(..., min_length=32)                 # maildeki token
