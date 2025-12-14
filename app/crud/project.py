@@ -11,7 +11,7 @@ from app.models.profile import Profile
 from app.models.glass_type import GlassType
 from app.models.other_material import OtherMaterial
 from app.models.remote import Remote  # 🆕
-from app.crud.project_code import issue_next_code_in_tx
+from app.crud.project_code import issue_next_code_in_tx, get_or_create_default_rule
 from app.crud.project_code import assign_code_to_project_in_tx
 from sqlalchemy.exc import IntegrityError
 from app.models.project_code_rule import ProjectCodeRule
@@ -149,10 +149,12 @@ def _get_owner_rule(db: Session, owner_id: UUID) -> ProjectCodeRule | None:
 # ------------------------------------------------------------
 
 def create_project(db: Session, payload: ProjectCreate, created_by: UUID) -> Project:
-    # 0) Sıradaki kodu üret (kilitli)
+    # 0) İlgili kullanıcı için kural yoksa varsayılan PROFORMA-1 kuralını oluştur
+    get_or_create_default_rule(db, created_by)
+    # 1) Sıradaki kodu üret (kilitli)
     next_n, code = issue_next_code_in_tx(db, created_by)
 
-    # 1) Proje objesini oluştur
+    # 2) Proje objesini oluştur
     today = datetime.utcnow()
     is_teklif_val = True if payload.is_teklif is None else bool(payload.is_teklif)
 
@@ -176,7 +178,7 @@ def create_project(db: Session, payload: ProjectCreate, created_by: UUID) -> Pro
     db.add(project)
     db.flush()  # project.id hazır
 
-    # 2) Ledger’a UPSERT (tek yerden)
+    # 3) Ledger’a UPSERT (tek yerden)
     upsert = pg_insert(ProjectCodeLedger).values(
         owner_id=created_by,
         number=next_n,
@@ -191,7 +193,7 @@ def create_project(db: Session, payload: ProjectCreate, created_by: UUID) -> Pro
     )
     db.execute(upsert)
 
-    # 3) Tek commit (unique çakışmasına karşı retry)
+    # 4) Tek commit (unique çakışmasına karşı retry)
     try:
         db.commit()
     except IntegrityError:
