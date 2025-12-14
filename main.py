@@ -7,6 +7,7 @@ import app.models.glass_type
 import app.models.other_material
 import app.models.profile
 import app.models.system
+import app.models.calculation_helper
 
 from fastapi import FastAPI, APIRouter
 from app.routes.order import router as order_router
@@ -23,6 +24,7 @@ from app.routes import me_profile_picture as me_pp_routes
 from app.routes import me_pdf_titles as me_pdf_titles_routes
 from app.routes import me_pdf_brands as me_pdf_brands_routes
 from app.routes import me_project_code as me_project_code_routes
+from app.routes import me_calculation_helper as me_calc_routes
 
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
@@ -78,6 +80,7 @@ app.include_router(me_pp_routes.router)
 app.include_router(me_pdf_titles_routes.router)
 app.include_router(me_pdf_brands_routes.router)
 app.include_router(me_project_code_routes.router)
+app.include_router(me_calc_routes.router)
 app.include_router(dealers_router)
 app.include_router(customer_router)
 app.include_router(project_router)
@@ -88,7 +91,5 @@ app.include_router(variant_router)
 
 app.include_router(color.router)
 app.include_router(catalog_router)
-
-
 
 
